@@ -47,6 +47,10 @@ defmodule Dcmix.Export.XML do
       vr == :SQ and is_list(value) ->
         encode_sequence(tag_str, vr_str, keyword, value, indent_level, pretty)
 
+      # UN VR can contain sequences (list of DataSets)
+      vr in [:OB, :OD, :OF, :OL, :OW, :UN] and is_list(value) and length(value) > 0 and match?(%DataSet{}, hd(value)) ->
+        encode_sequence(tag_str, "SQ", keyword, value, indent_level, pretty)
+
       vr in [:OB, :OD, :OF, :OL, :OW, :UN] ->
         encode_binary_element(tag_str, vr_str, keyword, value, indent, pretty)
 
@@ -90,9 +94,17 @@ defmodule Dcmix.Export.XML do
   defp encode_binary_element(tag_str, vr_str, keyword, value, indent, pretty) do
     binary_data =
       cond do
-        is_binary(value) -> value
-        is_list(value) -> IO.iodata_to_binary(value)
-        true -> <<>>
+        is_binary(value) ->
+          value
+
+        is_list(value) ->
+          # Filter only binary fragments (encapsulated pixel data may have non-binary items)
+          value
+          |> Enum.filter(&is_binary/1)
+          |> IO.iodata_to_binary()
+
+        true ->
+          <<>>
       end
 
     if byte_size(binary_data) == 0 do
