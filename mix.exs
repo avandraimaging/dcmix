@@ -13,7 +13,7 @@ defmodule Dcmix.MixProject do
       name: "Dcmix",
       source_url: "https://github.com/avandra/dcmix",
       test_coverage: [
-        summary: [threshold: 85],
+        summary: [threshold: 90],
         ignore_modules: [
           Mix.Tasks.Dcmix.Dump,
           Mix.Tasks.Dcmix.ToJson,

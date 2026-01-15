@@ -4531,6 +4531,137 @@ defmodule DcmixTest do
       elem = DataSet.get(ds, {0x0070, 0x0010})
       assert is_list(elem.value)
     end
+
+    test "parses UL (unsigned long) values from dictionary tag" do
+      # (0002,0000) FileMetaInformationGroupLength is UL
+      binary = <<0x02, 0x00, 0x00, 0x00, 0x04, 0x00, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00>>
+      {:ok, ds, _rest} = ImplicitVR.parse(binary)
+      elem = DataSet.get(ds, {0x0002, 0x0000})
+      assert elem.value == 256
+    end
+
+    test "parses OB binary values from dictionary tag" do
+      # (0002,0001) FileMetaInformationVersion is OB
+      binary = <<0x02, 0x00, 0x01, 0x00, 0x04, 0x00, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00>>
+      {:ok, ds, _rest} = ImplicitVR.parse(binary)
+      elem = DataSet.get(ds, {0x0002, 0x0001})
+      assert is_binary(elem.value)
+    end
+
+    test "returns partial for data less than 8 bytes" do
+      # Data less than 8 bytes returns partial result with remaining bytes
+      binary = <<0x10, 0x00, 0x10, 0x00, 0x04, 0x00>>
+      {:ok, ds, rest} = ImplicitVR.parse(binary)
+      assert DataSet.size(ds) == 0
+      assert rest == binary
+    end
+
+    test "returns error for truncated value data" do
+      # Tag + length says 100 bytes but only 4 available
+      binary = <<0x10, 0x00, 0x10, 0x00, 0x64, 0x00, 0x00, 0x00, "Test">>
+      assert {:error, :unexpected_eof} = ImplicitVR.parse(binary)
+    end
+
+    test "parses item delimiter tag" do
+      # Item tags (FFFE,E000) should have nil VR
+      sequence_binary = <<
+        0x08, 0x00, 0x15, 0x11, 0xFF, 0xFF, 0xFF, 0xFF,
+        0xFE, 0xFF, 0x00, 0xE0, 0x00, 0x00, 0x00, 0x00,
+        0xFE, 0xFF, 0xDD, 0xE0, 0x00, 0x00, 0x00, 0x00
+      >>
+
+      {:ok, ds, _rest} = ImplicitVR.parse(sequence_binary)
+      elem = DataSet.get(ds, {0x0008, 0x1115})
+      assert is_list(elem.value)
+    end
+
+    test "handles sequence with multiple items" do
+      sequence_binary = <<
+        # Sequence tag with undefined length
+        0x08, 0x00, 0x15, 0x11, 0xFF, 0xFF, 0xFF, 0xFF,
+        # First item with defined length (12 bytes)
+        0xFE, 0xFF, 0x00, 0xE0, 0x0C, 0x00, 0x00, 0x00,
+        0x10, 0x00, 0x10, 0x00, 0x04, 0x00, 0x00, 0x00, "One\x00",
+        # Second item with defined length
+        0xFE, 0xFF, 0x00, 0xE0, 0x0C, 0x00, 0x00, 0x00,
+        0x10, 0x00, 0x10, 0x00, 0x04, 0x00, 0x00, 0x00, "Two\x00",
+        # Sequence delimitation
+        0xFE, 0xFF, 0xDD, 0xE0, 0x00, 0x00, 0x00, 0x00
+      >>
+
+      {:ok, ds, _rest} = ImplicitVR.parse(sequence_binary)
+      elem = DataSet.get(ds, {0x0008, 0x1115})
+      assert length(elem.value) == 2
+    end
+
+    test "handles UN with undefined length as sequence" do
+      # Private tag with undefined length - should try sequence parsing
+      sequence_binary = <<
+        0x09, 0x00, 0x10, 0x00, 0xFF, 0xFF, 0xFF, 0xFF,
+        0xFE, 0xFF, 0x00, 0xE0, 0x00, 0x00, 0x00, 0x00,
+        0xFE, 0xFF, 0xDD, 0xE0, 0x00, 0x00, 0x00, 0x00
+      >>
+
+      {:ok, ds, _rest} = ImplicitVR.parse(sequence_binary)
+      elem = DataSet.get(ds, {0x0009, 0x0010})
+      assert is_list(elem.value)
+    end
+
+    test "returns error for unexpected tag in sequence" do
+      # Sequence with invalid content (not an item tag)
+      sequence_binary = <<
+        0x08, 0x00, 0x15, 0x11, 0xFF, 0xFF, 0xFF, 0xFF,
+        # Regular tag instead of item tag - should fail
+        0x10, 0x00, 0x10, 0x00, 0x04, 0x00, 0x00, 0x00, "Test"
+      >>
+
+      assert {:error, {:unexpected_tag_in_sequence, {0x0010, 0x0010}}} =
+               ImplicitVR.parse(sequence_binary)
+    end
+
+    test "returns error for truncated sequence delimiter" do
+      # Sequence delimiter tag without length
+      sequence_binary = <<
+        0x08, 0x00, 0x15, 0x11, 0xFF, 0xFF, 0xFF, 0xFF,
+        0xFE, 0xFF, 0x00, 0xE0, 0x00, 0x00, 0x00, 0x00,
+        0xFE, 0xFF, 0xDD, 0xE0
+      >>
+
+      assert {:error, :unexpected_eof} = ImplicitVR.parse(sequence_binary)
+    end
+
+    test "returns error for truncated item tag" do
+      # Item tag without length
+      sequence_binary = <<
+        0x08, 0x00, 0x15, 0x11, 0xFF, 0xFF, 0xFF, 0xFF,
+        0xFE, 0xFF, 0x00, 0xE0
+      >>
+
+      assert {:error, :unexpected_eof} = ImplicitVR.parse(sequence_binary)
+    end
+
+    test "handles defined length sequence with invalid content" do
+      # SQ with defined length but content is not valid items
+      sequence_binary = <<
+        0x08, 0x00, 0x15, 0x11, 0x08, 0x00, 0x00, 0x00,
+        # Invalid content - not starting with item tag
+        "NotValid"
+      >>
+
+      {:ok, ds, _rest} = ImplicitVR.parse(sequence_binary)
+      elem = DataSet.get(ds, {0x0008, 0x1115})
+      # Should fall back to treating as binary
+      assert elem != nil
+    end
+
+    test "parses multiple UL values" do
+      # (0040,A132) ReferencedSamplePositions is UL with VM 1-n
+      binary = <<0x40, 0x00, 0x32, 0xA1, 0x08, 0x00, 0x00, 0x00,
+                 0x01, 0x00, 0x00, 0x00, 0x02, 0x00, 0x00, 0x00>>
+      {:ok, ds, _rest} = ImplicitVR.parse(binary)
+      elem = DataSet.get(ds, {0x0040, 0xA132})
+      assert elem.value == [1, 2]
+    end
   end
 
   describe "ExplicitVR comprehensive" do
