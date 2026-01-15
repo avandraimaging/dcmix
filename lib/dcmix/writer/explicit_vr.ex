@@ -111,11 +111,13 @@ defmodule Dcmix.Writer.ExplicitVR do
     encode_numeric(vr, value, big_endian)
   end
 
-  defp encode_value(vr, value, _big_endian) when vr in [:OB, :OW, :OD, :OF, :OL, :UN] do
+  defp encode_value(vr, value, big_endian) when vr in [:OB, :OW, :OD, :OF, :OL, :UN] do
     # Binary data - return as-is (with padding if needed)
+    # Also handle embedded sequences (DataSets) that may appear with :UN VR
     cond do
       is_binary(value) -> pad_binary(value, vr)
-      is_list(value) -> IO.iodata_to_binary(value)
+      match?(%DataSet{}, value) -> encode(value, big_endian: big_endian)
+      is_list(value) -> encode_list_value(value, vr, big_endian)
       true -> <<>>
     end
   end
@@ -131,6 +133,19 @@ defmodule Dcmix.Writer.ExplicitVR do
       end
 
     pad_string(string_value, vr)
+  end
+
+  defp encode_list_value([], _vr, _big_endian), do: <<>>
+
+  defp encode_list_value([%DataSet{} | _] = items, _vr, big_endian) do
+    # List of DataSets - encode as sequence items
+    items
+    |> Enum.map(&encode_item(&1, big_endian))
+    |> IO.iodata_to_binary()
+  end
+
+  defp encode_list_value(value, _vr, _big_endian) do
+    IO.iodata_to_binary(value)
   end
 
   defp encode_numeric(:US, value, big_endian), do: encode_uint16_values(value, big_endian)

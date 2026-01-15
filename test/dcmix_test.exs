@@ -201,6 +201,54 @@ defmodule DcmixTest do
     end
   end
 
+  describe "Writer.ExplicitVR" do
+    alias Dcmix.{DataSet, DataElement}
+
+    test "encodes DataSet value with :UN VR" do
+      # Create a nested DataSet (like a sequence item)
+      nested_ds =
+        DataSet.new([
+          DataElement.new({0x0008, 0x0100}, :SH, "CODE1"),
+          DataElement.new({0x0008, 0x0102}, :SH, "SCHEME")
+        ])
+
+      # Create an element with :UN VR containing a DataSet
+      element = DataElement.new({0x0040, 0xA043}, :UN, nested_ds)
+
+      ds = DataSet.new([element])
+
+      # Should not raise - this was the bug we fixed
+      binary = Dcmix.Writer.ExplicitVR.encode(ds)
+
+      assert is_binary(binary)
+      assert byte_size(binary) > 0
+    end
+
+    test "encodes list of DataSets with :UN VR" do
+      # Create nested DataSets (like sequence items)
+      item1 =
+        DataSet.new([
+          DataElement.new({0x0008, 0x0100}, :SH, "CODE1")
+        ])
+
+      item2 =
+        DataSet.new([
+          DataElement.new({0x0008, 0x0100}, :SH, "CODE2")
+        ])
+
+      # Create an element with :UN VR containing a list of DataSets
+      element = DataElement.new({0x0040, 0xA043}, :UN, [item1, item2])
+
+      ds = DataSet.new([element])
+
+      # Should not raise - this was the bug we fixed
+      binary = Dcmix.Writer.ExplicitVR.encode(ds)
+
+      assert is_binary(binary)
+      assert byte_size(binary) > 0
+    end
+  end
+
   describe "Main API" do
     test "get_string retrieves string value" do
       ds =
