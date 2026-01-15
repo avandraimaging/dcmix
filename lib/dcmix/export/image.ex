@@ -2,7 +2,7 @@ defmodule Dcmix.Export.Image do
   @moduledoc """
   Exports DICOM pixel data to standard image formats.
 
-  Supports PNG (via ExPng library) and PPM/PGM formats.
+  Supports PNG and PPM/PGM formats.
   Similar to dcmtk's `dcm2pnm` and dicom-rs's `dicom-toimage`.
 
   ## Usage
@@ -108,12 +108,7 @@ defmodule Dcmix.Export.Image do
 
   # Encode decoded image to file
   defp encode_to_file(decoded, path, :png) do
-    {:ok, image} = encode_to_png(decoded)
-
-    case ExPng.Image.to_file(image, path) do
-      {:ok, _} -> :ok
-      error -> error
-    end
+    write_png_file(decoded, path)
   end
 
   defp encode_to_file(decoded, path, format) when format in [:ppm, :pgm] do
@@ -125,18 +120,15 @@ defmodule Dcmix.Export.Image do
     PPM.encode(decoded)
   end
 
-  defp encode_decoded(decoded, :png) do
-    # PNG binary encoding would require temporary file or expanding ExPng
-    # For now, return error as ExPng doesn't expose binary encoding
-    {:ok, _image} = encode_to_png(decoded)
+  defp encode_decoded(_decoded, :png) do
     {:error, {:not_implemented, "PNG binary encoding requires writing to file"}}
   end
 
-  # Convert decoded image to ExPng.Image
-  defp encode_to_png(%{photometric: :grayscale} = decoded) do
+  # Write PNG file using the png library (works with raw binary data)
+  defp write_png_file(%{photometric: :grayscale} = decoded, path) do
     %{width: width, height: height, bit_depth: bit_depth, pixels: pixels} = decoded
 
-    # Convert to 8-bit if necessary (ExPng only supports 8-bit)
+    # Convert to 8-bit if necessary
     pixel_bytes =
       if bit_depth == 16 do
         scale_16_to_8(pixels)
@@ -144,44 +136,39 @@ defmodule Dcmix.Export.Image do
         pixels
       end
 
-    # Convert binary to list of rows of Color.t()
-    rows = build_grayscale_rows(pixel_bytes, width, height)
+    {:ok, file} = File.open(path, [:write, :binary])
 
-    {:ok, ExPng.Image.new(rows)}
-  end
+    try do
+      config = %{size: {width, height}, mode: {:grayscale, 8}, file: file}
+      png = :png.create(config)
 
-  defp encode_to_png(%{photometric: :rgb} = decoded) do
-    %{width: width, height: height, bit_depth: _bit_depth, pixels: pixels} = decoded
-
-    # Convert binary to list of rows of Color.t()
-    rows = build_rgb_rows(pixels, width, height)
-
-    {:ok, ExPng.Image.new(rows)}
-  end
-
-  # Build 2D list of grayscale pixels for ExPng
-  defp build_grayscale_rows(pixels, width, height) do
-    for row_idx <- 0..(height - 1) do
-      row_offset = row_idx * width
-
-      for col_idx <- 0..(width - 1) do
-        <<gray>> = binary_part(pixels, row_offset + col_idx, 1)
-        ExPng.Color.grayscale(gray)
-      end
+      # Split pixels into rows and append each row
+      rows = for <<row::binary-size(width) <- pixel_bytes>>, do: row
+      :png.append(png, {:rows, rows})
+      :png.close(png)
+      :ok
+    after
+      File.close(file)
     end
   end
 
-  # Build 2D list of RGB pixels for ExPng
-  defp build_rgb_rows(pixels, width, height) do
-    # Each pixel is 3 bytes (RGB)
-    for row_idx <- 0..(height - 1) do
-      row_offset = row_idx * width * 3
+  defp write_png_file(%{photometric: :rgb} = decoded, path) do
+    %{width: width, height: height, pixels: pixels} = decoded
 
-      for col_idx <- 0..(width - 1) do
-        pixel_offset = row_offset + col_idx * 3
-        <<r, g, b>> = binary_part(pixels, pixel_offset, 3)
-        ExPng.Color.rgb(r, g, b)
-      end
+    {:ok, file} = File.open(path, [:write, :binary])
+
+    try do
+      config = %{size: {width, height}, mode: {:rgb, 8}, file: file}
+      png = :png.create(config)
+
+      # Split pixels into rows (3 bytes per pixel)
+      row_size = width * 3
+      rows = for <<row::binary-size(row_size) <- pixels>>, do: row
+      :png.append(png, {:rows, rows})
+      :png.close(png)
+      :ok
+    after
+      File.close(file)
     end
   end
 

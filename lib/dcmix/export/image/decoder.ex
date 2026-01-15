@@ -155,36 +155,107 @@ defmodule Dcmix.Export.Image.Decoder do
   end
 
   defp decode_monochrome(raw_pixels, info, window, opts, invert) do
-    output_bits = Keyword.get(opts, :output_bits)
+    default_bits = if window == :none, do: 16, else: 8
+    output_bits = Keyword.get(opts, :output_bits) || default_bits
+    bytes_per_sample = div(info.bits_allocated, 8)
+    signed = info.pixel_representation == 1
+    mask = (1 <<< info.bits_stored) - 1
+    half_range = if signed, do: 1 <<< (info.bits_stored - 1), else: 0
 
-    # Parse pixel values from binary
-    pixel_values = parse_pixel_values(raw_pixels, info)
+    # Compute window parameters (single pass for min_max/auto)
+    {min_val, max_val} =
+      case window do
+        :none ->
+          {0, (1 <<< info.bits_stored) - 1}
 
-    # Apply windowing
-    {windowed_pixels, actual_output_bits} =
-      apply_windowing(pixel_values, info, window, output_bits)
+        {center, width} ->
+          {center - width / 2, center + width / 2}
 
-    # Apply inversion for MONOCHROME1
-    final_pixels =
-      if invert do
-        max_val = if actual_output_bits == 8, do: 255, else: 65535
-        Enum.map(windowed_pixels, fn v -> max_val - v end)
-      else
-        windowed_pixels
+        _ ->
+          # :auto or :min_max - scan binary for actual min/max
+          find_min_max_binary(raw_pixels, bytes_per_sample, signed, mask, half_range)
       end
 
-    # Convert to binary
-    pixel_binary = pixels_to_binary(final_pixels, actual_output_bits)
+    range = max(max_val - min_val, 1)
+    max_out = if output_bits == 8, do: 255, else: 65535
+    scale = max_out / range
+
+    # Single pass: parse, window, invert, and output to binary
+    pixel_binary =
+      decode_monochrome_binary(
+        raw_pixels,
+        bytes_per_sample,
+        signed,
+        mask,
+        half_range,
+        min_val,
+        scale,
+        max_out,
+        output_bits,
+        invert
+      )
 
     {:ok,
      %{
        width: info.columns,
        height: info.rows,
        samples_per_pixel: 1,
-       bit_depth: actual_output_bits,
+       bit_depth: output_bits,
        pixels: pixel_binary,
        photometric: :grayscale
      }}
+  end
+
+  # Find min/max in a single binary scan
+  defp find_min_max_binary(binary, bytes_per_sample, signed, mask, half_range) do
+    find_min_max_binary(binary, bytes_per_sample, signed, mask, half_range, nil, nil)
+  end
+
+  defp find_min_max_binary(<<>>, _bps, _signed, _mask, _hr, min, max), do: {min, max}
+
+  defp find_min_max_binary(binary, bps, signed, mask, half_range, min_acc, max_acc) do
+    <<chunk::binary-size(bps), rest::binary>> = binary
+
+    raw =
+      case {bps, signed} do
+        {1, false} -> :binary.decode_unsigned(chunk, :little)
+        {1, true} -> decode_signed_8(chunk)
+        {2, false} -> :binary.decode_unsigned(chunk, :little)
+        {2, true} -> decode_signed_16(chunk)
+        _ -> :binary.decode_unsigned(chunk, :little)
+      end
+
+    value = (raw &&& mask) + half_range
+
+    new_min = if min_acc == nil or value < min_acc, do: value, else: min_acc
+    new_max = if max_acc == nil or value > max_acc, do: value, else: max_acc
+
+    find_min_max_binary(rest, bps, signed, mask, half_range, new_min, new_max)
+  end
+
+  # Decode monochrome pixels directly to binary output
+  defp decode_monochrome_binary(binary, bps, signed, mask, half_range, min_val, scale, max_out, output_bits, invert) do
+    for <<chunk::binary-size(bps) <- binary>>, into: <<>> do
+      raw =
+        case {bps, signed} do
+          {1, false} -> :binary.decode_unsigned(chunk, :little)
+          {1, true} -> decode_signed_8(chunk)
+          {2, false} -> :binary.decode_unsigned(chunk, :little)
+          {2, true} -> decode_signed_16(chunk)
+          _ -> :binary.decode_unsigned(chunk, :little)
+        end
+
+      value = (raw &&& mask) + half_range
+      normalized = (value - min_val) * scale
+      clamped = max(0, min(max_out, round(normalized)))
+      output = if invert, do: max_out - clamped, else: clamped
+
+      if output_bits == 8 do
+        <<output::8>>
+      else
+        <<output::little-16>>
+      end
+    end
   end
 
   defp decode_rgb(raw_pixels, info, _opts) do
@@ -245,97 +316,8 @@ defmodule Dcmix.Export.Image.Decoder do
     end
   end
 
-  # Parse raw binary into list of integer pixel values
-  defp parse_pixel_values(binary, info) do
-    bytes_per_sample = div(info.bits_allocated, 8)
-    signed = info.pixel_representation == 1
-
-    for <<chunk::binary-size(bytes_per_sample) <- binary>> do
-      value =
-        case {bytes_per_sample, signed} do
-          {1, false} -> :binary.decode_unsigned(chunk, :little)
-          {1, true} -> decode_signed_8(chunk)
-          {2, false} -> :binary.decode_unsigned(chunk, :little)
-          {2, true} -> decode_signed_16(chunk)
-          _ -> :binary.decode_unsigned(chunk, :little)
-        end
-
-      # Mask to bits_stored
-      mask = (1 <<< info.bits_stored) - 1
-      value = value &&& mask
-
-      # Handle signed values by shifting to unsigned range
-      if signed do
-        half_range = 1 <<< (info.bits_stored - 1)
-        value + half_range
-      else
-        value
-      end
-    end
-  end
-
   defp decode_signed_8(<<value::signed-integer-8>>), do: value
   defp decode_signed_16(<<value::signed-little-integer-16>>), do: value
-
-  # Apply windowing to normalize pixel values
-  defp apply_windowing(pixel_values, info, window, output_bits) do
-    case window do
-      :none ->
-        # No windowing - preserve original bit depth
-        bits = output_bits || 16
-        max_out = if bits == 8, do: 255, else: 65535
-        max_in = (1 <<< info.bits_stored) - 1
-        scaled = Enum.map(pixel_values, fn v -> round(v / max_in * max_out) end)
-        {scaled, bits}
-
-      :min_max ->
-        # Window based on actual pixel value range
-        {min_val, max_val} = Enum.min_max(pixel_values)
-        apply_window_transform(pixel_values, min_val, max_val, output_bits || 8)
-
-      :auto ->
-        # Try VOI LUT from tags, fall back to min_max
-        # For now, use min_max (VOI LUT parsing can be added later)
-        {min_val, max_val} = Enum.min_max(pixel_values)
-        apply_window_transform(pixel_values, min_val, max_val, output_bits || 8)
-
-      {center, width} ->
-        # Explicit window center/width
-        min_val = center - width / 2
-        max_val = center + width / 2
-        apply_window_transform(pixel_values, min_val, max_val, output_bits || 8)
-    end
-  end
-
-  defp apply_window_transform(pixel_values, min_val, max_val, output_bits) do
-    range = max(max_val - min_val, 1)
-    max_out = if output_bits == 8, do: 255, else: 65535
-
-    scaled =
-      Enum.map(pixel_values, fn v ->
-        normalized = (v - min_val) / range
-        clamped = max(0.0, min(1.0, normalized))
-        round(clamped * max_out)
-      end)
-
-    {scaled, output_bits}
-  end
-
-  # Convert pixel list to binary
-  defp pixels_to_binary(pixels, 8) do
-    pixels
-    |> Enum.map(fn v -> min(255, max(0, v)) end)
-    |> :binary.list_to_bin()
-  end
-
-  defp pixels_to_binary(pixels, 16) do
-    pixels
-    |> Enum.map(fn v ->
-      clamped = min(65535, max(0, v))
-      <<clamped::little-unsigned-integer-16>>
-    end)
-    |> IO.iodata_to_binary()
-  end
 
   # Convert planar (RRRGGGBBB) to interleaved (RGBRGBRGB)
   defp deinterleave_planar(binary, info) do
