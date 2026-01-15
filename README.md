@@ -137,9 +137,17 @@ mix deps.get
 # Run tests
 mix test
 
+# Run tests with coverage
+mix test --cover
+
 # Compile
 mix compile
 ```
+
+### TODO
+
+- [ ] Improve test coverage for Mix.Tasks modules (currently excluded from coverage)
+- [ ] Increase overall test coverage threshold from 85% to 90%+ (currently at ~89%)
 
 ## License
 

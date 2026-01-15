@@ -233,36 +233,43 @@ defmodule Dcmix.Parser.ImplicitVR do
 
   defp decode_uint16_list(bytes, acc \\ [])
   defp decode_uint16_list(<<>>, acc), do: unwrap_single(Enum.reverse(acc))
+
   defp decode_uint16_list(<<val::16-little, rest::binary>>, acc),
     do: decode_uint16_list(rest, [val | acc])
 
   defp decode_int16_list(bytes, acc \\ [])
   defp decode_int16_list(<<>>, acc), do: unwrap_single(Enum.reverse(acc))
+
   defp decode_int16_list(<<val::16-signed-little, rest::binary>>, acc),
     do: decode_int16_list(rest, [val | acc])
 
   defp decode_uint32_list(bytes, acc \\ [])
   defp decode_uint32_list(<<>>, acc), do: unwrap_single(Enum.reverse(acc))
+
   defp decode_uint32_list(<<val::32-little, rest::binary>>, acc),
     do: decode_uint32_list(rest, [val | acc])
 
   defp decode_int32_list(bytes, acc \\ [])
   defp decode_int32_list(<<>>, acc), do: unwrap_single(Enum.reverse(acc))
+
   defp decode_int32_list(<<val::32-signed-little, rest::binary>>, acc),
     do: decode_int32_list(rest, [val | acc])
 
   defp decode_float32_list(bytes, acc \\ [])
   defp decode_float32_list(<<>>, acc), do: unwrap_single(Enum.reverse(acc))
+
   defp decode_float32_list(<<val::32-float-little, rest::binary>>, acc),
     do: decode_float32_list(rest, [val | acc])
 
   defp decode_float64_list(bytes, acc \\ [])
   defp decode_float64_list(<<>>, acc), do: unwrap_single(Enum.reverse(acc))
+
   defp decode_float64_list(<<val::64-float-little, rest::binary>>, acc),
     do: decode_float64_list(rest, [val | acc])
 
   defp decode_tag_list(bytes, acc \\ [])
   defp decode_tag_list(<<>>, acc), do: unwrap_single(Enum.reverse(acc))
+
   defp decode_tag_list(<<g::16-little, e::16-little, rest::binary>>, acc),
     do: decode_tag_list(rest, [{g, e} | acc])
 

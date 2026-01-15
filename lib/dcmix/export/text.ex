@@ -26,7 +26,12 @@ defmodule Dcmix.Export.Text do
     |> Enum.map_join("\n", &format_element(&1, 0, max_length, show_length))
   end
 
-  defp format_element(%DataElement{tag: tag, vr: vr, value: value, length: length}, indent, max_length, show_length) do
+  defp format_element(
+         %DataElement{tag: tag, vr: vr, value: value, length: length},
+         indent,
+         max_length,
+         show_length
+       ) do
     indent_str = String.duplicate("  ", indent)
     tag_str = Tag.to_string(tag)
     vr_str = if vr, do: Atom.to_string(vr), else: "??"
@@ -50,7 +55,10 @@ defmodule Dcmix.Export.Text do
     items_str =
       items
       |> Enum.with_index()
-      |> Enum.map_join("\n", &format_sequence_item(&1, indent_str, indent, max_length, show_length))
+      |> Enum.map_join(
+        "\n",
+        &format_sequence_item(&1, indent_str, indent, max_length, show_length)
+      )
 
     "#{header}\n#{items_str}"
   end

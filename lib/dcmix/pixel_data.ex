@@ -171,8 +171,7 @@ defmodule Dcmix.PixelData do
       bits_stored: DataSet.get_value(dataset, Tag.bits_stored()),
       high_bit: DataSet.get_value(dataset, Tag.high_bit()),
       pixel_representation: DataSet.get_value(dataset, Tag.pixel_representation()),
-      photometric_interpretation:
-        DataSet.get_value(dataset, Tag.photometric_interpretation()),
+      photometric_interpretation: DataSet.get_value(dataset, Tag.photometric_interpretation()),
       number_of_frames: parse_int(DataSet.get_value(dataset, {0x0028, 0x0008})) || 1,
       has_pixel_data: DataSet.has_tag?(dataset, @pixel_data_tag),
       encapsulated: encapsulated?(dataset)

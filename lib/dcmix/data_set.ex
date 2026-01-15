@@ -179,10 +179,12 @@ defmodule Dcmix.DataSet do
   """
   @spec split_file_meta(t()) :: {t(), t()}
   def split_file_meta(%__MODULE__{elements: elements}) do
-    {meta_elements, data_elements} = Enum.split_with(elements, fn e ->
-      {g, _} = e.tag
-      g == 0x0002
-    end)
+    {meta_elements, data_elements} =
+      Enum.split_with(elements, fn e ->
+        {g, _} = e.tag
+        g == 0x0002
+      end)
+
     {new(meta_elements), new(data_elements)}
   end
 

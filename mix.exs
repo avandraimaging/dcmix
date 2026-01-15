@@ -11,7 +11,15 @@ defmodule Dcmix.MixProject do
       description: description(),
       package: package(),
       name: "Dcmix",
-      source_url: "https://github.com/avandra/dcmix"
+      source_url: "https://github.com/avandra/dcmix",
+      test_coverage: [
+        summary: [threshold: 85],
+        ignore_modules: [
+          Mix.Tasks.Dcmix.Dump,
+          Mix.Tasks.Dcmix.ToJson,
+          Mix.Tasks.Dcmix.ToXml
+        ]
+      ]
     ]
   end
 

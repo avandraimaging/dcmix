@@ -45,11 +45,20 @@ defmodule Dcmix.Export.XML do
     encode_element_by_type(tag_str, vr_str, keyword, vr, value, indent_level, pretty)
   end
 
-  defp encode_element_by_type(tag_str, vr_str, keyword, :SQ, value, indent_level, pretty) when is_list(value) do
+  defp encode_element_by_type(tag_str, vr_str, keyword, :SQ, value, indent_level, pretty)
+       when is_list(value) do
     encode_sequence(tag_str, vr_str, keyword, value, indent_level, pretty)
   end
 
-  defp encode_element_by_type(tag_str, _vr_str, keyword, vr, [%DataSet{} | _] = value, indent_level, pretty)
+  defp encode_element_by_type(
+         tag_str,
+         _vr_str,
+         keyword,
+         vr,
+         [%DataSet{} | _] = value,
+         indent_level,
+         pretty
+       )
        when vr in [:OB, :OD, :OF, :OL, :OW, :UN] do
     encode_sequence(tag_str, "SQ", keyword, value, indent_level, pretty)
   end
@@ -67,7 +76,10 @@ defmodule Dcmix.Export.XML do
 
   defp tag_to_attr({group, element}) do
     group_hex = group |> Integer.to_string(16) |> String.pad_leading(4, "0") |> String.upcase()
-    element_hex = element |> Integer.to_string(16) |> String.pad_leading(4, "0") |> String.upcase()
+
+    element_hex =
+      element |> Integer.to_string(16) |> String.pad_leading(4, "0") |> String.upcase()
+
     "#{group_hex}#{element_hex}"
   end
 
@@ -152,6 +164,7 @@ defmodule Dcmix.Export.XML do
 
   defp format_xml_value({val, num}, :PN, inner_indent) do
     escaped_val = escape_xml(val)
+
     "#{inner_indent}<PersonName number=\"#{num}\"><Alphabetic><FamilyName>#{escaped_val}</FamilyName></Alphabetic></PersonName>"
   end
 
