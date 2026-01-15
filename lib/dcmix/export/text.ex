@@ -23,8 +23,7 @@ defmodule Dcmix.Export.Text do
 
     dataset
     |> DataSet.to_list()
-    |> Enum.map(&format_element(&1, 0, max_length, show_length))
-    |> Enum.join("\n")
+    |> Enum.map_join("\n", &format_element(&1, 0, max_length, show_length))
   end
 
   defp format_element(%DataElement{tag: tag, vr: vr, value: value, length: length}, indent, max_length, show_length) do
@@ -32,39 +31,40 @@ defmodule Dcmix.Export.Text do
     tag_str = Tag.to_string(tag)
     vr_str = if vr, do: Atom.to_string(vr), else: "??"
     keyword = Dictionary.keyword(tag) || "UnknownTag"
-
-    value_str = format_value(vr, value, max_length)
     length_str = if show_length, do: format_length(length), else: ""
+    header = "#{indent_str}#{tag_str} #{vr_str} #{keyword}#{length_str}"
 
     if vr == :SQ and is_list(value) do
-      # Sequence with items
-      header = "#{indent_str}#{tag_str} #{vr_str} #{keyword}#{length_str}"
-
-      if Enum.empty?(value) do
-        header <> " (no items)"
-      else
-        items_str =
-          value
-          |> Enum.with_index()
-          |> Enum.map(fn {item, idx} ->
-            item_header = "#{indent_str}  (Item ##{idx})"
-            item_content = format_item(item, indent + 2, max_length, show_length)
-            "#{item_header}\n#{item_content}"
-          end)
-          |> Enum.join("\n")
-
-        "#{header}\n#{items_str}"
-      end
+      format_sequence(header, value, indent_str, indent, max_length, show_length)
     else
-      "#{indent_str}#{tag_str} #{vr_str} #{keyword}#{length_str} [#{value_str}]"
+      value_str = format_value(vr, value, max_length)
+      "#{header} [#{value_str}]"
     end
+  end
+
+  defp format_sequence(header, [], _indent_str, _indent, _max_length, _show_length) do
+    header <> " (no items)"
+  end
+
+  defp format_sequence(header, items, indent_str, indent, max_length, show_length) do
+    items_str =
+      items
+      |> Enum.with_index()
+      |> Enum.map_join("\n", &format_sequence_item(&1, indent_str, indent, max_length, show_length))
+
+    "#{header}\n#{items_str}"
+  end
+
+  defp format_sequence_item({item, idx}, indent_str, indent, max_length, show_length) do
+    item_header = "#{indent_str}  (Item ##{idx})"
+    item_content = format_item(item, indent + 2, max_length, show_length)
+    "#{item_header}\n#{item_content}"
   end
 
   defp format_item(%DataSet{} = item, indent, max_length, show_length) do
     item
     |> DataSet.to_list()
-    |> Enum.map(&format_element(&1, indent, max_length, show_length))
-    |> Enum.join("\n")
+    |> Enum.map_join("\n", &format_element(&1, indent, max_length, show_length))
   end
 
   defp format_length(:undefined), do: " (undefined length)"
@@ -85,9 +85,9 @@ defmodule Dcmix.Export.Text do
       is_binary(value) ->
         format_binary_preview(value)
 
-      is_list(value) and length(value) > 0 and match?(%DataSet{}, hd(value)) ->
+      match?([%DataSet{} | _], value) ->
         # This is actually a sequence stored with UN VR
-        "#{length(value)} item(s)"
+        "#{Enum.count(value)} item(s)"
 
       is_list(value) ->
         # Fragments (encapsulated pixel data)
@@ -105,8 +105,7 @@ defmodule Dcmix.Export.Text do
     values = if is_list(value), do: value, else: [value]
 
     values
-    |> Enum.map(&format_number/1)
-    |> Enum.join(", ")
+    |> Enum.map_join(", ", &format_number/1)
     |> truncate(max_length)
   end
 
@@ -115,11 +114,10 @@ defmodule Dcmix.Export.Text do
     values = if is_list(value), do: value, else: [value]
 
     values
-    |> Enum.map(fn
+    |> Enum.map_join(", ", fn
       {g, e} -> Tag.to_string({g, e})
       v -> inspect(v)
     end)
-    |> Enum.join(", ")
     |> truncate(max_length)
   end
 
@@ -131,8 +129,7 @@ defmodule Dcmix.Export.Text do
 
   defp format_value(_vr, value, max_length) when is_list(value) do
     value
-    |> Enum.map(&to_string/1)
-    |> Enum.join("\\")
+    |> Enum.map_join("\\", &to_string/1)
     |> truncate(max_length)
   end
 
@@ -151,7 +148,7 @@ defmodule Dcmix.Export.Text do
     else
       preview_bytes = min(16, len)
       preview = binary_part(binary_data, 0, preview_bytes)
-      hex = preview |> :binary.bin_to_list() |> Enum.map(&hex_byte/1) |> Enum.join(" ")
+      hex = preview |> :binary.bin_to_list() |> Enum.map_join(" ", &hex_byte/1)
 
       if len > preview_bytes do
         "#{hex}... (#{len} bytes)"

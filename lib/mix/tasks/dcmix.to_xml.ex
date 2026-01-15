@@ -49,27 +49,24 @@ defmodule Mix.Tasks.Dcmix.ToXml do
       exit({:shutdown, 1})
     end
 
-    case Dcmix.read_file(input_file) do
-      {:ok, dataset} ->
-        xml_opts = [pretty: not Keyword.get(opts, :no_pretty, false)]
+    xml_opts = [pretty: not Keyword.get(opts, :no_pretty, false)]
 
-        case Dcmix.to_xml(dataset, xml_opts) do
-          {:ok, xml} ->
-            if output_file do
-              File.write!(output_file, xml)
-              Mix.shell().info("Written to #{output_file}")
-            else
-              Mix.shell().info(xml)
-            end
-
-          {:error, reason} ->
-            Mix.shell().error("Failed to encode XML: #{inspect(reason)}")
-            exit({:shutdown, 1})
-        end
-
+    with {:ok, dataset} <- Dcmix.read_file(input_file),
+         {:ok, xml} <- Dcmix.to_xml(dataset, xml_opts) do
+      write_output(xml, output_file)
+    else
       {:error, reason} ->
-        Mix.shell().error("Failed to parse file: #{inspect(reason)}")
+        Mix.shell().error("Conversion failed: #{inspect(reason)}")
         exit({:shutdown, 1})
     end
+  end
+
+  defp write_output(content, nil) do
+    Mix.shell().info(content)
+  end
+
+  defp write_output(content, output_file) do
+    File.write!(output_file, content)
+    Mix.shell().info("Written to #{output_file}")
   end
 end

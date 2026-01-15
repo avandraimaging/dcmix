@@ -32,23 +32,18 @@ defmodule Dcmix.Parser.ImplicitVR do
   end
 
   defp parse_elements(data, elements, stop_tag) do
-    case parse_tag(data) do
-      {:ok, tag, rest} ->
-        if stop_tag && Tag.compare(tag, stop_tag) != :lt do
-          {:ok, DataSet.new(Enum.reverse(elements)), data}
-        else
-          case parse_element(tag, rest) do
-            {:ok, element, rest} ->
-              parse_elements(rest, [element | elements], stop_tag)
-
-            {:error, _} = error ->
-              error
-          end
-        end
-
-      {:error, _} = error ->
-        error
+    with {:ok, tag, rest} <- parse_tag(data),
+         :continue <- check_stop_tag(tag, stop_tag),
+         {:ok, element, rest} <- parse_element(tag, rest) do
+      parse_elements(rest, [element | elements], stop_tag)
+    else
+      :stop -> {:ok, DataSet.new(Enum.reverse(elements)), data}
+      {:error, _} = error -> error
     end
+  end
+
+  defp check_stop_tag(tag, stop_tag) do
+    if stop_tag && Tag.compare(tag, stop_tag) != :lt, do: :stop, else: :continue
   end
 
   defp parse_tag(<<group::16-little, element::16-little, rest::binary>>) do
@@ -122,40 +117,26 @@ defmodule Dcmix.Parser.ImplicitVR do
   end
 
   defp parse_sequence_items(data, items) do
-    case parse_tag(data) do
-      {:ok, {0xFFFE, 0xE0DD}, rest} ->
-        # Sequence Delimitation Item
-        case rest do
-          <<_length::32-little, rest::binary>> ->
-            {:ok, Enum.reverse(items), rest}
-
-          _ ->
-            {:error, :unexpected_eof}
-        end
-
-      {:ok, {0xFFFE, 0xE000}, rest} ->
-        # Item tag
-        case rest do
-          <<length::32-little, rest::binary>> ->
-            case parse_item(length, rest) do
-              {:ok, item_ds, rest} ->
-                parse_sequence_items(rest, [item_ds | items])
-
-              {:error, _} = error ->
-                error
-            end
-
-          _ ->
-            {:error, :unexpected_eof}
-        end
-
-      {:ok, tag, _rest} ->
-        {:error, {:unexpected_tag_in_sequence, tag}}
-
-      {:error, _} = error ->
-        error
+    with {:ok, tag, rest} <- parse_tag(data) do
+      handle_seq_tag(tag, rest, items)
     end
   end
+
+  defp handle_seq_tag({0xFFFE, 0xE0DD}, <<_length::32-little, rest::binary>>, items) do
+    {:ok, Enum.reverse(items), rest}
+  end
+
+  defp handle_seq_tag({0xFFFE, 0xE0DD}, _, _items), do: {:error, :unexpected_eof}
+
+  defp handle_seq_tag({0xFFFE, 0xE000}, <<length::32-little, rest::binary>>, items) do
+    with {:ok, item_ds, rest} <- parse_item(length, rest) do
+      parse_sequence_items(rest, [item_ds | items])
+    end
+  end
+
+  defp handle_seq_tag({0xFFFE, 0xE000}, _, _items), do: {:error, :unexpected_eof}
+
+  defp handle_seq_tag(tag, _rest, _items), do: {:error, {:unexpected_tag_in_sequence, tag}}
 
   defp parse_sequence_defined(data) do
     parse_sequence_items_defined(data, [])
@@ -166,29 +147,20 @@ defmodule Dcmix.Parser.ImplicitVR do
   end
 
   defp parse_sequence_items_defined(data, items) do
-    case parse_tag(data) do
-      {:ok, {0xFFFE, 0xE000}, rest} ->
-        case rest do
-          <<length::32-little, rest::binary>> ->
-            case parse_item(length, rest) do
-              {:ok, item_ds, rest} ->
-                parse_sequence_items_defined(rest, [item_ds | items])
-
-              {:error, _} = error ->
-                error
-            end
-
-          _ ->
-            {:error, :unexpected_eof}
-        end
-
-      {:ok, _tag, _rest} ->
-        {:error, :not_a_sequence}
-
-      {:error, _} = error ->
-        error
+    with {:ok, tag, rest} <- parse_tag(data) do
+      handle_seq_defined_tag(tag, rest, items)
     end
   end
+
+  defp handle_seq_defined_tag({0xFFFE, 0xE000}, <<length::32-little, rest::binary>>, items) do
+    with {:ok, item_ds, rest} <- parse_item(length, rest) do
+      parse_sequence_items_defined(rest, [item_ds | items])
+    end
+  end
+
+  defp handle_seq_defined_tag({0xFFFE, 0xE000}, _, _items), do: {:error, :unexpected_eof}
+
+  defp handle_seq_defined_tag(_tag, _rest, _items), do: {:error, :not_a_sequence}
 
   defp parse_item(@undefined_length, data) do
     parse_item_undefined(data, [])

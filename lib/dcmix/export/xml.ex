@@ -38,25 +38,31 @@ defmodule Dcmix.Export.XML do
   end
 
   defp encode_element(%DataElement{tag: tag, vr: vr, value: value}, indent_level, pretty) do
-    indent = if pretty, do: String.duplicate("  ", indent_level), else: ""
     tag_str = tag_to_attr(tag)
     vr_str = if vr, do: Atom.to_string(vr), else: "UN"
     keyword = Dictionary.keyword(tag) || ""
 
-    cond do
-      vr == :SQ and is_list(value) ->
-        encode_sequence(tag_str, vr_str, keyword, value, indent_level, pretty)
+    encode_element_by_type(tag_str, vr_str, keyword, vr, value, indent_level, pretty)
+  end
 
-      # UN VR can contain sequences (list of DataSets)
-      vr in [:OB, :OD, :OF, :OL, :OW, :UN] and is_list(value) and length(value) > 0 and match?(%DataSet{}, hd(value)) ->
-        encode_sequence(tag_str, "SQ", keyword, value, indent_level, pretty)
+  defp encode_element_by_type(tag_str, vr_str, keyword, :SQ, value, indent_level, pretty) when is_list(value) do
+    encode_sequence(tag_str, vr_str, keyword, value, indent_level, pretty)
+  end
 
-      vr in [:OB, :OD, :OF, :OL, :OW, :UN] ->
-        encode_binary_element(tag_str, vr_str, keyword, value, indent, pretty)
+  defp encode_element_by_type(tag_str, _vr_str, keyword, vr, [%DataSet{} | _] = value, indent_level, pretty)
+       when vr in [:OB, :OD, :OF, :OL, :OW, :UN] do
+    encode_sequence(tag_str, "SQ", keyword, value, indent_level, pretty)
+  end
 
-      true ->
-        encode_value_element(tag_str, vr_str, keyword, vr, value, indent, pretty)
-    end
+  defp encode_element_by_type(tag_str, vr_str, keyword, vr, value, indent_level, pretty)
+       when vr in [:OB, :OD, :OF, :OL, :OW, :UN] do
+    indent = if pretty, do: String.duplicate("  ", indent_level), else: ""
+    encode_binary_element(tag_str, vr_str, keyword, value, indent, pretty)
+  end
+
+  defp encode_element_by_type(tag_str, vr_str, keyword, vr, value, indent_level, pretty) do
+    indent = if pretty, do: String.duplicate("  ", indent_level), else: ""
+    encode_value_element(tag_str, vr_str, keyword, vr, value, indent, pretty)
   end
 
   defp tag_to_attr({group, element}) do
@@ -65,29 +71,33 @@ defmodule Dcmix.Export.XML do
     "#{group_hex}#{element_hex}"
   end
 
+  defp encode_sequence(tag_str, vr_str, keyword, [], indent_level, pretty) do
+    indent = if pretty, do: String.duplicate("  ", indent_level), else: ""
+    "#{indent}<DicomAttribute tag=\"#{tag_str}\" vr=\"#{vr_str}\" keyword=\"#{keyword}\"/>"
+  end
+
   defp encode_sequence(tag_str, vr_str, keyword, items, indent_level, pretty) do
     indent = if pretty, do: String.duplicate("  ", indent_level), else: ""
     newline = if pretty, do: "\n", else: ""
 
-    if Enum.empty?(items) do
-      "#{indent}<DicomAttribute tag=\"#{tag_str}\" vr=\"#{vr_str}\" keyword=\"#{keyword}\"/>"
+    items_xml =
+      items
+      |> Enum.with_index()
+      |> Enum.map(&encode_sequence_item(&1, indent_level, pretty))
+      |> join_elements(pretty)
+
+    "#{indent}<DicomAttribute tag=\"#{tag_str}\" vr=\"#{vr_str}\" keyword=\"#{keyword}\">#{newline}#{items_xml}#{newline}#{indent}</DicomAttribute>"
+  end
+
+  defp encode_sequence_item({item, idx}, indent_level, pretty) do
+    item_indent = if pretty, do: String.duplicate("  ", indent_level + 1), else: ""
+    item_content = encode_elements(item, indent_level + 2, pretty)
+    newline = if pretty, do: "\n", else: ""
+
+    if item_content == "" do
+      "#{item_indent}<Item number=\"#{idx + 1}\"/>"
     else
-      items_xml =
-        items
-        |> Enum.with_index()
-        |> Enum.map(fn {item, idx} ->
-          item_indent = if pretty, do: String.duplicate("  ", indent_level + 1), else: ""
-          item_content = encode_elements(item, indent_level + 2, pretty)
-
-          if item_content == "" do
-            "#{item_indent}<Item number=\"#{idx + 1}\"/>"
-          else
-            "#{item_indent}<Item number=\"#{idx + 1}\">#{newline}#{item_content}#{newline}#{item_indent}</Item>"
-          end
-        end)
-        |> join_elements(pretty)
-
-      "#{indent}<DicomAttribute tag=\"#{tag_str}\" vr=\"#{vr_str}\" keyword=\"#{keyword}\">#{newline}#{items_xml}#{newline}#{indent}</DicomAttribute>"
+      "#{item_indent}<Item number=\"#{idx + 1}\">#{newline}#{item_content}#{newline}#{item_indent}</Item>"
     end
   end
 
@@ -120,29 +130,34 @@ defmodule Dcmix.Export.XML do
 
   defp encode_value_element(tag_str, vr_str, keyword, vr, value, indent, pretty) do
     values = normalize_values(vr, value)
+    encode_value_element_with_values(tag_str, vr_str, keyword, vr, values, indent, pretty)
+  end
 
-    if Enum.empty?(values) do
-      "#{indent}<DicomAttribute tag=\"#{tag_str}\" vr=\"#{vr_str}\" keyword=\"#{keyword}\"/>"
-    else
-      newline = if pretty, do: "\n", else: ""
-      inner_indent = if pretty, do: indent <> "  ", else: ""
+  defp encode_value_element_with_values(tag_str, vr_str, keyword, _vr, [], indent, _pretty) do
+    "#{indent}<DicomAttribute tag=\"#{tag_str}\" vr=\"#{vr_str}\" keyword=\"#{keyword}\"/>"
+  end
 
-      values_xml =
-        values
-        |> Enum.with_index(1)
-        |> Enum.map(fn {val, num} ->
-          escaped_val = escape_xml(val)
+  defp encode_value_element_with_values(tag_str, vr_str, keyword, vr, values, indent, pretty) do
+    newline = if pretty, do: "\n", else: ""
+    inner_indent = if pretty, do: indent <> "  ", else: ""
 
-          if vr == :PN do
-            "#{inner_indent}<PersonName number=\"#{num}\"><Alphabetic><FamilyName>#{escaped_val}</FamilyName></Alphabetic></PersonName>"
-          else
-            "#{inner_indent}<Value number=\"#{num}\">#{escaped_val}</Value>"
-          end
-        end)
-        |> join_elements(pretty)
+    values_xml =
+      values
+      |> Enum.with_index(1)
+      |> Enum.map(&format_xml_value(&1, vr, inner_indent))
+      |> join_elements(pretty)
 
-      "#{indent}<DicomAttribute tag=\"#{tag_str}\" vr=\"#{vr_str}\" keyword=\"#{keyword}\">#{newline}#{values_xml}#{newline}#{indent}</DicomAttribute>"
-    end
+    "#{indent}<DicomAttribute tag=\"#{tag_str}\" vr=\"#{vr_str}\" keyword=\"#{keyword}\">#{newline}#{values_xml}#{newline}#{indent}</DicomAttribute>"
+  end
+
+  defp format_xml_value({val, num}, :PN, inner_indent) do
+    escaped_val = escape_xml(val)
+    "#{inner_indent}<PersonName number=\"#{num}\"><Alphabetic><FamilyName>#{escaped_val}</FamilyName></Alphabetic></PersonName>"
+  end
+
+  defp format_xml_value({val, num}, _vr, inner_indent) do
+    escaped_val = escape_xml(val)
+    "#{inner_indent}<Value number=\"#{num}\">#{escaped_val}</Value>"
   end
 
   defp normalize_values(_vr, nil), do: []

@@ -126,7 +126,7 @@ defmodule Dcmix.Writer do
     time_part =
       Calendar.strftime(timestamp, "%H%M%S")
 
-    random_part = :rand.uniform(99999)
+    random_part = :rand.uniform(99_999)
 
     "1.2.826.0.1.3680043.9.7433.1.#{date_part}.#{time_part}.#{random_part}"
   end

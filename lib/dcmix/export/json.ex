@@ -71,7 +71,7 @@ defmodule Dcmix.Export.JSON do
           "InlineBinary" => Base.encode64(value)
         }
 
-      is_list(value) and length(value) > 0 and match?(%DataSet{}, hd(value)) ->
+      match?([%DataSet{} | _], value) ->
         # This is actually a sequence stored with UN VR
         %{
           "vr" => "SQ",

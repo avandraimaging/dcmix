@@ -82,18 +82,22 @@ defmodule Dcmix.DataSet do
   @spec put(t(), DataElement.t()) :: t()
   def put(%__MODULE__{elements: elements, index: index}, element) do
     tag = element.tag
+    new_index = Map.put(index, tag, element)
 
-    if Map.has_key?(index, tag) do
-      # Update existing element
-      new_elements = Enum.map(elements, fn e ->
-        if e.tag == tag, do: element, else: e
-      end)
-      %__MODULE__{elements: new_elements, index: Map.put(index, tag, element)}
-    else
-      # Insert new element in proper order
-      new_elements = insert_sorted(elements, element)
-      %__MODULE__{elements: new_elements, index: Map.put(index, tag, element)}
-    end
+    new_elements =
+      if Map.has_key?(index, tag) do
+        update_element_in_list(elements, element)
+      else
+        insert_sorted(elements, element)
+      end
+
+    %__MODULE__{elements: new_elements, index: new_index}
+  end
+
+  defp update_element_in_list(elements, element) do
+    Enum.map(elements, fn e ->
+      if e.tag == element.tag, do: element, else: e
+    end)
   end
 
   @doc """

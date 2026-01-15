@@ -50,27 +50,24 @@ defmodule Mix.Tasks.Dcmix.ToJson do
       exit({:shutdown, 1})
     end
 
-    case Dcmix.read_file(input_file) do
-      {:ok, dataset} ->
-        json_opts = [pretty: Keyword.get(opts, :pretty, false)]
+    json_opts = [pretty: Keyword.get(opts, :pretty, false)]
 
-        case Dcmix.to_json(dataset, json_opts) do
-          {:ok, json} ->
-            if output_file do
-              File.write!(output_file, json)
-              Mix.shell().info("Written to #{output_file}")
-            else
-              Mix.shell().info(json)
-            end
-
-          {:error, reason} ->
-            Mix.shell().error("Failed to encode JSON: #{inspect(reason)}")
-            exit({:shutdown, 1})
-        end
-
+    with {:ok, dataset} <- Dcmix.read_file(input_file),
+         {:ok, json} <- Dcmix.to_json(dataset, json_opts) do
+      write_output(json, output_file)
+    else
       {:error, reason} ->
-        Mix.shell().error("Failed to parse file: #{inspect(reason)}")
+        Mix.shell().error("Conversion failed: #{inspect(reason)}")
         exit({:shutdown, 1})
     end
+  end
+
+  defp write_output(content, nil) do
+    Mix.shell().info(content)
+  end
+
+  defp write_output(content, output_file) do
+    File.write!(output_file, content)
+    Mix.shell().info("Written to #{output_file}")
   end
 end

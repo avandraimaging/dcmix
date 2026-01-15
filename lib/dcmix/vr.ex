@@ -131,7 +131,7 @@ defmodule Dcmix.VR do
     },
     LT: %{
       name: "Long Text",
-      max_length: 10240,
+      max_length: 10_240,
       fixed_length: false,
       padding: 0x20,
       header_length: :short,

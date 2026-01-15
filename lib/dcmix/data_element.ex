@@ -99,9 +99,7 @@ defmodule Dcmix.DataElement do
   def string_value(%__MODULE__{value: nil}), do: nil
 
   def string_value(%__MODULE__{value: values}) when is_list(values) do
-    values
-    |> Enum.map(&to_string/1)
-    |> Enum.join("\\")
+    Enum.map_join(values, "\\", &to_string/1)
   end
 
   def string_value(%__MODULE__{value: value}) when is_binary(value), do: value
@@ -157,8 +155,7 @@ defmodule Dcmix.DataElement do
   defp calculate_length(vr, values) when is_list(values) do
     if VR.string?(vr) do
       values
-      |> Enum.map(&to_string/1)
-      |> Enum.join("\\")
+      |> Enum.map_join("\\", &to_string/1)
       |> byte_size()
     else
       # For numeric arrays, calculate based on element size
