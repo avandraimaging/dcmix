@@ -213,7 +213,15 @@ defmodule Dcmix.DataSet do
     end
 
     def slice(%Dcmix.DataSet{elements: elements}) do
-      {:ok, length(elements), &Enum.slice(elements, &1, &2)}
+      size = length(elements)
+
+      {:ok, size,
+       fn start, length, step ->
+         elements
+         |> Enum.drop(start)
+         |> Enum.take(length * step)
+         |> Enum.take_every(step)
+       end}
     end
   end
 end
