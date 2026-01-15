@@ -6,6 +6,7 @@ defmodule Dcmix.MixProject do
       app: :dcmix,
       version: "0.1.0",
       elixir: "~> 1.18",
+      elixirc_options: [warnings_as_errors: true],
       start_permanent: Mix.env() == :prod,
       deps: deps(),
       description: description(),
@@ -13,12 +14,7 @@ defmodule Dcmix.MixProject do
       name: "Dcmix",
       source_url: "https://github.com/avandra/dcmix",
       test_coverage: [
-        summary: [threshold: 90],
-        ignore_modules: [
-          Mix.Tasks.Dcmix.Dump,
-          Mix.Tasks.Dcmix.ToJson,
-          Mix.Tasks.Dcmix.ToXml
-        ]
+        summary: [threshold: 90]
       ]
     ]
   end

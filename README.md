@@ -195,10 +195,6 @@ mix test --cover
 mix compile
 ```
 
-### TODO
-
-- [ ] Improve test coverage for Mix.Tasks modules (currently excluded from coverage)
-
 ## License
 
 MIT License

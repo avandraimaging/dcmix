@@ -2493,7 +2493,7 @@ defmodule DcmixTest do
     test "all returns list of entries" do
       entries = Dictionary.all()
       assert is_list(entries)
-      assert entries != []
+      assert match?([_ | _], entries)
     end
 
     test "size returns count of entries" do
@@ -4206,7 +4206,7 @@ defmodule DcmixTest do
     test "returns partial dataset for truncated data less than 4 bytes" do
       # Less than 4 bytes returns what it can
       binary = <<0x10, 0x00>>
-      {:ok, ds, rest} = ExplicitVR.parse(binary)
+      {:ok, _ds, rest} = ExplicitVR.parse(binary)
       assert rest == binary
     end
   end
@@ -4217,7 +4217,7 @@ defmodule DcmixTest do
     test "returns empty dataset for completely truncated data" do
       # Less than 8 bytes returns partial
       binary = <<0x10, 0x00, 0x10, 0x00>>
-      {:ok, ds, rest} = ImplicitVR.parse(binary)
+      {:ok, _ds, rest} = ImplicitVR.parse(binary)
       assert rest == binary
     end
 
@@ -4230,7 +4230,7 @@ defmodule DcmixTest do
     test "returns partial for short data" do
       # Exactly 8 bytes but truncated length triggers error path
       binary = <<0x10, 0x00>>
-      {:ok, ds, rest} = ImplicitVR.parse(binary)
+      {:ok, _ds, rest} = ImplicitVR.parse(binary)
       assert rest == binary
     end
   end
@@ -5226,7 +5226,7 @@ defmodule DcmixTest do
 
     test "register_creator allocates block" do
       ds = DataSet.new()
-      {ds, block} = PrivateTag.register_creator(ds, 0x0009, "TEST_CREATOR")
+      {_updated_ds, block} = PrivateTag.register_creator(ds, 0x0009, "TEST_CREATOR")
       assert block >= 0x10
       assert block <= 0xFF
     end
