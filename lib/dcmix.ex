@@ -187,6 +187,32 @@ defmodule Dcmix do
   end
 
   @doc """
+  Exports pixel data from the dataset to an image file.
+
+  The output format is inferred from the file extension (.png, .ppm, .pgm)
+  or can be explicitly specified with the `:format` option.
+
+  ## Options
+
+  - `:frame` - Frame number for multi-frame images (0-indexed, default: 0)
+  - `:window` - Windowing for grayscale images:
+    - `:auto` - Use VOI LUT from DICOM tags if available, else min/max (default)
+    - `:min_max` - Window based on actual min/max pixel values
+    - `:none` - No windowing
+    - `{center, width}` - Explicit window center and width
+  - `:format` - Output format (:png, :ppm, :pgm)
+
+  ## Examples
+
+      :ok = Dcmix.to_image(dataset, "output.png")
+      :ok = Dcmix.to_image(dataset, "output.png", frame: 0, window: :auto)
+  """
+  @spec to_image(DataSet.t(), Path.t(), keyword()) :: :ok | {:error, term()}
+  def to_image(dataset, path, opts \\ []) do
+    Dcmix.Export.Image.to_file(dataset, path, opts)
+  end
+
+  @doc """
   Returns the transfer syntax UID from a DICOM file without parsing the full dataset.
   """
   @spec get_transfer_syntax(Path.t()) :: {:ok, String.t()} | {:error, term()}
