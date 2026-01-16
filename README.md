@@ -10,6 +10,7 @@ Dcmix (pronounced "DCM-icks") is a port of functionality from [dcmtk](https://di
 - Write DICOM files with proper file meta information
 - Multiple transfer syntax support (Implicit VR LE, Explicit VR LE/BE)
 - Export to JSON (DICOM JSON Model - PS3.18 F.2) and XML (Native DICOM Model - PS3.19)
+- Export pixel data to image files (PNG, PPM, PGM)
 - Human-readable dump output (similar to dcmdump)
 - Pixel data extraction and injection
 - Private tag support
@@ -32,7 +33,8 @@ Dcmix aims to bring comprehensive DICOM support to Elixir, inspired by [dcmtk](h
 | **Text Dump** | Human-readable output (dcmdump style) | ✅ Complete |
 | **Private Tags** | Read/write vendor private data elements | ✅ Complete |
 | **Data Dictionary** | Standard DICOM tags and VRs | ✅ Complete |
-| **CLI Tools** | `dcmix.dump`, `dcmix.to_json`, `dcmix.to_xml` | ✅ Complete |
+| **CLI Tools** | `dcmix.dump`, `dcmix.to_json`, `dcmix.to_xml`, `dcmix.to_image` | ✅ Complete |
+| **Image Export** | Export pixel data to PNG, PPM, PGM image files | ✅ Complete |
 
 ### Planned
 
@@ -44,7 +46,6 @@ Dcmix aims to bring comprehensive DICOM support to Elixir, inspired by [dcmtk](h
 | **Storage SCP/SCU** | Send/receive DICOM files over network | High |
 | **Query/Retrieve** | Find and retrieve studies from PACS | Medium |
 | **DICOMDIR** | Create/read media directory files | Medium |
-| **Image Export** | Export pixel data to PNG, JPEG, BMP image files | Medium |
 | **Image Import** | Replace pixel data from standard image files | Medium |
 | **Anonymization** | De-identify patient data | Medium |
 | **Validation** | IOD conformance checking | Low |
@@ -60,7 +61,7 @@ Dcmix aims to bring comprehensive DICOM support to Elixir, inspired by [dcmtk](h
 | JSON/XML Export | ✅ | ✅ | ✅ |
 | Pixel Decompression | ⬜ | ✅ | ✅ |
 | DICOM Networking | ⬜ | ✅ | ✅ |
-| Image Conversion | ⬜ | ✅ | ✅ |
+| Image Export | ✅ | ✅ | ✅ |
 | DICOMDIR | ⬜ | ⬜ | ✅ |
 | Anonymization | ⬜ | ⬜ | ✅ |
 
@@ -120,6 +121,25 @@ dataset = Dcmix.new()
 {:ok, xml} = Dcmix.to_xml(dataset)
 ```
 
+### Image Export
+
+```elixir
+# Export pixel data to an image file
+:ok = Dcmix.to_image(dataset, "output.png")
+
+# With options
+:ok = Dcmix.to_image(dataset, "output.png", frame: 0, window: :auto)
+
+# Windowing options for grayscale:
+# :auto - Use VOI LUT from DICOM if available, else min/max
+# :min_max - Window based on actual pixel values
+# :none - No windowing (preserves raw values)
+# {center, width} - Explicit window center and width
+
+# Export to PPM/PGM format
+:ok = Dcmix.to_image(dataset, "output.pgm")
+```
+
 ### Pixel Data
 
 ```elixir
@@ -157,6 +177,13 @@ mix dcmix.to_json --pretty patient.dcm
 
 # Convert to XML
 mix dcmix.to_xml patient.dcm output.xml
+
+# Export to image file
+mix dcmix.to_image patient.dcm output.png
+mix dcmix.to_image --frame 0 patient.dcm output.png
+mix dcmix.to_image --window auto patient.dcm output.png
+mix dcmix.to_image --window 400,40 patient.dcm output.png  # CT soft tissue window
+mix dcmix.to_image --format pgm patient.dcm output.raw
 ```
 
 ## Transfer Syntax Support
@@ -178,6 +205,7 @@ For compressed transfer syntaxes, pixel data is stored as encapsulated fragments
 ## Dependencies
 
 - `jason` - JSON encoding
+- `ex_png` - PNG image encoding
 
 ## Development
 

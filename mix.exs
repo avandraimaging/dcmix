@@ -40,6 +40,7 @@ defmodule Dcmix.MixProject do
   defp deps do
     [
       {:jason, "~> 1.4"},
+      {:png, "~> 0.2"},
       {:credo, "~> 1.7", only: [:dev, :test], runtime: false},
       {:sobelow, "~> 0.13", only: [:dev, :test], runtime: false}
     ]
