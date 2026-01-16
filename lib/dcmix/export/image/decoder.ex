@@ -62,9 +62,8 @@ defmodule Dcmix.Export.Image.Decoder do
 
     with {:ok, info} <- get_pixel_info(dataset),
          :ok <- validate_not_encapsulated(dataset),
-         {:ok, raw_pixels} <- extract_frame(dataset, info, frame),
-         {:ok, decoded} <- decode_pixels(raw_pixels, info, window, opts) do
-      {:ok, decoded}
+         {:ok, raw_pixels} <- extract_frame(dataset, info, frame) do
+      decode_pixels(raw_pixels, info, window, opts)
     end
   end
 
@@ -162,38 +161,25 @@ defmodule Dcmix.Export.Image.Decoder do
     mask = (1 <<< info.bits_stored) - 1
     half_range = if signed, do: 1 <<< (info.bits_stored - 1), else: 0
 
+    # Build decode params for reuse
+    decode_params = %{bps: bytes_per_sample, signed: signed, mask: mask, half_range: half_range}
+
     # Compute window parameters (single pass for min_max/auto)
     {min_val, max_val} =
       case window do
-        :none ->
-          {0, (1 <<< info.bits_stored) - 1}
-
-        {center, width} ->
-          {center - width / 2, center + width / 2}
-
-        _ ->
-          # :auto or :min_max - scan binary for actual min/max
-          find_min_max_binary(raw_pixels, bytes_per_sample, signed, mask, half_range)
+        :none -> {0, (1 <<< info.bits_stored) - 1}
+        {center, width} -> {center - width / 2, center + width / 2}
+        _ -> find_min_max_binary(raw_pixels, decode_params)
       end
 
     range = max(max_val - min_val, 1)
-    max_out = if output_bits == 8, do: 255, else: 65535
-    scale = max_out / range
+    max_out = if output_bits == 8, do: 255, else: 65_535
+
+    # Build transform params
+    transform = %{min_val: min_val, scale: max_out / range, max_out: max_out, invert: invert}
 
     # Single pass: parse, window, invert, and output to binary
-    pixel_binary =
-      decode_monochrome_binary(
-        raw_pixels,
-        bytes_per_sample,
-        signed,
-        mask,
-        half_range,
-        min_val,
-        scale,
-        max_out,
-        output_bits,
-        invert
-      )
+    pixel_binary = decode_monochrome_binary(raw_pixels, decode_params, transform, output_bits)
 
     {:ok,
      %{
@@ -206,55 +192,42 @@ defmodule Dcmix.Export.Image.Decoder do
      }}
   end
 
-  # Find min/max in a single binary scan
-  defp find_min_max_binary(binary, bytes_per_sample, signed, mask, half_range) do
-    find_min_max_binary(binary, bytes_per_sample, signed, mask, half_range, nil, nil)
+  # Decode a single raw pixel value from binary chunk
+  defp decode_raw_value(chunk, %{bps: bps, signed: signed}) do
+    case {bps, signed} do
+      {1, false} -> :binary.decode_unsigned(chunk, :little)
+      {1, true} -> decode_signed_8(chunk)
+      {2, false} -> :binary.decode_unsigned(chunk, :little)
+      {2, true} -> decode_signed_16(chunk)
+      _ -> :binary.decode_unsigned(chunk, :little)
+    end
   end
 
-  defp find_min_max_binary(<<>>, _bps, _signed, _mask, _hr, min, max), do: {min, max}
+  # Find min/max in a single binary scan using reduce with binary generator
+  defp find_min_max_binary(binary, %{bps: bps, mask: mask, half_range: half_range} = params) do
+    binary
+    |> chunk_binary(bps)
+    |> Enum.reduce({nil, nil}, fn chunk, {min_acc, max_acc} ->
+      value = (decode_raw_value(chunk, params) &&& mask) + half_range
+      {min(min_acc || value, value), max(max_acc || value, value)}
+    end)
+  end
 
-  defp find_min_max_binary(binary, bps, signed, mask, half_range, min_acc, max_acc) do
-    <<chunk::binary-size(bps), rest::binary>> = binary
-
-    raw =
-      case {bps, signed} do
-        {1, false} -> :binary.decode_unsigned(chunk, :little)
-        {1, true} -> decode_signed_8(chunk)
-        {2, false} -> :binary.decode_unsigned(chunk, :little)
-        {2, true} -> decode_signed_16(chunk)
-        _ -> :binary.decode_unsigned(chunk, :little)
-      end
-
-    value = (raw &&& mask) + half_range
-
-    new_min = if min_acc == nil or value < min_acc, do: value, else: min_acc
-    new_max = if max_acc == nil or value > max_acc, do: value, else: max_acc
-
-    find_min_max_binary(rest, bps, signed, mask, half_range, new_min, new_max)
+  defp chunk_binary(binary, size) do
+    for <<chunk::binary-size(size) <- binary>>, do: chunk
   end
 
   # Decode monochrome pixels directly to binary output
-  defp decode_monochrome_binary(binary, bps, signed, mask, half_range, min_val, scale, max_out, output_bits, invert) do
-    for <<chunk::binary-size(bps) <- binary>>, into: <<>> do
-      raw =
-        case {bps, signed} do
-          {1, false} -> :binary.decode_unsigned(chunk, :little)
-          {1, true} -> decode_signed_8(chunk)
-          {2, false} -> :binary.decode_unsigned(chunk, :little)
-          {2, true} -> decode_signed_16(chunk)
-          _ -> :binary.decode_unsigned(chunk, :little)
-        end
+  defp decode_monochrome_binary(binary, %{bps: bps, mask: mask, half_range: half_range} = params, transform, output_bits) do
+    %{min_val: min_val, scale: scale, max_out: max_out, invert: invert} = transform
 
-      value = (raw &&& mask) + half_range
+    for <<chunk::binary-size(bps) <- binary>>, into: <<>> do
+      value = (decode_raw_value(chunk, params) &&& mask) + half_range
       normalized = (value - min_val) * scale
       clamped = max(0, min(max_out, round(normalized)))
       output = if invert, do: max_out - clamped, else: clamped
 
-      if output_bits == 8 do
-        <<output::8>>
-      else
-        <<output::little-16>>
-      end
+      if output_bits == 8, do: <<output::8>>, else: <<output::little-16>>
     end
   end
 

@@ -43,7 +43,7 @@ defmodule Dcmix.Export.Image.PPM do
 
   # Encode grayscale image to PGM (P5) format
   defp encode_pgm(%{width: width, height: height, bit_depth: bit_depth, pixels: pixels}) do
-    max_val = if bit_depth == 16, do: 65535, else: 255
+    max_val = if bit_depth == 16, do: 65_535, else: 255
 
     # PGM format: P5 magic, width height, max value, then binary data
     header = "P5\n#{width} #{height}\n#{max_val}\n"
@@ -61,7 +61,7 @@ defmodule Dcmix.Export.Image.PPM do
 
   # Encode RGB image to PPM (P6) format
   defp encode_ppm(%{width: width, height: height, bit_depth: bit_depth, pixels: pixels}) do
-    max_val = if bit_depth == 16, do: 65535, else: 255
+    max_val = if bit_depth == 16, do: 65_535, else: 255
 
     # PPM format: P6 magic, width height, max value, then binary data
     header = "P6\n#{width} #{height}\n#{max_val}\n"
