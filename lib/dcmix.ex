@@ -223,4 +223,93 @@ defmodule Dcmix do
   """
   @spec new() :: DataSet.t()
   defdelegate new(), to: DataSet
+
+  # ============================================================================
+  # Import Functions (JSON/XML/Image -> DICOM)
+  # ============================================================================
+
+  @doc """
+  Creates a DataSet from a JSON string (DICOM JSON Model per PS3.18 F.2).
+
+  This is the inverse of `to_json/2`.
+
+  ## Options
+  - `:template` - An existing DataSet to merge the JSON data into
+
+  ## Examples
+
+      {:ok, dataset} = Dcmix.from_json(json_string)
+      {:ok, dataset} = Dcmix.from_json(json_string, template: existing_dataset)
+  """
+  @spec from_json(String.t(), keyword()) :: {:ok, DataSet.t()} | {:error, term()}
+  def from_json(json_string, opts \\ []) do
+    Dcmix.Import.JSON.decode(json_string, opts)
+  end
+
+  @doc """
+  Creates a DataSet from a JSON file.
+
+  ## Examples
+
+      {:ok, dataset} = Dcmix.from_json_file("data.json")
+  """
+  @spec from_json_file(Path.t(), keyword()) :: {:ok, DataSet.t()} | {:error, term()}
+  def from_json_file(path, opts \\ []) do
+    Dcmix.Import.JSON.decode_file(path, opts)
+  end
+
+  @doc """
+  Creates a DataSet from an XML string (Native DICOM Model per PS3.19).
+
+  This is the inverse of `to_xml/2`.
+
+  ## Options
+  - `:template` - An existing DataSet to merge the XML data into
+
+  ## Examples
+
+      {:ok, dataset} = Dcmix.from_xml(xml_string)
+      {:ok, dataset} = Dcmix.from_xml(xml_string, template: existing_dataset)
+  """
+  @spec from_xml(String.t(), keyword()) :: {:ok, DataSet.t()} | {:error, term()}
+  def from_xml(xml_string, opts \\ []) do
+    Dcmix.Import.XML.decode(xml_string, opts)
+  end
+
+  @doc """
+  Creates a DataSet from an XML file.
+
+  ## Examples
+
+      {:ok, dataset} = Dcmix.from_xml_file("data.xml")
+  """
+  @spec from_xml_file(Path.t(), keyword()) :: {:ok, DataSet.t()} | {:error, term()}
+  def from_xml_file(path, opts \\ []) do
+    Dcmix.Import.XML.decode_file(path, opts)
+  end
+
+  @doc """
+  Creates a DataSet from an image file (PNG, JPEG).
+
+  Similar to dcmtk's `img2dcm`.
+
+  ## Options
+
+  - `:dataset_from` - Template DataSet to use as base (like dcmtk's --dataset-from)
+  - `:study_from` - DataSet to copy patient/study info from (like dcmtk's --study-from)
+  - `:series_from` - DataSet to copy patient/study/series info from (like dcmtk's --series-from)
+  - `:sop_class` - SOP Class to use (:secondary_capture, :vl_photo, default: :secondary_capture)
+  - `:insert_type2` - Auto-insert missing Type 2 attributes (default: true)
+  - `:invent_type1` - Auto-generate missing Type 1 values (default: true)
+
+  ## Examples
+
+      {:ok, dataset} = Dcmix.from_image("photo.png")
+      {:ok, dataset} = Dcmix.from_image("photo.png", dataset_from: template)
+      {:ok, dataset} = Dcmix.from_image("photo.png", series_from: source_dicom)
+  """
+  @spec from_image(Path.t(), keyword()) :: {:ok, DataSet.t()} | {:error, term()}
+  def from_image(path, opts \\ []) do
+    Dcmix.Import.Image.from_file(path, opts)
+  end
 end
