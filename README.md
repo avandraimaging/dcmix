@@ -2,70 +2,18 @@
 
 A DICOM library for Elixir - read, write, and manipulate DICOM files.
 
-Dcmix (pronounced "DCM-icks") is a port of functionality from [dcmtk](https://dicom.offis.de/dcmtk.php.en) and [dicom-rs](https://github.com/Enet4/dicom-rs), focused on DICOM file operations.
+Dcmix (pronounced "DCM-icks") is a pure Elixir implementation for working with DICOM medical imaging files, inspired by [dcmtk](https://dicom.offis.de/dcmtk.php.en) and [dicom-rs](https://github.com/Enet4/dicom-rs).
 
 ## Features
 
 - Read and parse DICOM Part 10 files
 - Write DICOM files with proper file meta information
 - Multiple transfer syntax support (Implicit VR LE, Explicit VR LE/BE)
-- Export to JSON (DICOM JSON Model - PS3.18 F.2) and XML (Native DICOM Model - PS3.19)
-- Export pixel data to image files (PNG, PPM, PGM)
-- Human-readable dump output (similar to dcmdump)
-- Pixel data extraction and injection
+- Export to JSON, XML, and image formats (PNG, PPM, PGM)
+- Import from JSON, XML, and image files
+- Human-readable dump output (dcmdump style)
 - Private tag support
 - Mix tasks for CLI usage
-
-## Roadmap
-
-Dcmix aims to bring comprehensive DICOM support to Elixir, inspired by [dcmtk](https://dicom.offis.de/dcmtk.php.en) (C++) and [dicom-rs](https://github.com/Enet4/dicom-rs) (Rust).
-
-### Implemented
-
-| Feature | Description | Status |
-|---------|-------------|--------|
-| **File Parsing** | Read DICOM Part 10 files | ✅ Complete |
-| **File Writing** | Write DICOM files with meta information | ✅ Complete |
-| **Transfer Syntaxes** | Implicit VR LE, Explicit VR LE/BE | ✅ Complete |
-| **Encapsulated Pixel Data** | Store/retrieve compressed pixel data as fragments | ✅ Complete |
-| **JSON Export** | DICOM JSON Model (PS3.18 F.2) | ✅ Complete |
-| **XML Export** | Native DICOM Model (PS3.19) | ✅ Complete |
-| **Text Dump** | Human-readable output (dcmdump style) | ✅ Complete |
-| **Private Tags** | Read/write vendor private data elements | ✅ Complete |
-| **Data Dictionary** | Standard DICOM tags and VRs | ✅ Complete |
-| **CLI Tools** | `dcmix.dump`, `dcmix.to_json`, `dcmix.to_xml`, `dcmix.to_image` | ✅ Complete |
-| **Image Export** | Export pixel data to PNG, PPM, PGM image files | ✅ Complete |
-
-### Planned
-
-| Feature | Description | Priority |
-|---------|-------------|----------|
-| **Pixel Data Decompression** | Decode JPEG, JPEG2000, RLE compressed images | High |
-| **Transfer Syntax Conversion** | Transcode between transfer syntaxes | High |
-| **DICOM Networking (DIMSE)** | C-ECHO, C-STORE, C-FIND, C-MOVE, C-GET | High |
-| **Storage SCP/SCU** | Send/receive DICOM files over network | High |
-| **Query/Retrieve** | Find and retrieve studies from PACS | Medium |
-| **DICOMDIR** | Create/read media directory files | Medium |
-| **Image Import** | Replace pixel data from standard image files | Medium |
-| **Anonymization** | De-identify patient data | Medium |
-| **Validation** | IOD conformance checking | Low |
-| **Structured Reports** | SR document support | Low |
-| **Presentation States** | GSPS support | Low |
-
-### Feature Comparison
-
-| Capability | dcmix | dicom-rs | dcmtk |
-|------------|-------|----------|-------|
-| File I/O | ✅ | ✅ | ✅ |
-| Transfer Syntaxes | ✅ | ✅ | ✅ |
-| JSON/XML Export | ✅ | ✅ | ✅ |
-| Pixel Decompression | ⬜ | ✅ | ✅ |
-| DICOM Networking | ⬜ | ✅ | ✅ |
-| Image Export | ✅ | ✅ | ✅ |
-| DICOMDIR | ⬜ | ⬜ | ✅ |
-| Anonymization | ⬜ | ⬜ | ✅ |
-
-✅ = Implemented | ⬜ = Not yet implemented
 
 ## Installation
 
@@ -79,19 +27,16 @@ def deps do
 end
 ```
 
-## Usage
+## Quick Start
 
 ### Reading DICOM Files
 
 ```elixir
 # Read a DICOM file
-{:ok, dataset} = Dcmix.read_file("/path/to/file.dcm")
+{:ok, dataset} = Dcmix.read_file("patient.dcm")
 
-# Get element values by tag
-patient_name = Dcmix.get_string(dataset, {0x0010, 0x0010})
-patient_name = Dcmix.get_string(dataset, "PatientName")  # or by keyword
-
-# Get numeric values
+# Get element values
+patient_name = Dcmix.get_string(dataset, "PatientName")
 rows = Dcmix.get(dataset, {0x0028, 0x0010})
 
 # Dump contents
@@ -101,17 +46,15 @@ IO.puts(Dcmix.dump(dataset))
 ### Writing DICOM Files
 
 ```elixir
-# Create a new dataset
 dataset = Dcmix.new()
 |> Dcmix.put({0x0010, 0x0010}, :PN, "Doe^John")
 |> Dcmix.put({0x0010, 0x0020}, :LO, "12345")
 |> Dcmix.put({0x0008, 0x0060}, :CS, "CT")
 
-# Write to file
-:ok = Dcmix.write_file(dataset, "/path/to/output.dcm")
+:ok = Dcmix.write_file(dataset, "output.dcm")
 ```
 
-### Exporting to JSON/XML
+### Export Formats
 
 ```elixir
 # Export to JSON (DICOM JSON Model)
@@ -119,113 +62,44 @@ dataset = Dcmix.new()
 
 # Export to XML (Native DICOM Model)
 {:ok, xml} = Dcmix.to_xml(dataset)
-```
 
-### Image Export
-
-```elixir
-# Export pixel data to an image file
+# Export pixel data to image
 :ok = Dcmix.to_image(dataset, "output.png")
-
-# With options
-:ok = Dcmix.to_image(dataset, "output.png", frame: 0, window: :auto)
-
-# Windowing options for grayscale:
-# :auto - Use VOI LUT from DICOM if available, else min/max
-# :min_max - Window based on actual pixel values
-# :none - No windowing (preserves raw values)
-# {center, width} - Explicit window center and width
-
-# Export to PPM/PGM format
-:ok = Dcmix.to_image(dataset, "output.pgm")
 ```
 
-### Pixel Data
-
-```elixir
-# Extract pixel data
-{:ok, pixel_bytes} = Dcmix.PixelData.extract(dataset)
-
-# Get pixel data info
-info = Dcmix.PixelData.info(dataset)
-# => %{rows: 512, columns: 512, bits_allocated: 16, ...}
-
-# Inject pixel data back
-dataset = Dcmix.PixelData.inject(dataset, new_pixel_bytes)
-```
-
-### Private Tags
-
-```elixir
-# Register a private creator and add data
-{dataset, block} = Dcmix.PrivateTag.register_creator(dataset, 0x0009, "MY_COMPANY")
-dataset = Dcmix.PrivateTag.put(dataset, 0x0009, "MY_COMPANY", 0x01, :LO, "Custom Data")
-
-# Read private data
-value = Dcmix.PrivateTag.get(dataset, 0x0009, "MY_COMPANY", 0x01)
-```
-
-## Mix Tasks
+### CLI Tools
 
 ```bash
-# Dump DICOM file contents
 mix dcmix.dump patient.dcm
-
-# Convert to JSON
-mix dcmix.to_json patient.dcm output.json
-mix dcmix.to_json --pretty patient.dcm
-
-# Convert to XML
+mix dcmix.to_json --pretty patient.dcm output.json
 mix dcmix.to_xml patient.dcm output.xml
-
-# Export to image file
-mix dcmix.to_image patient.dcm output.png
-mix dcmix.to_image --frame 0 patient.dcm output.png
 mix dcmix.to_image --window auto patient.dcm output.png
-mix dcmix.to_image --window 400,40 patient.dcm output.png  # CT soft tissue window
-mix dcmix.to_image --format pgm patient.dcm output.raw
 ```
 
-## Transfer Syntax Support
+## Documentation
 
-Dcmix supports the following transfer syntaxes:
-
-| Transfer Syntax | UID | Status |
-|----------------|-----|--------|
-| Implicit VR Little Endian | 1.2.840.10008.1.2 | Supported |
-| Explicit VR Little Endian | 1.2.840.10008.1.2.1 | Supported |
-| Explicit VR Big Endian | 1.2.840.10008.1.2.2 | Supported |
-| JPEG Baseline | 1.2.840.10008.1.2.4.50 | Stored as encapsulated |
-| JPEG Lossless | 1.2.840.10008.1.2.4.70 | Stored as encapsulated |
-| JPEG 2000 | 1.2.840.10008.1.2.4.90/91 | Stored as encapsulated |
-| RLE Lossless | 1.2.840.10008.1.2.5 | Stored as encapsulated |
-
-For compressed transfer syntaxes, pixel data is stored as encapsulated fragments. Decompression requires external tools.
-
-## Dependencies
-
-- `jason` - JSON encoding
-- `ex_png` - PNG image encoding
+- [Detailed Usage Guide](docs/USAGE.md) - Pixel data, private tags, import operations
+- [Transfer Syntax Support](docs/TRANSFER_SYNTAXES.md) - Supported transfer syntaxes
+- [Roadmap](docs/ROADMAP.md) - Current and planned features
+- [API Documentation](https://hexdocs.pm/dcmix) - Full API reference
 
 ## Development
 
 ```bash
-# Install dependencies
-mix deps.get
-
-# Run tests
-mix test
-
-# Run tests with coverage
-mix test --cover
-
-# Compile
-mix compile
+mix deps.get          # Install dependencies
+mix test              # Run tests
+mix test --cover      # Run tests with coverage
+mix credo --strict    # Static analysis
+mix sobelow           # Security analysis
 ```
+
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
 
 ## License
 
-MIT License
+MIT License - see [LICENSE](LICENSE) for details.
 
 ## Acknowledgments
 

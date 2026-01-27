@@ -92,3 +92,70 @@ jobs:
 
       - name: Run Sobelow
         run: mix sobelow --config
+
+  licenses:
+    name: License Check
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Elixir
+        uses: erlef/setup-beam@v1
+        with:
+          elixir-version: ${{ env.ELIXIR_VERSION }}
+          otp-version: ${{ env.OTP_VERSION }}
+
+      - name: Cache deps
+        uses: actions/cache@v4
+        with:
+          path: deps
+          key: ${{ runner.os }}-mix-${{ hashFiles('**/mix.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-mix-
+
+      - name: Install dependencies
+        run: mix deps.get
+
+      - name: Check dependency licenses
+        run: |
+          echo "Checking dependency licenses for MIT compatibility..."
+          echo ""
+
+          # List of licenses compatible with MIT
+          COMPATIBLE="MIT Apache-2.0 Apache BSD BSD-2-Clause BSD-3-Clause ISC Unlicense CC0-1.0"
+
+          FAILED=0
+
+          for dep in $(mix deps 2>/dev/null | grep -E "^\* " | awk '{print $2}'); do
+            LICENSE=$(mix hex.info $dep 2>/dev/null | grep -i "licenses:" | sed 's/.*licenses: //' | tr -d '[]')
+
+            if [ -z "$LICENSE" ]; then
+              echo "⚠️  $dep: License not found in hex.pm (may be a git dependency)"
+              continue
+            fi
+
+            FOUND_COMPATIBLE=0
+            for compat in $COMPATIBLE; do
+              if echo "$LICENSE" | grep -qi "$compat"; then
+                FOUND_COMPATIBLE=1
+                break
+              fi
+            done
+
+            if [ $FOUND_COMPATIBLE -eq 1 ]; then
+              echo "✅ $dep: $LICENSE"
+            else
+              echo "❌ $dep: $LICENSE (may not be MIT-compatible)"
+              FAILED=1
+            fi
+          done
+
+          echo ""
+          if [ $FAILED -eq 1 ]; then
+            echo "Some dependencies may have incompatible licenses. Please review."
+            exit 1
+          else
+            echo "All dependency licenses appear compatible with MIT."
+          fi
