@@ -22,7 +22,7 @@ Add `dcmix` to your list of dependencies in `mix.exs`:
 ```elixir
 def deps do
   [
-    {:dcmix, "~> 0.1.0"}
+    {:dcmix, github: "avandra/dcmix"}
   ]
 end
 ```
@@ -81,7 +81,6 @@ mix dcmix.to_image --window auto patient.dcm output.png
 - [Detailed Usage Guide](docs/USAGE.md) - Pixel data, private tags, import operations
 - [Transfer Syntax Support](docs/TRANSFER_SYNTAXES.md) - Supported transfer syntaxes
 - [Roadmap](docs/ROADMAP.md) - Current and planned features
-- [API Documentation](https://hexdocs.pm/dcmix) - Full API reference
 
 ## Development
 
