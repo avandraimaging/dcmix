@@ -1,0 +1,481 @@
+# DICOM Data Dictionary
+# Format: group element VR keyword VM description
+# Based on DICOM PS3.6 Data Dictionary
+#
+# Group 0002 - File Meta Information
+0002 0000 UL FileMetaInformationGroupLength 1 File Meta Information Group Length
+0002 0001 OB FileMetaInformationVersion 1 File Meta Information Version
+0002 0002 UI MediaStorageSOPClassUID 1 Media Storage SOP Class UID
+0002 0003 UI MediaStorageSOPInstanceUID 1 Media Storage SOP Instance UID
+0002 0010 UI TransferSyntaxUID 1 Transfer Syntax UID
+0002 0012 UI ImplementationClassUID 1 Implementation Class UID
+0002 0013 SH ImplementationVersionName 1 Implementation Version Name
+0002 0016 AE SourceApplicationEntityTitle 1 Source Application Entity Title
+0002 0017 AE SendingApplicationEntityTitle 1 Sending Application Entity Title
+0002 0018 AE ReceivingApplicationEntityTitle 1 Receiving Application Entity Title
+0002 0100 UI PrivateInformationCreatorUID 1 Private Information Creator UID
+0002 0102 OB PrivateInformation 1 Private Information
+#
+# Group 0008 - Identifying Information
+0008 0005 CS SpecificCharacterSet 1-n Specific Character Set
+0008 0008 CS ImageType 2-n Image Type
+0008 0012 DA InstanceCreationDate 1 Instance Creation Date
+0008 0013 TM InstanceCreationTime 1 Instance Creation Time
+0008 0014 UI InstanceCreatorUID 1 Instance Creator UID
+0008 0016 UI SOPClassUID 1 SOP Class UID
+0008 0018 UI SOPInstanceUID 1 SOP Instance UID
+0008 0020 DA StudyDate 1 Study Date
+0008 0021 DA SeriesDate 1 Series Date
+0008 0022 DA AcquisitionDate 1 Acquisition Date
+0008 0023 DA ContentDate 1 Content Date
+0008 0030 TM StudyTime 1 Study Time
+0008 0031 TM SeriesTime 1 Series Time
+0008 0032 TM AcquisitionTime 1 Acquisition Time
+0008 0033 TM ContentTime 1 Content Time
+0008 0050 SH AccessionNumber 1 Accession Number
+0008 0060 CS Modality 1 Modality
+0008 0061 CS ModalitiesInStudy 1-n Modalities in Study
+0008 0064 CS ConversionType 1 Conversion Type
+0008 0068 CS PresentationIntentType 1 Presentation Intent Type
+0008 0070 LO Manufacturer 1 Manufacturer
+0008 0080 LO InstitutionName 1 Institution Name
+0008 0081 ST InstitutionAddress 1 Institution Address
+0008 0082 SQ InstitutionCodeSequence 1 Institution Code Sequence
+0008 0090 PN ReferringPhysicianName 1 Referring Physician's Name
+0008 0096 SQ ReferringPhysicianIdentificationSequence 1 Referring Physician Identification Sequence
+0008 1010 SH StationName 1 Station Name
+0008 1030 LO StudyDescription 1 Study Description
+0008 103E LO SeriesDescription 1 Series Description
+0008 1040 LO InstitutionalDepartmentName 1 Institutional Department Name
+0008 1048 PN PhysiciansOfRecord 1-n Physician(s) of Record
+0008 1050 PN PerformingPhysicianName 1-n Performing Physician's Name
+0008 1060 PN NameOfPhysiciansReadingStudy 1-n Name of Physician(s) Reading Study
+0008 1070 PN OperatorsName 1-n Operators' Name
+0008 1080 LO AdmittingDiagnosesDescription 1-n Admitting Diagnoses Description
+0008 1090 LO ManufacturerModelName 1 Manufacturer's Model Name
+0008 1111 SQ ReferencedPerformedProcedureStepSequence 1 Referenced Performed Procedure Step Sequence
+0008 1115 SQ ReferencedSeriesSequence 1 Referenced Series Sequence
+0008 1120 SQ ReferencedPatientSequence 1 Referenced Patient Sequence
+0008 1125 SQ ReferencedVisitSequence 1 Referenced Visit Sequence
+0008 1130 SQ ReferencedOverlaySequence 1 Referenced Overlay Sequence
+0008 1140 SQ ReferencedImageSequence 1 Referenced Image Sequence
+0008 1150 UI ReferencedSOPClassUID 1 Referenced SOP Class UID
+0008 1155 UI ReferencedSOPInstanceUID 1 Referenced SOP Instance UID
+0008 1160 IS ReferencedFrameNumber 1-n Referenced Frame Number
+0008 2111 ST DerivationDescription 1 Derivation Description
+0008 2112 SQ SourceImageSequence 1 Source Image Sequence
+0008 9007 CS FrameType 4 Frame Type
+#
+# Group 0010 - Patient Information
+0010 0010 PN PatientName 1 Patient's Name
+0010 0020 LO PatientID 1 Patient ID
+0010 0021 LO IssuerOfPatientID 1 Issuer of Patient ID
+0010 0022 CS TypeOfPatientID 1 Type of Patient ID
+0010 0030 DA PatientBirthDate 1 Patient's Birth Date
+0010 0032 TM PatientBirthTime 1 Patient's Birth Time
+0010 0040 CS PatientSex 1 Patient's Sex
+0010 0050 SQ PatientInsurancePlanCodeSequence 1 Patient's Insurance Plan Code Sequence
+0010 1000 LO OtherPatientIDs 1-n Other Patient IDs
+0010 1001 PN OtherPatientNames 1-n Other Patient Names
+0010 1010 AS PatientAge 1 Patient's Age
+0010 1020 DS PatientSize 1 Patient's Size
+0010 1030 DS PatientWeight 1 Patient's Weight
+0010 1040 LO PatientAddress 1 Patient's Address
+0010 2000 LO MedicalAlerts 1-n Medical Alerts
+0010 2110 LO Allergies 1-n Allergies
+0010 2150 LO CountryOfResidence 1 Country of Residence
+0010 2152 LO RegionOfResidence 1 Region of Residence
+0010 2154 SH PatientTelephoneNumbers 1-n Patient's Telephone Numbers
+0010 21B0 LT AdditionalPatientHistory 1 Additional Patient History
+0010 4000 LT PatientComments 1 Patient Comments
+#
+# Group 0018 - Acquisition Information
+0018 0010 LO ContrastBolusAgent 1 Contrast/Bolus Agent
+0018 0015 CS BodyPartExamined 1 Body Part Examined
+0018 0020 CS ScanningSequence 1-n Scanning Sequence
+0018 0021 CS SequenceVariant 1-n Sequence Variant
+0018 0022 CS ScanOptions 1-n Scan Options
+0018 0023 CS MRAcquisitionType 1 MR Acquisition Type
+0018 0024 SH SequenceName 1 Sequence Name
+0018 0025 CS AngioFlag 1 Angio Flag
+0018 0050 DS SliceThickness 1 Slice Thickness
+0018 0060 DS KVP 1 KVP
+0018 0080 DS RepetitionTime 1 Repetition Time
+0018 0081 DS EchoTime 1 Echo Time
+0018 0082 DS InversionTime 1 Inversion Time
+0018 0083 DS NumberOfAverages 1 Number of Averages
+0018 0084 DS ImagingFrequency 1 Imaging Frequency
+0018 0085 SH ImagedNucleus 1 Imaged Nucleus
+0018 0086 IS EchoNumbers 1-n Echo Number(s)
+0018 0087 DS MagneticFieldStrength 1 Magnetic Field Strength
+0018 0088 DS SpacingBetweenSlices 1 Spacing Between Slices
+0018 0089 IS NumberOfPhaseEncodingSteps 1 Number of Phase Encoding Steps
+0018 0090 DS DataCollectionDiameter 1 Data Collection Diameter
+0018 0091 IS EchoTrainLength 1 Echo Train Length
+0018 0093 DS PercentSampling 1 Percent Sampling
+0018 0094 DS PercentPhaseFieldOfView 1 Percent Phase Field of View
+0018 0095 DS PixelBandwidth 1 Pixel Bandwidth
+0018 1000 LO DeviceSerialNumber 1 Device Serial Number
+0018 1010 LO SecondaryCaptureDeviceID 1 Secondary Capture Device ID
+0018 1016 LO SecondaryCaptureDeviceManufacturer 1 Secondary Capture Device Manufacturer
+0018 1018 LO SecondaryCaptureDeviceManufacturerModelName 1 Secondary Capture Device Manufacturer's Model Name
+0018 1020 LO SoftwareVersions 1-n Software Version(s)
+0018 1030 LO ProtocolName 1 Protocol Name
+0018 1040 LO ContrastBolusRoute 1 Contrast/Bolus Route
+0018 1050 DS SpatialResolution 1 Spatial Resolution
+0018 1060 DS TriggerTime 1 Trigger Time
+0018 1100 DS ReconstructionDiameter 1 Reconstruction Diameter
+0018 1110 DS DistanceSourceToDetector 1 Distance Source to Detector
+0018 1111 DS DistanceSourceToPatient 1 Distance Source to Patient
+0018 1120 DS GantryDetectorTilt 1 Gantry/Detector Tilt
+0018 1130 DS TableHeight 1 Table Height
+0018 1140 CS RotationDirection 1 Rotation Direction
+0018 1150 IS ExposureTime 1 Exposure Time
+0018 1151 IS XRayTubeCurrent 1 X-Ray Tube Current
+0018 1152 IS Exposure 1 Exposure
+0018 1153 IS ExposureInuAs 1 Exposure in uAs
+0018 1160 SH FilterType 1 Filter Type
+0018 1164 DS ImagerPixelSpacing 2 Imager Pixel Spacing
+0018 1166 CS Grid 1-n Grid
+0018 1170 IS GeneratorPower 1 Generator Power
+0018 1180 SH CollimatorGridName 1 Collimator/grid Name
+0018 1190 DS FocalSpots 1-n Focal Spot(s)
+0018 1200 DA DateOfLastCalibration 1-n Date of Last Calibration
+0018 1201 TM TimeOfLastCalibration 1-n Time of Last Calibration
+0018 1210 SH ConvolutionKernel 1-n Convolution Kernel
+0018 1250 SH ReceiveCoilName 1 Receive Coil Name
+0018 1251 SH TransmitCoilName 1 Transmit Coil Name
+0018 1260 SH PlateType 1 Plate Type
+0018 1261 LO PhosphorType 1 Phosphor Type
+0018 1310 US AcquisitionMatrix 4 Acquisition Matrix
+0018 1312 CS InPlanePhaseEncodingDirection 1 In-plane Phase Encoding Direction
+0018 1314 DS FlipAngle 1 Flip Angle
+0018 1315 CS VariableFlipAngleFlag 1 Variable Flip Angle Flag
+0018 1316 DS SAR 1 SAR
+0018 1318 DS dBdt 1 dB/dt
+0018 5100 CS PatientPosition 1 Patient Position
+#
+# Group 0020 - Relationship Information
+0020 000D UI StudyInstanceUID 1 Study Instance UID
+0020 000E UI SeriesInstanceUID 1 Series Instance UID
+0020 0010 SH StudyID 1 Study ID
+0020 0011 IS SeriesNumber 1 Series Number
+0020 0012 IS AcquisitionNumber 1 Acquisition Number
+0020 0013 IS InstanceNumber 1 Instance Number
+0020 0020 CS PatientOrientation 2 Patient Orientation
+0020 0032 DS ImagePositionPatient 3 Image Position (Patient)
+0020 0037 DS ImageOrientationPatient 6 Image Orientation (Patient)
+0020 0052 UI FrameOfReferenceUID 1 Frame of Reference UID
+0020 0060 CS Laterality 1 Laterality
+0020 0100 IS TemporalPositionIdentifier 1 Temporal Position Identifier
+0020 0105 IS NumberOfTemporalPositions 1 Number of Temporal Positions
+0020 1040 LO PositionReferenceIndicator 1 Position Reference Indicator
+0020 1041 DS SliceLocation 1 Slice Location
+0020 1200 IS NumberOfPatientRelatedStudies 1 Number of Patient Related Studies
+0020 1202 IS NumberOfPatientRelatedSeries 1 Number of Patient Related Series
+0020 1204 IS NumberOfPatientRelatedInstances 1 Number of Patient Related Instances
+0020 1206 IS NumberOfStudyRelatedSeries 1 Number of Study Related Series
+0020 1208 IS NumberOfStudyRelatedInstances 1 Number of Study Related Instances
+0020 1209 IS NumberOfSeriesRelatedInstances 1 Number of Series Related Instances
+0020 4000 LT ImageComments 1 Image Comments
+#
+# Group 0028 - Image Presentation
+0028 0002 US SamplesPerPixel 1 Samples per Pixel
+0028 0004 CS PhotometricInterpretation 1 Photometric Interpretation
+0028 0006 US PlanarConfiguration 1 Planar Configuration
+0028 0008 IS NumberOfFrames 1 Number of Frames
+0028 0009 AT FrameIncrementPointer 1-n Frame Increment Pointer
+0028 0010 US Rows 1 Rows
+0028 0011 US Columns 1 Columns
+0028 0012 US Planes 1 Planes
+0028 0014 US UltrasoundColorDataPresent 1 Ultrasound Color Data Present
+0028 0030 DS PixelSpacing 2 Pixel Spacing
+0028 0031 DS ZoomFactor 2 Zoom Factor
+0028 0032 DS ZoomCenter 2 Zoom Center
+0028 0034 IS PixelAspectRatio 2 Pixel Aspect Ratio
+0028 0100 US BitsAllocated 1 Bits Allocated
+0028 0101 US BitsStored 1 Bits Stored
+0028 0102 US HighBit 1 High Bit
+0028 0103 US PixelRepresentation 1 Pixel Representation
+0028 0106 US SmallestImagePixelValue 1 Smallest Image Pixel Value
+0028 0107 US LargestImagePixelValue 1 Largest Image Pixel Value
+0028 0108 US SmallestPixelValueInSeries 1 Smallest Pixel Value in Series
+0028 0109 US LargestPixelValueInSeries 1 Largest Pixel Value in Series
+0028 0120 US PixelPaddingValue 1 Pixel Padding Value
+0028 0300 CS QualityControlImage 1 Quality Control Image
+0028 0301 CS BurnedInAnnotation 1 Burned In Annotation
+0028 1040 CS PixelIntensityRelationship 1 Pixel Intensity Relationship
+0028 1041 SS PixelIntensityRelationshipSign 1 Pixel Intensity Relationship Sign
+0028 1050 DS WindowCenter 1-n Window Center
+0028 1051 DS WindowWidth 1-n Window Width
+0028 1052 DS RescaleIntercept 1 Rescale Intercept
+0028 1053 DS RescaleSlope 1 Rescale Slope
+0028 1054 LO RescaleType 1 Rescale Type
+0028 1055 LO WindowCenterWidthExplanation 1-n Window Center & Width Explanation
+0028 1101 US RedPaletteColorLookupTableDescriptor 3 Red Palette Color Lookup Table Descriptor
+0028 1102 US GreenPaletteColorLookupTableDescriptor 3 Green Palette Color Lookup Table Descriptor
+0028 1103 US BluePaletteColorLookupTableDescriptor 3 Blue Palette Color Lookup Table Descriptor
+0028 1201 OW RedPaletteColorLookupTableData 1 Red Palette Color Lookup Table Data
+0028 1202 OW GreenPaletteColorLookupTableData 1 Green Palette Color Lookup Table Data
+0028 1203 OW BluePaletteColorLookupTableData 1 Blue Palette Color Lookup Table Data
+0028 2110 CS LossyImageCompression 1 Lossy Image Compression
+0028 2112 DS LossyImageCompressionRatio 1-n Lossy Image Compression Ratio
+0028 2114 CS LossyImageCompressionMethod 1-n Lossy Image Compression Method
+0028 3000 SQ ModalityLUTSequence 1 Modality LUT Sequence
+0028 3002 US LUTDescriptor 3 LUT Descriptor
+0028 3003 LO LUTExplanation 1 LUT Explanation
+0028 3004 LO ModalityLUTType 1 Modality LUT Type
+0028 3006 US LUTData 1-n LUT Data
+0028 3010 SQ VOILUTSequence 1 VOI LUT Sequence
+#
+# Group 0032 - Study Information
+0032 000A CS StudyStatusID 1 Study Status ID
+0032 000C CS StudyPriorityID 1 Study Priority ID
+0032 1032 PN RequestingPhysician 1 Requesting Physician
+0032 1033 LO RequestingService 1 Requesting Service
+0032 1060 LO RequestedProcedureDescription 1 Requested Procedure Description
+0032 1064 SQ RequestedProcedureCodeSequence 1 Requested Procedure Code Sequence
+0032 1070 LO RequestedContrastAgent 1 Requested Contrast Agent
+0032 4000 LT StudyComments 1 Study Comments
+#
+# Group 0038 - Visit Information
+0038 0010 LO AdmissionID 1 Admission ID
+0038 0020 DA AdmittingDate 1 Admitting Date
+0038 0021 TM AdmittingTime 1 Admitting Time
+0038 0050 LO SpecialNeeds 1 Special Needs
+0038 0300 LO CurrentPatientLocation 1 Current Patient Location
+0038 0400 LO PatientInstitutionResidence 1 Patient's Institution Residence
+0038 0500 LO PatientState 1 Patient State
+0038 4000 LT VisitComments 1 Visit Comments
+#
+# Group 0040 - Procedure Information
+0040 0001 AE ScheduledStationAETitle 1-n Scheduled Station AE Title
+0040 0002 DA ScheduledProcedureStepStartDate 1 Scheduled Procedure Step Start Date
+0040 0003 TM ScheduledProcedureStepStartTime 1 Scheduled Procedure Step Start Time
+0040 0004 DA ScheduledProcedureStepEndDate 1 Scheduled Procedure Step End Date
+0040 0005 TM ScheduledProcedureStepEndTime 1 Scheduled Procedure Step End Time
+0040 0006 PN ScheduledPerformingPhysicianName 1 Scheduled Performing Physician's Name
+0040 0007 LO ScheduledProcedureStepDescription 1 Scheduled Procedure Step Description
+0040 0008 SQ ScheduledProtocolCodeSequence 1 Scheduled Protocol Code Sequence
+0040 0009 SH ScheduledProcedureStepID 1 Scheduled Procedure Step ID
+0040 0010 SH ScheduledStationName 1-n Scheduled Station Name
+0040 0011 SH ScheduledProcedureStepLocation 1 Scheduled Procedure Step Location
+0040 0012 LO PreMedication 1 Pre-Medication
+0040 0020 CS ScheduledProcedureStepStatus 1 Scheduled Procedure Step Status
+0040 0100 SQ ScheduledProcedureStepSequence 1 Scheduled Procedure Step Sequence
+0040 0220 SQ ReferencedNonImageCompositeSOPInstanceSequence 1 Referenced Non-Image Composite SOP Instance Sequence
+0040 0241 AE PerformedStationAETitle 1 Performed Station AE Title
+0040 0242 SH PerformedStationName 1 Performed Station Name
+0040 0243 SH PerformedLocation 1 Performed Location
+0040 0244 DA PerformedProcedureStepStartDate 1 Performed Procedure Step Start Date
+0040 0245 TM PerformedProcedureStepStartTime 1 Performed Procedure Step Start Time
+0040 0250 DA PerformedProcedureStepEndDate 1 Performed Procedure Step End Date
+0040 0251 TM PerformedProcedureStepEndTime 1 Performed Procedure Step End Time
+0040 0252 CS PerformedProcedureStepStatus 1 Performed Procedure Step Status
+0040 0253 SH PerformedProcedureStepID 1 Performed Procedure Step ID
+0040 0254 LO PerformedProcedureStepDescription 1 Performed Procedure Step Description
+0040 0255 LO PerformedProcedureTypeDescription 1 Performed Procedure Type Description
+0040 0260 SQ PerformedProtocolCodeSequence 1 Performed Protocol Code Sequence
+0040 0270 SQ ScheduledStepAttributesSequence 1 Scheduled Step Attributes Sequence
+0040 0275 SQ RequestAttributesSequence 1 Request Attributes Sequence
+0040 0280 ST CommentsOnThePerformedProcedureStep 1 Comments on the Performed Procedure Step
+0040 0293 SQ QuantitySequence 1 Quantity Sequence
+0040 0294 DS Quantity 1 Quantity
+0040 0295 SQ MeasuringUnitsSequence 1 Measuring Units Sequence
+0040 0296 SQ BillingItemSequence 1 Billing Item Sequence
+0040 0300 US TotalTimeOfFluoroscopy 1 Total Time of Fluoroscopy
+0040 0301 US TotalNumberOfExposures 1 Total Number of Exposures
+0040 0302 US EntranceDose 1 Entrance Dose
+0040 0303 US ExposedArea 1-2 Exposed Area
+0040 0306 DS DistanceSourceToEntrance 1 Distance Source to Entrance
+0040 0310 ST CommentsOnRadiationDose 1 Comments on Radiation Dose
+0040 0312 DS XRayOutput 1 X-Ray Output
+0040 0314 DS HalfValueLayer 1 Half Value Layer
+0040 0316 DS OrganDose 1 Organ Dose
+0040 0318 CS OrganExposed 1 Organ Exposed
+0040 0320 SQ BillingProcedureStepSequence 1 Billing Procedure Step Sequence
+0040 0321 SQ FilmConsumptionSequence 1 Film Consumption Sequence
+0040 0324 SQ BillingSuppliesAndDevicesSequence 1 Billing Supplies and Devices Sequence
+0040 0340 SQ PerformedSeriesSequence 1 Performed Series Sequence
+0040 0400 LT CommentsOnTheScheduledProcedureStep 1 Comments on the Scheduled Procedure Step
+0040 050A LO SpecimenAccessionNumber 1 Specimen Accession Number
+0040 0550 SQ SpecimenSequence 1 Specimen Sequence
+0040 0551 LO SpecimenIdentifier 1 Specimen Identifier
+0040 0555 SQ AcquisitionContextSequence 1 Acquisition Context Sequence
+0040 0556 ST AcquisitionContextDescription 1 Acquisition Context Description
+0040 059A SQ SpecimenTypeCodeSequence 1 Specimen Type Code Sequence
+0040 06FA LO SlideIdentifier 1 Slide Identifier
+0040 071A SQ ImageCenterPointCoordinatesSequence 1 Image Center Point Coordinates Sequence
+0040 072A DS XOffsetInSlideCoordinateSystem 1 X Offset in Slide Coordinate System
+0040 073A DS YOffsetInSlideCoordinateSystem 1 Y Offset in Slide Coordinate System
+0040 074A DS ZOffsetInSlideCoordinateSystem 1 Z Offset in Slide Coordinate System
+0040 08D8 SQ PixelSpacingSequence 1 Pixel Spacing Sequence
+0040 08DA SQ CoordinateSystemAxisCodeSequence 1 Coordinate System Axis Code Sequence
+0040 08EA SQ MeasurementUnitsCodeSequence 1 Measurement Units Code Sequence
+0040 1001 SH RequestedProcedureID 1 Requested Procedure ID
+0040 1002 LO ReasonForTheRequestedProcedure 1 Reason for the Requested Procedure
+0040 1003 SH RequestedProcedurePriority 1 Requested Procedure Priority
+0040 1004 LO PatientTransportArrangements 1 Patient Transport Arrangements
+0040 1005 LO RequestedProcedureLocation 1 Requested Procedure Location
+0040 1008 LO ConfidentialityCode 1 Confidentiality Code
+0040 1009 SH ReportingPriority 1 Reporting Priority
+0040 100A SQ ReasonForRequestedProcedureCodeSequence 1 Reason for Requested Procedure Code Sequence
+0040 1010 PN NamesOfIntendedRecipientsOfResults 1-n Names of Intended Recipients of Results
+0040 1011 SQ IntendedRecipientsOfResultsIdentificationSequence 1 Intended Recipients of Results Identification Sequence
+0040 1101 SQ PersonIdentificationCodeSequence 1 Person Identification Code Sequence
+0040 1102 ST PersonAddress 1 Person's Address
+0040 1103 LO PersonTelephoneNumbers 1-n Person's Telephone Numbers
+0040 1400 LT RequestedProcedureComments 1 Requested Procedure Comments
+0040 2001 LO ReasonForTheImagingServiceRequest 1 Reason for the Imaging Service Request
+0040 2004 DA IssueDateOfImagingServiceRequest 1 Issue Date of Imaging Service Request
+0040 2005 TM IssueTimeOfImagingServiceRequest 1 Issue Time of Imaging Service Request
+0040 2008 PN OrderEnteredBy 1 Order Entered By
+0040 2009 SH OrderEntererLocation 1 Order Enterer's Location
+0040 2010 SH OrderCallbackPhoneNumber 1 Order Callback Phone Number
+0040 2016 LO PlacerOrderNumberImagingServiceRequest 1 Placer Order Number / Imaging Service Request
+0040 2017 LO FillerOrderNumberImagingServiceRequest 1 Filler Order Number / Imaging Service Request
+0040 2400 LT ImagingServiceRequestComments 1 Imaging Service Request Comments
+0040 3001 LO ConfidentialityConstraintOnPatientDataDescription 1 Confidentiality Constraint on Patient Data Description
+0040 4001 CS GeneralPurposeScheduledProcedureStepStatus 1 General Purpose Scheduled Procedure Step Status
+0040 4002 CS GeneralPurposePerformedProcedureStepStatus 1 General Purpose Performed Procedure Step Status
+0040 4003 CS GeneralPurposeScheduledProcedureStepPriority 1 General Purpose Scheduled Procedure Step Priority
+0040 4004 SQ ScheduledProcessingApplicationsCodeSequence 1 Scheduled Processing Applications Code Sequence
+0040 4005 DT ScheduledProcedureStepStartDateTime 1 Scheduled Procedure Step Start DateTime
+0040 4006 CS MultipleCopiesFlag 1 Multiple Copies Flag
+0040 4007 SQ PerformedProcessingApplicationsCodeSequence 1 Performed Processing Applications Code Sequence
+0040 4009 SQ HumanPerformerCodeSequence 1 Human Performer Code Sequence
+0040 4010 DT ScheduledProcedureStepModificationDateTime 1 Scheduled Procedure Step Modification DateTime
+0040 4011 DT ExpectedCompletionDateTime 1 Expected Completion DateTime
+0040 4015 SQ ResultingGeneralPurposePerformedProcedureStepsSequence 1 Resulting General Purpose Performed Procedure Steps Sequence
+0040 4016 SQ ReferencedGeneralPurposeScheduledProcedureStepSequence 1 Referenced General Purpose Scheduled Procedure Step Sequence
+0040 4018 SQ ScheduledWorkitemCodeSequence 1 Scheduled Workitem Code Sequence
+0040 4019 SQ PerformedWorkitemCodeSequence 1 Performed Workitem Code Sequence
+0040 4020 CS InputAvailabilityFlag 1 Input Availability Flag
+0040 4021 SQ InputInformationSequence 1 Input Information Sequence
+0040 4022 SQ RelevantInformationSequence 1 Relevant Information Sequence
+0040 4023 UI ReferencedGeneralPurposeScheduledProcedureStepTransactionUID 1 Referenced General Purpose Scheduled Procedure Step Transaction UID
+0040 4025 SQ ScheduledStationNameCodeSequence 1 Scheduled Station Name Code Sequence
+0040 4026 SQ ScheduledStationClassCodeSequence 1 Scheduled Station Class Code Sequence
+0040 4027 SQ ScheduledStationGeographicLocationCodeSequence 1 Scheduled Station Geographic Location Code Sequence
+0040 4028 SQ PerformedStationNameCodeSequence 1 Performed Station Name Code Sequence
+0040 4029 SQ PerformedStationClassCodeSequence 1 Performed Station Class Code Sequence
+0040 4030 SQ PerformedStationGeographicLocationCodeSequence 1 Performed Station Geographic Location Code Sequence
+0040 4031 SQ RequestedSubsequentWorkitemCodeSequence 1 Requested Subsequent Workitem Code Sequence
+0040 4032 SQ NonDICOMOutputCodeSequence 1 Non-DICOM Output Code Sequence
+0040 4033 SQ OutputInformationSequence 1 Output Information Sequence
+0040 4034 SQ ScheduledHumanPerformersSequence 1 Scheduled Human Performers Sequence
+0040 4035 SQ ActualHumanPerformersSequence 1 Actual Human Performers Sequence
+0040 4036 LO HumanPerformerOrganization 1 Human Performer's Organization
+0040 4037 PN HumanPerformerName 1 Human Performer's Name
+0040 A010 CS RelationshipType 1 Relationship Type
+0040 A027 LO VerifyingOrganization 1 Verifying Organization
+0040 A030 DT VerificationDateTime 1 Verification DateTime
+0040 A032 DT ObservationDateTime 1 Observation DateTime
+0040 A040 CS ValueType 1 Value Type
+0040 A043 SQ ConceptNameCodeSequence 1 Concept Name Code Sequence
+0040 A050 CS ContinuityOfContent 1 Continuity of Content
+0040 A073 SQ VerifyingObserverSequence 1 Verifying Observer Sequence
+0040 A075 PN VerifyingObserverName 1 Verifying Observer Name
+0040 A078 SQ AuthorObserverSequence 1 Author Observer Sequence
+0040 A07A SQ ParticipantSequence 1 Participant Sequence
+0040 A07C SQ CustodialOrganizationSequence 1 Custodial Organization Sequence
+0040 A080 CS ParticipationType 1 Participation Type
+0040 A082 DT ParticipationDateTime 1 Participation DateTime
+0040 A084 CS ObserverType 1 Observer Type
+0040 A088 SQ VerifyingObserverIdentificationCodeSequence 1 Verifying Observer Identification Code Sequence
+0040 A0B0 US ReferencedWaveformChannels 2-2n Referenced Waveform Channels
+0040 A120 DT DateTime 1 DateTime
+0040 A121 DA Date 1 Date
+0040 A122 TM Time 1 Time
+0040 A123 PN PersonName 1 Person Name
+0040 A124 UI UID 1 UID
+0040 A130 CS TemporalRangeType 1 Temporal Range Type
+0040 A132 UL ReferencedSamplePositions 1-n Referenced Sample Positions
+0040 A136 US ReferencedFrameNumbers 1-n Referenced Frame Numbers
+0040 A138 DS ReferencedTimeOffsets 1-n Referenced Time Offsets
+0040 A13A DT ReferencedDateTime 1-n Referenced DateTime
+0040 A160 UT TextValue 1 Text Value
+0040 A168 SQ ConceptCodeSequence 1 Concept Code Sequence
+0040 A170 SQ PurposeOfReferenceCodeSequence 1 Purpose of Reference Code Sequence
+0040 A180 US AnnotationGroupNumber 1 Annotation Group Number
+0040 A195 SQ ModifierCodeSequence 1 Modifier Code Sequence
+0040 A300 SQ MeasuredValueSequence 1 Measured Value Sequence
+0040 A301 SQ NumericValueQualifierCodeSequence 1 Numeric Value Qualifier Code Sequence
+0040 A30A DS NumericValue 1-n Numeric Value
+0040 A360 SQ PredecessorDocumentsSequence 1 Predecessor Documents Sequence
+0040 A370 SQ ReferencedRequestSequence 1 Referenced Request Sequence
+0040 A372 SQ PerformedProcedureCodeSequence 1 Performed Procedure Code Sequence
+0040 A375 SQ CurrentRequestedProcedureEvidenceSequence 1 Current Requested Procedure Evidence Sequence
+0040 A385 SQ PertinentOtherEvidenceSequence 1 Pertinent Other Evidence Sequence
+0040 A390 SQ HL7StructuredDocumentReferenceSequence 1 HL7 Structured Document Reference Sequence
+0040 A491 CS CompletionFlag 1 Completion Flag
+0040 A492 LO CompletionFlagDescription 1 Completion Flag Description
+0040 A493 CS VerificationFlag 1 Verification Flag
+0040 A494 CS ArchiveRequested 1 Archive Requested
+0040 A496 CS PreliminaryFlag 1 Preliminary Flag
+0040 A504 SQ ContentTemplateSequence 1 Content Template Sequence
+0040 A525 SQ IdenticalDocumentsSequence 1 Identical Documents Sequence
+0040 A730 SQ ContentSequence 1 Content Sequence
+0040 B020 SQ WaveformAnnotationSequence 1 Waveform Annotation Sequence
+0040 DB00 CS TemplateIdentifier 1 Template Identifier
+0040 DB73 UL TemplateVersion 1 Template Version
+0040 DB74 UL TemplateLocalVersion 1 Template Local Version
+0040 DB76 DT TemplateExtensionFlag 1 Template Extension Flag
+0040 DB79 DT TemplateExtensionOrganizationUID 1 Template Extension Organization UID
+0040 DB7A UI TemplateExtensionCreatorUID 1 Template Extension Creator UID
+0040 DB7C UL ReferencedContentItemIdentifier 1-n Referenced Content Item Identifier
+0040 DB7D DT HL7InstanceIdentifier 1 HL7 Instance Identifier
+0040 DB7E DT HL7DocumentEffectiveTime 1 HL7 Document Effective Time
+0040 DB7F SQ HL7DocumentTypeCodeSequence 1 HL7 Document Type Code Sequence
+0040 DB80 DT HL7DocumentReferenceDateTime 1 HL7 Document Reference DateTime
+#
+# Group 0070 - Presentation State
+0070 0001 SQ GraphicAnnotationSequence 1 Graphic Annotation Sequence
+0070 0002 CS GraphicLayer 1 Graphic Layer
+0070 0003 CS BoundingBoxAnnotationUnits 1 Bounding Box Annotation Units
+0070 0004 CS AnchorPointAnnotationUnits 1 Anchor Point Annotation Units
+0070 0005 CS GraphicAnnotationUnits 1 Graphic Annotation Units
+0070 0006 ST UnformattedTextValue 1 Unformatted Text Value
+0070 0008 SQ TextObjectSequence 1 Text Object Sequence
+0070 0009 SQ GraphicObjectSequence 1 Graphic Object Sequence
+0070 0010 FL BoundingBoxTopLeftHandCorner 2 Bounding Box Top Left Hand Corner
+0070 0011 FL BoundingBoxBottomRightHandCorner 2 Bounding Box Bottom Right Hand Corner
+0070 0012 CS BoundingBoxTextHorizontalJustification 1 Bounding Box Text Horizontal Justification
+0070 0014 FL AnchorPoint 2 Anchor Point
+0070 0015 CS AnchorPointVisibility 1 Anchor Point Visibility
+0070 0020 US GraphicDimensions 1 Graphic Dimensions
+0070 0021 US NumberOfGraphicPoints 1 Number of Graphic Points
+0070 0022 FL GraphicData 2-n Graphic Data
+0070 0023 CS GraphicType 1 Graphic Type
+0070 0024 CS GraphicFilled 1 Graphic Filled
+0070 0041 CS ImageHorizontalFlip 1 Image Horizontal Flip
+0070 0042 DS ImageRotation 1 Image Rotation
+0070 0052 SL DisplayedAreaTopLeftHandCorner 2 Displayed Area Top Left Hand Corner
+0070 0053 SL DisplayedAreaBottomRightHandCorner 2 Displayed Area Bottom Right Hand Corner
+0070 005A SQ DisplayedAreaSelectionSequence 1 Displayed Area Selection Sequence
+0070 0060 SQ GraphicLayerSequence 1 Graphic Layer Sequence
+0070 0062 IS GraphicLayerOrder 1 Graphic Layer Order
+0070 0066 US GraphicLayerRecommendedDisplayGrayscaleValue 1 Graphic Layer Recommended Display Grayscale Value
+0070 0068 LO GraphicLayerDescription 1 Graphic Layer Description
+0070 0080 CS ContentLabel 1 Content Label
+0070 0081 LO ContentDescription 1 Content Description
+0070 0082 DA PresentationCreationDate 1 Presentation Creation Date
+0070 0083 TM PresentationCreationTime 1 Presentation Creation Time
+0070 0084 PN ContentCreatorName 1 Content Creator's Name
+0070 0100 CS PresentationSizeMode 1 Presentation Size Mode
+0070 0101 DS PresentationPixelSpacing 2 Presentation Pixel Spacing
+0070 0102 IS PresentationPixelAspectRatio 2 Presentation Pixel Aspect Ratio
+0070 0103 FL PresentationPixelMagnificationRatio 1 Presentation Pixel Magnification Ratio
+#
+# Group 0088 - Storage
+0088 0130 SH StorageMediaFileSetID 1 Storage Media File-set ID
+0088 0140 UI StorageMediaFileSetUID 1 Storage Media File-set UID
+0088 0200 SQ IconImageSequence 1 Icon Image Sequence
+#
+# Group 7FE0 - Pixel Data
+7FE0 0010 OW PixelData 1 Pixel Data
+#
+# Group FFFE - Delimiters
+FFFE E000 NONE Item 1 Item
+FFFE E00D NONE ItemDelimitationItem 1 Item Delimitation Item
+FFFE E0DD NONE SequenceDelimitationItem 1 Sequence Delimitation Item
