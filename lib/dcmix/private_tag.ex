@@ -251,7 +251,8 @@ defmodule Dcmix.PrivateTag do
 
       {:ok, {0x10, 0x01}} = Dcmix.PrivateTag.parse_tag({0x0009, 0x1001})
   """
-  @spec parse_tag(Tag.t()) :: {:ok, {non_neg_integer(), non_neg_integer()}} | {:error, :not_private}
+  @spec parse_tag(Tag.t()) ::
+          {:ok, {non_neg_integer(), non_neg_integer()}} | {:error, :not_private}
   def parse_tag({group, element}) when rem(group, 2) == 1 and element >= 0x1000 do
     block = div(element, 0x100)
     offset = rem(element, 0x100)

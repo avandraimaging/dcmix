@@ -34,23 +34,18 @@ defmodule Dcmix.Parser.ExplicitVR do
   end
 
   defp parse_elements(data, elements, big_endian, stop_tag) do
-    case parse_tag(data, big_endian) do
-      {:ok, tag, rest} ->
-        if stop_tag && Tag.compare(tag, stop_tag) != :lt do
-          {:ok, DataSet.new(Enum.reverse(elements)), data}
-        else
-          case parse_element(tag, rest, big_endian) do
-            {:ok, element, rest} ->
-              parse_elements(rest, [element | elements], big_endian, stop_tag)
-
-            {:error, _} = error ->
-              error
-          end
-        end
-
-      {:error, _} = error ->
-        error
+    with {:ok, tag, rest} <- parse_tag(data, big_endian),
+         :continue <- check_stop_tag(tag, stop_tag),
+         {:ok, element, rest} <- parse_element(tag, rest, big_endian) do
+      parse_elements(rest, [element | elements], big_endian, stop_tag)
+    else
+      :stop -> {:ok, DataSet.new(Enum.reverse(elements)), data}
+      {:error, _} = error -> error
     end
+  end
+
+  defp check_stop_tag(tag, stop_tag) do
+    if stop_tag && Tag.compare(tag, stop_tag) != :lt, do: :stop, else: :continue
   end
 
   defp parse_tag(data, big_endian) do
@@ -169,39 +164,28 @@ defmodule Dcmix.Parser.ExplicitVR do
   end
 
   defp parse_sequence_items(data, items, big_endian) do
-    case parse_tag(data, big_endian) do
-      {:ok, {0xFFFE, 0xE0DD}, rest} ->
-        # Sequence Delimitation Item
-        case read_uint32(rest, big_endian) do
-          {:ok, _length, rest} ->
-            {:ok, Enum.reverse(items), rest}
-
-          {:error, _} = error ->
-            error
-        end
-
-      {:ok, {0xFFFE, 0xE000}, rest} ->
-        # Item tag
-        case read_uint32(rest, big_endian) do
-          {:ok, length, rest} ->
-            case parse_item(length, rest, big_endian) do
-              {:ok, item_ds, rest} ->
-                parse_sequence_items(rest, [item_ds | items], big_endian)
-
-              {:error, _} = error ->
-                error
-            end
-
-          {:error, _} = error ->
-            error
-        end
-
-      {:ok, tag, _rest} ->
-        {:error, {:unexpected_tag_in_sequence, tag}}
-
-      {:error, _} = error ->
-        error
+    with {:ok, tag, rest} <- parse_tag(data, big_endian) do
+      handle_sequence_tag(tag, rest, items, big_endian)
     end
+  end
+
+  defp handle_sequence_tag({0xFFFE, 0xE0DD}, rest, items, big_endian) do
+    # Sequence Delimitation Item
+    with {:ok, _length, rest} <- read_uint32(rest, big_endian) do
+      {:ok, Enum.reverse(items), rest}
+    end
+  end
+
+  defp handle_sequence_tag({0xFFFE, 0xE000}, rest, items, big_endian) do
+    # Item tag
+    with {:ok, length, rest} <- read_uint32(rest, big_endian),
+         {:ok, item_ds, rest} <- parse_item(length, rest, big_endian) do
+      parse_sequence_items(rest, [item_ds | items], big_endian)
+    end
+  end
+
+  defp handle_sequence_tag(tag, _rest, _items, _big_endian) do
+    {:error, {:unexpected_tag_in_sequence, tag}}
   end
 
   defp parse_item(@undefined_length, data, big_endian) do
@@ -261,38 +245,36 @@ defmodule Dcmix.Parser.ExplicitVR do
   end
 
   defp parse_fragments(data, fragments, big_endian) do
-    case parse_tag(data, big_endian) do
-      {:ok, {0xFFFE, 0xE0DD}, rest} ->
-        # Sequence Delimitation Item
-        case read_uint32(rest, big_endian) do
-          {:ok, _length, rest} ->
-            {:ok, Enum.reverse(fragments), rest}
-
-          {:error, _} = error ->
-            error
-        end
-
-      {:ok, {0xFFFE, 0xE000}, rest} ->
-        # Item (fragment)
-        case read_uint32(rest, big_endian) do
-          {:ok, length, rest} when byte_size(rest) >= length ->
-            <<fragment::binary-size(length), rest::binary>> = rest
-            parse_fragments(rest, [fragment | fragments], big_endian)
-
-          {:ok, _length, _rest} ->
-            {:error, :unexpected_eof}
-
-          {:error, _} = error ->
-            error
-        end
-
-      {:ok, tag, _rest} ->
-        {:error, {:unexpected_tag_in_encapsulated, tag}}
-
-      {:error, _} = error ->
-        error
+    with {:ok, tag, rest} <- parse_tag(data, big_endian) do
+      handle_fragment_tag(tag, rest, fragments, big_endian)
     end
   end
+
+  defp handle_fragment_tag({0xFFFE, 0xE0DD}, rest, fragments, big_endian) do
+    # Sequence Delimitation Item
+    with {:ok, _length, rest} <- read_uint32(rest, big_endian) do
+      {:ok, Enum.reverse(fragments), rest}
+    end
+  end
+
+  defp handle_fragment_tag({0xFFFE, 0xE000}, rest, fragments, big_endian) do
+    # Item (fragment)
+    with {:ok, length, rest} <- read_uint32(rest, big_endian),
+         {:ok, fragment, rest} <- extract_fragment(length, rest) do
+      parse_fragments(rest, [fragment | fragments], big_endian)
+    end
+  end
+
+  defp handle_fragment_tag(tag, _rest, _fragments, _big_endian) do
+    {:error, {:unexpected_tag_in_encapsulated, tag}}
+  end
+
+  defp extract_fragment(length, rest) when byte_size(rest) >= length do
+    <<fragment::binary-size(length), remaining::binary>> = rest
+    {:ok, fragment, remaining}
+  end
+
+  defp extract_fragment(_length, _rest), do: {:error, :unexpected_eof}
 
   defp decode_value(:SQ, _bytes, _big_endian) do
     # SQ is handled separately with defined length

@@ -46,7 +46,10 @@ defmodule Dcmix.Export.JSON do
 
   defp tag_to_string({group, element}) do
     group_hex = group |> Integer.to_string(16) |> String.pad_leading(4, "0") |> String.upcase()
-    element_hex = element |> Integer.to_string(16) |> String.pad_leading(4, "0") |> String.upcase()
+
+    element_hex =
+      element |> Integer.to_string(16) |> String.pad_leading(4, "0") |> String.upcase()
+
     "#{group_hex}#{element_hex}"
   end
 
@@ -71,7 +74,7 @@ defmodule Dcmix.Export.JSON do
           "InlineBinary" => Base.encode64(value)
         }
 
-      is_list(value) and length(value) > 0 and match?(%DataSet{}, hd(value)) ->
+      match?([%DataSet{} | _], value) ->
         # This is actually a sequence stored with UN VR
         %{
           "vr" => "SQ",
@@ -82,6 +85,7 @@ defmodule Dcmix.Export.JSON do
         # Fragments (encapsulated pixel data)
         binary_fragments = Enum.filter(value, &is_binary/1)
         binary_data = IO.iodata_to_binary(binary_fragments)
+
         %{
           "vr" => Atom.to_string(vr),
           "InlineBinary" => Base.encode64(binary_data)

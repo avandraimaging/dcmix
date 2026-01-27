@@ -82,18 +82,22 @@ defmodule Dcmix.DataSet do
   @spec put(t(), DataElement.t()) :: t()
   def put(%__MODULE__{elements: elements, index: index}, element) do
     tag = element.tag
+    new_index = Map.put(index, tag, element)
 
-    if Map.has_key?(index, tag) do
-      # Update existing element
-      new_elements = Enum.map(elements, fn e ->
-        if e.tag == tag, do: element, else: e
-      end)
-      %__MODULE__{elements: new_elements, index: Map.put(index, tag, element)}
-    else
-      # Insert new element in proper order
-      new_elements = insert_sorted(elements, element)
-      %__MODULE__{elements: new_elements, index: Map.put(index, tag, element)}
-    end
+    new_elements =
+      if Map.has_key?(index, tag) do
+        update_element_in_list(elements, element)
+      else
+        insert_sorted(elements, element)
+      end
+
+    %__MODULE__{elements: new_elements, index: new_index}
+  end
+
+  defp update_element_in_list(elements, element) do
+    Enum.map(elements, fn e ->
+      if e.tag == element.tag, do: element, else: e
+    end)
   end
 
   @doc """
@@ -175,10 +179,12 @@ defmodule Dcmix.DataSet do
   """
   @spec split_file_meta(t()) :: {t(), t()}
   def split_file_meta(%__MODULE__{elements: elements}) do
-    {meta_elements, data_elements} = Enum.split_with(elements, fn e ->
-      {g, _} = e.tag
-      g == 0x0002
-    end)
+    {meta_elements, data_elements} =
+      Enum.split_with(elements, fn e ->
+        {g, _} = e.tag
+        g == 0x0002
+      end)
+
     {new(meta_elements), new(data_elements)}
   end
 
@@ -207,7 +213,15 @@ defmodule Dcmix.DataSet do
     end
 
     def slice(%Dcmix.DataSet{elements: elements}) do
-      {:ok, length(elements), &Enum.slice(elements, &1, &2)}
+      size = length(elements)
+
+      {:ok, size,
+       fn start, length, step ->
+         elements
+         |> Enum.drop(start)
+         |> Enum.take(length * step)
+         |> Enum.take_every(step)
+       end}
     end
   end
 end

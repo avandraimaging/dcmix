@@ -150,39 +150,31 @@ defmodule Dcmix.Parser do
   """
   @spec parse_file_meta_only(Path.t()) :: {:ok, DataSet.t()} | {:error, term()}
   def parse_file_meta_only(path) do
-    # Read just enough to get file meta (typically < 1KB)
     case File.open(path, [:read, :binary]) do
       {:ok, file} ->
-        result =
-          try do
-            # Read preamble + prefix + some file meta
-            case IO.binread(file, @preamble_size + 4 + 4096) do
-              data when is_binary(data) ->
-                case check_dicm_prefix(data) do
-                  {:ok, rest} ->
-                    case parse_file_meta(rest) do
-                      {:ok, file_meta, _} -> {:ok, file_meta}
-                      {:error, _} = error -> error
-                    end
-
-                  {:error, _} = error ->
-                    error
-                end
-
-              {:error, reason} ->
-                {:error, {:file_error, reason}}
-
-              :eof ->
-                {:error, :unexpected_eof}
-            end
-          after
-            File.close(file)
-          end
-
-        result
+        try do
+          read_and_parse_file_meta(file)
+        after
+          File.close(file)
+        end
 
       {:error, reason} ->
         {:error, {:file_error, reason}}
+    end
+  end
+
+  defp read_and_parse_file_meta(file) do
+    case IO.binread(file, @preamble_size + 4 + 4096) do
+      data when is_binary(data) -> parse_file_meta_from_data(data)
+      {:error, reason} -> {:error, {:file_error, reason}}
+      :eof -> {:error, :unexpected_eof}
+    end
+  end
+
+  defp parse_file_meta_from_data(data) do
+    with {:ok, rest} <- check_dicm_prefix(data),
+         {:ok, file_meta, _} <- parse_file_meta(rest) do
+      {:ok, file_meta}
     end
   end
 

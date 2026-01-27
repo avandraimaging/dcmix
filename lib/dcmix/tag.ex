@@ -162,7 +162,10 @@ defmodule Dcmix.Tag do
   @spec to_string(t()) :: String.t()
   def to_string({group, element}) do
     group_hex = group |> Integer.to_string(16) |> String.pad_leading(4, "0") |> String.upcase()
-    element_hex = element |> Integer.to_string(16) |> String.pad_leading(4, "0") |> String.upcase()
+
+    element_hex =
+      element |> Integer.to_string(16) |> String.pad_leading(4, "0") |> String.upcase()
+
     "(#{group_hex},#{element_hex})"
   end
 

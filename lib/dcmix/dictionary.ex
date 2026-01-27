@@ -23,55 +23,53 @@ defmodule Dcmix.Dictionary do
   @external_resource @dictionary_path
 
   # Load entries at compile time
-  @entries (
-             case File.read(@dictionary_path) do
-               {:ok, content} ->
-                 content
-                 |> String.split("\n")
-                 |> Enum.reject(&(String.starts_with?(&1, "#") or String.trim(&1) == ""))
-                 |> Enum.map(fn line ->
-                   parts = String.split(line, ~r/\s+/, parts: 5)
+  @entries (case File.read(@dictionary_path) do
+              {:ok, content} ->
+                content
+                |> String.split("\n")
+                |> Enum.reject(&(String.starts_with?(&1, "#") or String.trim(&1) == ""))
+                |> Enum.map(fn line ->
+                  parts = String.split(line, ~r/\s+/, parts: 5)
 
-                   case parts do
-                     [group, element, vr, keyword, rest] ->
-                       vm_parts = String.split(rest, ~r/\s+/, parts: 2)
+                  case parts do
+                    [group, element, vr, keyword, rest] ->
+                      vm_parts = String.split(rest, ~r/\s+/, parts: 2)
 
-                       {vm, description} =
-                         case vm_parts do
-                           [vm, description] -> {vm, description}
-                           [vm] -> {vm, ""}
-                           [] -> {"1", ""}
-                         end
+                      {vm, description} =
+                        case vm_parts do
+                          [vm, description] -> {vm, description}
+                          [vm] -> {vm, ""}
+                          [] -> {"1", ""}
+                        end
 
-                       tag = {
-                         String.to_integer(group, 16),
-                         String.to_integer(element, 16)
-                       }
+                      tag = {
+                        String.to_integer(group, 16),
+                        String.to_integer(element, 16)
+                      }
 
-                       vr_atom =
-                         case vr do
-                           "NONE" -> nil
-                           _ -> String.to_atom(vr)
-                         end
+                      vr_atom =
+                        case vr do
+                          "NONE" -> nil
+                          _ -> String.to_atom(vr)
+                        end
 
-                       %{
-                         tag: tag,
-                         keyword: keyword,
-                         vr: vr_atom,
-                         vm: vm,
-                         description: description
-                       }
+                      %{
+                        tag: tag,
+                        keyword: keyword,
+                        vr: vr_atom,
+                        vm: vm,
+                        description: description
+                      }
 
-                     _ ->
-                       nil
-                   end
-                 end)
-                 |> Enum.reject(&is_nil/1)
+                    _ ->
+                      nil
+                  end
+                end)
+                |> Enum.reject(&is_nil/1)
 
-               {:error, _} ->
-                 []
-             end
-           )
+              {:error, _} ->
+                []
+            end)
 
   @by_tag Map.new(@entries, fn e -> {e.tag, e} end)
   @by_keyword Map.new(@entries, fn e -> {e.keyword, e} end)

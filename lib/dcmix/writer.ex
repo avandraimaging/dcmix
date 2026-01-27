@@ -47,8 +47,14 @@ defmodule Dcmix.Writer do
     {existing_file_meta, data_elements} = DataSet.split_file_meta(dataset)
 
     # Build file meta information
-    file_meta = build_file_meta(existing_file_meta, data_elements, transfer_syntax_uid,
-      impl_class_uid, impl_version_name)
+    file_meta =
+      build_file_meta(
+        existing_file_meta,
+        data_elements,
+        transfer_syntax_uid,
+        impl_class_uid,
+        impl_version_name
+      )
 
     # Encode file meta (always Explicit VR Little Endian)
     file_meta_bytes = ExplicitVR.encode(file_meta, big_endian: false)
@@ -62,7 +68,13 @@ defmodule Dcmix.Writer do
     {:ok, IO.iodata_to_binary([preamble, @dicm_prefix, file_meta_bytes, data_bytes])}
   end
 
-  defp build_file_meta(existing_meta, data_elements, transfer_syntax_uid, impl_class_uid, impl_version_name) do
+  defp build_file_meta(
+         existing_meta,
+         data_elements,
+         transfer_syntax_uid,
+         impl_class_uid,
+         impl_version_name
+       ) do
     # Get SOP Class UID and SOP Instance UID from data elements
     sop_class_uid =
       DataSet.get_value(data_elements, Tag.sop_class_uid()) ||
@@ -126,7 +138,7 @@ defmodule Dcmix.Writer do
     time_part =
       Calendar.strftime(timestamp, "%H%M%S")
 
-    random_part = :rand.uniform(99999)
+    random_part = :rand.uniform(99_999)
 
     "1.2.826.0.1.3680043.9.7433.1.#{date_part}.#{time_part}.#{random_part}"
   end

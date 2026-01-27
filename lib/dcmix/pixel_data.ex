@@ -58,21 +58,22 @@ defmodule Dcmix.PixelData do
         {:ok, value}
 
       %DataElement{value: fragments} when is_list(fragments) ->
-        # Encapsulated pixel data - concatenate fragments
-        include_offset_table = Keyword.get(opts, :include_offset_table, false)
-
-        if include_offset_table do
-          {:ok, IO.iodata_to_binary(fragments)}
-        else
-          # Skip first fragment (offset table) if present
-          data_fragments = if length(fragments) > 1, do: tl(fragments), else: fragments
-          {:ok, IO.iodata_to_binary(data_fragments)}
-        end
+        extract_encapsulated(fragments, opts)
 
       %DataElement{value: nil} ->
         {:error, :empty_pixel_data}
     end
   end
+
+  defp extract_encapsulated(fragments, opts) do
+    include_offset_table = Keyword.get(opts, :include_offset_table, false)
+    data_fragments = get_data_fragments(fragments, include_offset_table)
+    {:ok, IO.iodata_to_binary(data_fragments)}
+  end
+
+  defp get_data_fragments(fragments, true), do: fragments
+  defp get_data_fragments([_offset_table | rest], false) when rest != [], do: rest
+  defp get_data_fragments(fragments, false), do: fragments
 
   @doc """
   Extracts individual frames from encapsulated pixel data.
@@ -170,11 +171,10 @@ defmodule Dcmix.PixelData do
       bits_stored: DataSet.get_value(dataset, Tag.bits_stored()),
       high_bit: DataSet.get_value(dataset, Tag.high_bit()),
       pixel_representation: DataSet.get_value(dataset, Tag.pixel_representation()),
-      photometric_interpretation:
-        DataSet.get_value(dataset, Tag.photometric_interpretation()),
+      photometric_interpretation: DataSet.get_value(dataset, Tag.photometric_interpretation()),
       number_of_frames: parse_int(DataSet.get_value(dataset, {0x0028, 0x0008})) || 1,
       has_pixel_data: DataSet.has_tag?(dataset, @pixel_data_tag),
-      encapsulated: is_encapsulated?(dataset)
+      encapsulated: encapsulated?(dataset)
     }
   end
 
@@ -204,8 +204,8 @@ defmodule Dcmix.PixelData do
   @doc """
   Returns true if the pixel data is encapsulated (compressed).
   """
-  @spec is_encapsulated?(DataSet.t()) :: boolean()
-  def is_encapsulated?(%DataSet{} = dataset) do
+  @spec encapsulated?(DataSet.t()) :: boolean()
+  def encapsulated?(%DataSet{} = dataset) do
     case DataSet.get(dataset, @pixel_data_tag) do
       %DataElement{value: fragments} when is_list(fragments) -> true
       _ -> false

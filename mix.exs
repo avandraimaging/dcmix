@@ -6,12 +6,16 @@ defmodule Dcmix.MixProject do
       app: :dcmix,
       version: "0.1.0",
       elixir: "~> 1.18",
+      elixirc_options: [warnings_as_errors: true],
       start_permanent: Mix.env() == :prod,
       deps: deps(),
       description: description(),
       package: package(),
       name: "Dcmix",
-      source_url: "https://github.com/avandra/dcmix"
+      source_url: "https://github.com/avandra/dcmix",
+      test_coverage: [
+        summary: [threshold: 90]
+      ]
     ]
   end
 
@@ -35,7 +39,9 @@ defmodule Dcmix.MixProject do
 
   defp deps do
     [
-      {:jason, "~> 1.4"}
+      {:jason, "~> 1.4"},
+      {:credo, "~> 1.7", only: [:dev, :test], runtime: false},
+      {:sobelow, "~> 0.13", only: [:dev, :test], runtime: false}
     ]
   end
 end
