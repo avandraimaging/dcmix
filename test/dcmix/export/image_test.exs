@@ -9,15 +9,15 @@ defmodule Dcmix.Export.ImageTest do
 
   describe "Decoder.get_pixel_info/1" do
     test "returns pixel info for dataset with pixel data" do
-      {:ok, dataset} = Dcmix.read_file(Path.join(@fixtures_path, "0_ORIGINAL.dcm"))
+      {:ok, dataset} = Dcmix.read_file(Path.join(@fixtures_path, "nema_mr_brain_512x512.dcm"))
 
       assert {:ok, info} = Decoder.get_pixel_info(dataset)
-      assert info.rows == 1760
-      assert info.columns == 2140
+      assert info.rows == 512
+      assert info.columns == 512
       assert info.bits_allocated == 16
-      assert info.bits_stored == 10
+      assert info.bits_stored == 12
       assert info.samples_per_pixel == 1
-      assert info.photometric_interpretation == "MONOCHROME1"
+      assert info.photometric_interpretation == "MONOCHROME2"
     end
 
     test "returns error when required fields are missing" do
@@ -28,44 +28,44 @@ defmodule Dcmix.Export.ImageTest do
   end
 
   describe "Decoder.decode/2" do
-    test "decodes monochrome1 image" do
-      {:ok, dataset} = Dcmix.read_file(Path.join(@fixtures_path, "0_ORIGINAL.dcm"))
+    test "decodes monochrome2 brain image" do
+      {:ok, dataset} = Dcmix.read_file(Path.join(@fixtures_path, "nema_mr_brain_512x512.dcm"))
 
       assert {:ok, decoded} = Decoder.decode(dataset)
-      assert decoded.width == 2140
-      assert decoded.height == 1760
+      assert decoded.width == 512
+      assert decoded.height == 512
       assert decoded.photometric == :grayscale
       assert decoded.samples_per_pixel == 1
       assert decoded.bit_depth == 8
-      assert byte_size(decoded.pixels) == 2140 * 1760
+      assert byte_size(decoded.pixels) == 512 * 512
     end
 
-    test "decodes monochrome2 image" do
-      {:ok, dataset} = Dcmix.read_file(Path.join(@fixtures_path, "1_ORIGINAL.dcm"))
+    test "decodes monochrome2 knee image" do
+      {:ok, dataset} = Dcmix.read_file(Path.join(@fixtures_path, "nema_mr_knee_512x512.dcm"))
 
       assert {:ok, decoded} = Decoder.decode(dataset)
-      assert decoded.width == 2022
-      assert decoded.height == 2022
+      assert decoded.width == 512
+      assert decoded.height == 512
       assert decoded.photometric == :grayscale
     end
 
     test "supports window option :min_max" do
-      {:ok, dataset} = Dcmix.read_file(Path.join(@fixtures_path, "0_ORIGINAL.dcm"))
+      {:ok, dataset} = Dcmix.read_file(Path.join(@fixtures_path, "nema_mr_brain_512x512.dcm"))
 
       assert {:ok, decoded} = Decoder.decode(dataset, window: :min_max)
       assert decoded.bit_depth == 8
     end
 
     test "supports window option :none for 16-bit output" do
-      {:ok, dataset} = Dcmix.read_file(Path.join(@fixtures_path, "0_ORIGINAL.dcm"))
+      {:ok, dataset} = Dcmix.read_file(Path.join(@fixtures_path, "nema_mr_brain_512x512.dcm"))
 
       assert {:ok, decoded} = Decoder.decode(dataset, window: :none)
       assert decoded.bit_depth == 16
-      assert byte_size(decoded.pixels) == 2140 * 1760 * 2
+      assert byte_size(decoded.pixels) == 512 * 512 * 2
     end
 
     test "supports explicit window center/width" do
-      {:ok, dataset} = Dcmix.read_file(Path.join(@fixtures_path, "0_ORIGINAL.dcm"))
+      {:ok, dataset} = Dcmix.read_file(Path.join(@fixtures_path, "nema_mr_brain_512x512.dcm"))
 
       assert {:ok, decoded} = Decoder.decode(dataset, window: {512, 256})
       assert decoded.bit_depth == 8
@@ -81,7 +81,7 @@ defmodule Dcmix.Export.ImageTest do
     end
 
     test "returns error for invalid frame number" do
-      {:ok, dataset} = Dcmix.read_file(Path.join(@fixtures_path, "0_ORIGINAL.dcm"))
+      {:ok, dataset} = Dcmix.read_file(Path.join(@fixtures_path, "nema_mr_brain_512x512.dcm"))
 
       assert {:error, {:invalid_frame, _}} = Decoder.decode(dataset, frame: 99)
     end
@@ -137,7 +137,7 @@ defmodule Dcmix.Export.ImageTest do
 
   describe "Image.to_file/3" do
     test "exports to PNG file" do
-      {:ok, dataset} = Dcmix.read_file(Path.join(@fixtures_path, "2_ORIGINAL.dcm"))
+      {:ok, dataset} = Dcmix.read_file(Path.join(@fixtures_path, "nema_mr_cardiac_256x256.dcm"))
       tmp_file = Path.join(System.tmp_dir!(), "test_#{:rand.uniform(100_000)}.png")
 
       try do
@@ -153,7 +153,7 @@ defmodule Dcmix.Export.ImageTest do
     end
 
     test "exports to PGM file" do
-      {:ok, dataset} = Dcmix.read_file(Path.join(@fixtures_path, "2_ORIGINAL.dcm"))
+      {:ok, dataset} = Dcmix.read_file(Path.join(@fixtures_path, "nema_mr_cardiac_256x256.dcm"))
       tmp_file = Path.join(System.tmp_dir!(), "test_#{:rand.uniform(100_000)}.pgm")
 
       try do
@@ -168,7 +168,7 @@ defmodule Dcmix.Export.ImageTest do
     end
 
     test "respects format option" do
-      {:ok, dataset} = Dcmix.read_file(Path.join(@fixtures_path, "2_ORIGINAL.dcm"))
+      {:ok, dataset} = Dcmix.read_file(Path.join(@fixtures_path, "nema_mr_cardiac_256x256.dcm"))
       tmp_file = Path.join(System.tmp_dir!(), "test_#{:rand.uniform(100_000)}.raw")
 
       try do
@@ -185,14 +185,14 @@ defmodule Dcmix.Export.ImageTest do
 
   describe "Image.encode/3" do
     test "encodes to PGM binary" do
-      {:ok, dataset} = Dcmix.read_file(Path.join(@fixtures_path, "2_ORIGINAL.dcm"))
+      {:ok, dataset} = Dcmix.read_file(Path.join(@fixtures_path, "nema_mr_cardiac_256x256.dcm"))
 
       assert {:ok, binary} = Image.encode(dataset, :pgm)
       assert String.starts_with?(binary, "P5\n")
     end
 
     test "returns error for PNG binary encoding" do
-      {:ok, dataset} = Dcmix.read_file(Path.join(@fixtures_path, "2_ORIGINAL.dcm"))
+      {:ok, dataset} = Dcmix.read_file(Path.join(@fixtures_path, "nema_mr_cardiac_256x256.dcm"))
 
       assert {:error, {:not_implemented, _}} = Image.encode(dataset, :png)
     end
@@ -200,7 +200,7 @@ defmodule Dcmix.Export.ImageTest do
 
   describe "Dcmix.to_image/3" do
     test "exports to image file via main API" do
-      {:ok, dataset} = Dcmix.read_file(Path.join(@fixtures_path, "2_ORIGINAL.dcm"))
+      {:ok, dataset} = Dcmix.read_file(Path.join(@fixtures_path, "nema_mr_cardiac_256x256.dcm"))
       tmp_file = Path.join(System.tmp_dir!(), "test_api_#{:rand.uniform(100_000)}.png")
 
       try do

@@ -2,7 +2,7 @@ defmodule Mix.Tasks.Dcmix.ToImageTest do
   use ExUnit.Case, async: false
 
   @fixtures_path "test/fixtures"
-  @valid_dcm Path.join(@fixtures_path, "2_ORIGINAL.dcm")
+  @valid_dcm Path.join(@fixtures_path, "nema_mr_cardiac_256x256.dcm")
 
   setup do
     Mix.shell(Mix.Shell.Process)

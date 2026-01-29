@@ -117,7 +117,7 @@ defmodule DcmixTest do
 
   describe "Parser" do
     test "parses DICOM file" do
-      file = Path.join(@fixtures_path, "1_ORIGINAL.dcm")
+      file = Path.join(@fixtures_path, "nema_mr_knee_512x512.dcm")
 
       if File.exists?(file) do
         assert {:ok, dataset} = Dcmix.read_file(file)
@@ -129,7 +129,7 @@ defmodule DcmixTest do
     end
 
     test "parses implicit VR file" do
-      file = Path.join(@fixtures_path, "2_ORIGINAL.dcm")
+      file = Path.join(@fixtures_path, "nema_mr_cardiac_256x256.dcm")
 
       if File.exists?(file) do
         assert {:ok, dataset} = Dcmix.read_file(file)
@@ -144,7 +144,7 @@ defmodule DcmixTest do
 
   describe "Export.Text" do
     test "dumps dataset to text" do
-      file = Path.join(@fixtures_path, "1_ORIGINAL.dcm")
+      file = Path.join(@fixtures_path, "nema_mr_knee_512x512.dcm")
 
       if File.exists?(file) do
         {:ok, dataset} = Dcmix.read_file(file)
@@ -160,7 +160,7 @@ defmodule DcmixTest do
 
   describe "Export.JSON" do
     test "exports dataset to JSON" do
-      file = Path.join(@fixtures_path, "1_ORIGINAL.dcm")
+      file = Path.join(@fixtures_path, "nema_mr_knee_512x512.dcm")
 
       if File.exists?(file) do
         {:ok, dataset} = Dcmix.read_file(file)
@@ -173,7 +173,7 @@ defmodule DcmixTest do
     end
 
     test "exports with pretty formatting" do
-      file = Path.join(@fixtures_path, "1_ORIGINAL.dcm")
+      file = Path.join(@fixtures_path, "nema_mr_knee_512x512.dcm")
 
       if File.exists?(file) do
         {:ok, dataset} = Dcmix.read_file(file)
@@ -187,7 +187,7 @@ defmodule DcmixTest do
 
   describe "Export.XML" do
     test "exports dataset to XML" do
-      file = Path.join(@fixtures_path, "1_ORIGINAL.dcm")
+      file = Path.join(@fixtures_path, "nema_mr_knee_512x512.dcm")
 
       if File.exists?(file) do
         {:ok, dataset} = Dcmix.read_file(file)
@@ -826,7 +826,7 @@ defmodule DcmixTest do
     @fixtures_path "test/fixtures"
 
     test "parse_file_meta_only extracts file meta" do
-      file = Path.join(@fixtures_path, "1_ORIGINAL.dcm")
+      file = Path.join(@fixtures_path, "nema_mr_knee_512x512.dcm")
 
       if File.exists?(file) do
         assert {:ok, file_meta} = Parser.parse_file_meta_only(file)
@@ -839,7 +839,7 @@ defmodule DcmixTest do
     end
 
     test "get_transfer_syntax returns transfer syntax UID" do
-      file = Path.join(@fixtures_path, "1_ORIGINAL.dcm")
+      file = Path.join(@fixtures_path, "nema_mr_knee_512x512.dcm")
 
       if File.exists?(file) do
         assert {:ok, ts_uid} = Parser.get_transfer_syntax(file)
@@ -1853,7 +1853,7 @@ defmodule DcmixTest do
     @fixtures_path "test/fixtures"
 
     test "dump task runs successfully with valid file" do
-      file = Path.join(@fixtures_path, "1_ORIGINAL.dcm")
+      file = Path.join(@fixtures_path, "nema_mr_knee_512x512.dcm")
 
       if File.exists?(file) do
         # Can't directly test run/1 due to exit calls, but we can test the underlying functionality
@@ -1869,7 +1869,7 @@ defmodule DcmixTest do
     @fixtures_path "test/fixtures"
 
     test "to_json converts dataset successfully" do
-      file = Path.join(@fixtures_path, "1_ORIGINAL.dcm")
+      file = Path.join(@fixtures_path, "nema_mr_knee_512x512.dcm")
 
       if File.exists?(file) do
         {:ok, dataset} = Dcmix.read_file(file)
@@ -1884,7 +1884,7 @@ defmodule DcmixTest do
     @fixtures_path "test/fixtures"
 
     test "to_xml converts dataset successfully" do
-      file = Path.join(@fixtures_path, "1_ORIGINAL.dcm")
+      file = Path.join(@fixtures_path, "nema_mr_knee_512x512.dcm")
 
       if File.exists?(file) do
         {:ok, dataset} = Dcmix.read_file(file)
@@ -3449,7 +3449,7 @@ defmodule DcmixTest do
     @fixtures_path "test/fixtures"
 
     test "parse_file_meta_only on DICOM file" do
-      file = Path.join(@fixtures_path, "1_ORIGINAL.dcm")
+      file = Path.join(@fixtures_path, "nema_mr_knee_512x512.dcm")
 
       if File.exists?(file) do
         assert {:ok, file_meta} = Parser.parse_file_meta_only(file)
@@ -3464,7 +3464,7 @@ defmodule DcmixTest do
     end
 
     test "get_transfer_syntax on DICOM file" do
-      file = Path.join(@fixtures_path, "1_ORIGINAL.dcm")
+      file = Path.join(@fixtures_path, "nema_mr_knee_512x512.dcm")
 
       if File.exists?(file) do
         assert {:ok, uid} = Parser.get_transfer_syntax(file)

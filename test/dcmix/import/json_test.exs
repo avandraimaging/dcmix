@@ -5,7 +5,7 @@ defmodule Dcmix.Import.JSONTest do
   alias Dcmix.DataSet
 
   @fixtures_path "test/fixtures"
-  @valid_dcm Path.join(@fixtures_path, "0_ORIGINAL.dcm")
+  @valid_dcm Path.join(@fixtures_path, "nema_mr_brain_512x512.dcm")
 
   describe "decode/2" do
     test "decodes simple DICOM JSON" do
