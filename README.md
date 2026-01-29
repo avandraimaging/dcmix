@@ -4,6 +4,13 @@ A DICOM library for Elixir - read, write, and manipulate DICOM files.
 
 Dcmix (pronounced "DCM-icks") is a pure Elixir implementation for working with DICOM medical imaging files, inspired by [dcmtk](https://dicom.offis.de/dcmtk.php.en) and [dicom-rs](https://github.com/Enet4/dicom-rs).
 
+> **⚠️ Experimental Status**
+>
+> This project is in an **experimental stage** and is not yet recommended for production use.
+> A significant portion of this codebase was generated with AI assistance and has not been
+> fully vetted for correctness, security, or compliance with the DICOM standard. Use at your
+> own risk and please report any issues you encounter.
+
 ## Features
 
 - Read and parse DICOM Part 10 files
