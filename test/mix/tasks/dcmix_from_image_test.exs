@@ -53,8 +53,10 @@ defmodule Mix.Tasks.Dcmix.FromImageTest do
 
         # Verify the output is valid DICOM
         {:ok, dataset} = Dcmix.read_file(tmp_dcm)
-        assert DataSet.get_value(dataset, {0x0028, 0x0010}) == 2  # Rows
-        assert DataSet.get_value(dataset, {0x0028, 0x0011}) == 2  # Columns
+        # Rows
+        assert DataSet.get_value(dataset, {0x0028, 0x0010}) == 2
+        # Columns
+        assert DataSet.get_value(dataset, {0x0028, 0x0011}) == 2
         assert DataSet.get_string(dataset, {0x0028, 0x0004}) == "RGB"
       after
         File.rm(tmp_png)
@@ -127,6 +129,7 @@ defmodule Mix.Tasks.Dcmix.FromImageTest do
         # Patient and study info should be copied
         assert DataSet.get_string(dataset, {0x0010, 0x0010}) ==
                  DataSet.get_string(original, {0x0010, 0x0010})
+
         assert DataSet.get_string(dataset, {0x0020, 0x000D}) ==
                  DataSet.get_string(original, {0x0020, 0x000D})
       after
@@ -331,7 +334,8 @@ defmodule Mix.Tasks.Dcmix.FromImageTest do
       File.write!(tmp_png, create_minimal_png())
 
       try do
-        assert catch_exit(FromImage.run(["-d", "nonexistent.dcm", tmp_png, tmp_dcm])) == {:shutdown, 1}
+        assert catch_exit(FromImage.run(["-d", "nonexistent.dcm", tmp_png, tmp_dcm])) ==
+                 {:shutdown, 1}
 
         assert_received {:mix_shell, :error, [message]}
         assert message =~ "Failed to read"
@@ -346,7 +350,8 @@ defmodule Mix.Tasks.Dcmix.FromImageTest do
       File.write!(tmp_png, create_minimal_png())
 
       try do
-        assert catch_exit(FromImage.run(["--sop-class", "unknown_class", tmp_png, tmp_dcm])) == {:shutdown, 1}
+        assert catch_exit(FromImage.run(["--sop-class", "unknown_class", tmp_png, tmp_dcm])) ==
+                 {:shutdown, 1}
 
         assert_received {:mix_shell, :error, [message]}
         assert message =~ "Unknown SOP class"

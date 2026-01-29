@@ -4,10 +4,10 @@ This document outlines the current test coverage, identified gaps, and specific 
 
 ## Current Test Coverage Summary
 
-**As of January 2025:**
-- **816 tests**, 0 failures
+**As of January 2026:**
+- **858 tests**, 0 failures
 - **90.14% code coverage**
-- **3 test fixtures** (uncompressed DICOM files)
+- **7 test fixtures** from NEMA (see `test/fixtures/NEMA_ATTRIBUTION.md`)
 
 ### What's Well Tested
 
@@ -21,6 +21,8 @@ This document outlines the current test coverage, identified gaps, and specific 
 | XML import | ✅ Complete | With edge cases |
 | Image export (PNG/PPM/PGM) | ✅ Complete | 8/16-bit grayscale, RGB |
 | Image import (PNG/JPEG) | ✅ Complete | img2dcm equivalent |
+| Multi-frame image export | ✅ Complete | Export all frames to separate files |
+| Multi-frame image import | ✅ Complete | Create multi-frame from multiple images |
 | Mix tasks | ✅ Complete | All 7 tasks tested |
 | Value Representations | ✅ Complete | All 30 VRs defined |
 | Person Names | ✅ Complete | Structured components |
@@ -158,31 +160,34 @@ test/dcmix/parser/file_meta_test.exs
 
 ### 1.4 Multi-Frame Images
 
-**Current State:** Single frame images are tested, multi-frame handling is minimal.
+**Current State:** Multi-frame uncompressed images are well tested. Compressed multi-frame needs work.
 
-#### Test Scenarios Needed
+#### Test Scenarios
 
 ```
 test/dcmix/pixel_data/multi_frame_test.exs
+test/dcmix/export/image_multiframe_test.exs
+test/dcmix/import/image_multiframe_test.exs
 ```
 
-- [ ] Parse multi-frame uncompressed image
-- [ ] Extract specific frame by index
-- [ ] Extract all frames as list
-- [ ] Handle NumberOfFrames (0028,0008) attribute
-- [ ] Calculate frame size from image dimensions
+- [x] Parse multi-frame uncompressed image
+- [x] Extract specific frame by index
+- [x] Extract all frames as list
+- [x] Handle NumberOfFrames (0028,0008) attribute
+- [x] Calculate frame size from image dimensions
 - [ ] Parse multi-frame compressed image (encapsulated)
 - [ ] Handle per-frame functional groups (enhanced IODs)
-- [ ] Export specific frame to PNG
-- [ ] Export all frames to PNG sequence
+- [x] Export specific frame to PNG
+- [x] Export all frames to PNG sequence
+- [x] Import multiple images as multi-frame DICOM
 
-#### Required Test Fixtures
+#### Test Fixtures Available
 
 ```
 test/fixtures/
-├── multi_frame_uncompressed.dcm
-├── multi_frame_jpeg.dcm
-└── enhanced_mr_multiframe.dcm
+├── nema_mr_knee_multiframe_3.dcm    (3 frames, 256x256)
+├── nema_mr_perfusion_multiframe_11.dcm (11 frames, 128x128)
+└── (compressed multi-frame fixtures still needed)
 ```
 
 ---

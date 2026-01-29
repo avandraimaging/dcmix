@@ -30,7 +30,9 @@ defmodule Dcmix do
       Dcmix.get_string(dataset, "PatientName")
   """
 
-  alias Dcmix.{DataSet, DataElement, Tag, Dictionary, Parser, Writer}
+  alias Dcmix.{DataElement, DataSet, Dictionary, Parser, Tag, Writer}
+  alias Dcmix.Export.{Image, JSON, Text, XML}
+  alias Dcmix.Import
 
   @doc """
   Reads a DICOM file and returns the parsed DataSet.
@@ -167,7 +169,7 @@ defmodule Dcmix do
   """
   @spec to_json(DataSet.t(), keyword()) :: {:ok, String.t()} | {:error, term()}
   def to_json(dataset, opts \\ []) do
-    Dcmix.Export.JSON.encode(dataset, opts)
+    JSON.encode(dataset, opts)
   end
 
   @doc """
@@ -175,7 +177,7 @@ defmodule Dcmix do
   """
   @spec to_xml(DataSet.t(), keyword()) :: {:ok, String.t()} | {:error, term()}
   def to_xml(dataset, opts \\ []) do
-    Dcmix.Export.XML.encode(dataset, opts)
+    XML.encode(dataset, opts)
   end
 
   @doc """
@@ -183,7 +185,7 @@ defmodule Dcmix do
   """
   @spec dump(DataSet.t(), keyword()) :: String.t()
   def dump(dataset, opts \\ []) do
-    Dcmix.Export.Text.encode(dataset, opts)
+    Text.encode(dataset, opts)
   end
 
   @doc """
@@ -209,7 +211,7 @@ defmodule Dcmix do
   """
   @spec to_image(DataSet.t(), Path.t(), keyword()) :: :ok | {:error, term()}
   def to_image(dataset, path, opts \\ []) do
-    Dcmix.Export.Image.to_file(dataset, path, opts)
+    Image.to_file(dataset, path, opts)
   end
 
   @doc """
@@ -243,7 +245,7 @@ defmodule Dcmix do
   """
   @spec from_json(String.t(), keyword()) :: {:ok, DataSet.t()} | {:error, term()}
   def from_json(json_string, opts \\ []) do
-    Dcmix.Import.JSON.decode(json_string, opts)
+    Import.JSON.decode(json_string, opts)
   end
 
   @doc """
@@ -255,7 +257,7 @@ defmodule Dcmix do
   """
   @spec from_json_file(Path.t(), keyword()) :: {:ok, DataSet.t()} | {:error, term()}
   def from_json_file(path, opts \\ []) do
-    Dcmix.Import.JSON.decode_file(path, opts)
+    Import.JSON.decode_file(path, opts)
   end
 
   @doc """
@@ -273,7 +275,7 @@ defmodule Dcmix do
   """
   @spec from_xml(String.t(), keyword()) :: {:ok, DataSet.t()} | {:error, term()}
   def from_xml(xml_string, opts \\ []) do
-    Dcmix.Import.XML.decode(xml_string, opts)
+    Import.XML.decode(xml_string, opts)
   end
 
   @doc """
@@ -285,7 +287,7 @@ defmodule Dcmix do
   """
   @spec from_xml_file(Path.t(), keyword()) :: {:ok, DataSet.t()} | {:error, term()}
   def from_xml_file(path, opts \\ []) do
-    Dcmix.Import.XML.decode_file(path, opts)
+    Import.XML.decode_file(path, opts)
   end
 
   @doc """
@@ -310,6 +312,63 @@ defmodule Dcmix do
   """
   @spec from_image(Path.t(), keyword()) :: {:ok, DataSet.t()} | {:error, term()}
   def from_image(path, opts \\ []) do
-    Dcmix.Import.Image.from_file(path, opts)
+    Import.Image.from_file(path, opts)
+  end
+
+  @doc """
+  Creates a multi-frame DataSet from multiple image files.
+
+  Similar to dcmtk's `img2dcm --new-sc` with multiple input files.
+
+  ## Options
+
+  All options from `from_image/2` are supported, plus:
+
+  - `:sort` - Sort files before combining (default: true)
+    - `true` - Natural sort (file1.png, file2.png, file10.png)
+    - `false` - Use order as provided
+
+  ## Examples
+
+      # From list of files
+      {:ok, dataset} = Dcmix.from_images(["frame1.png", "frame2.png", "frame3.png"])
+
+      # From glob pattern
+      {:ok, dataset} = Dcmix.from_images("frames/*.png")
+
+      # With template
+      {:ok, dataset} = Dcmix.from_images("frames/*.png", series_from: source_dicom)
+  """
+  @spec from_images([Path.t()] | Path.t(), keyword()) :: {:ok, DataSet.t()} | {:error, term()}
+  def from_images(paths_or_pattern, opts \\ []) do
+    Import.Image.from_files(paths_or_pattern, opts)
+  end
+
+  @doc """
+  Exports all frames from a multi-frame dataset to separate image files.
+
+  Similar to dcmtk's `dcm2pnm --all-frames`.
+
+  The path must contain a format specifier for the frame number:
+  - `%d` - frame number (0, 1, 2, ...)
+  - `%04d` - zero-padded frame number (0000, 0001, 0002, ...)
+
+  ## Options
+
+  - `:frames` - List of specific frame indices to export (default: all frames)
+  - `:window` - Windowing option (same as `to_image/3`)
+  - `:format` - Output format (:png, :ppm, :pgm), auto-detected from extension
+
+  ## Examples
+
+      # Export all frames
+      {:ok, paths} = Dcmix.to_images(dataset, "output/frame_%04d.png")
+
+      # Export specific frames
+      {:ok, paths} = Dcmix.to_images(dataset, "output/frame_%04d.png", frames: [0, 5, 10])
+  """
+  @spec to_images(DataSet.t(), Path.t(), keyword()) :: {:ok, [Path.t()]} | {:error, term()}
+  def to_images(dataset, path_pattern, opts \\ []) do
+    Image.to_files(dataset, path_pattern, opts)
   end
 end

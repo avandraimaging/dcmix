@@ -84,8 +84,10 @@ defmodule Dcmix.Import.ImageTest do
       assert {:ok, dataset} = Image.from_binary(png, format: :png)
 
       # Check image dimensions
-      assert DataSet.get_value(dataset, {0x0028, 0x0010}) == 2  # Rows
-      assert DataSet.get_value(dataset, {0x0028, 0x0011}) == 2  # Columns
+      # Rows
+      assert DataSet.get_value(dataset, {0x0028, 0x0010}) == 2
+      # Columns
+      assert DataSet.get_value(dataset, {0x0028, 0x0011}) == 2
 
       # Check photometric interpretation for RGB
       assert DataSet.get_string(dataset, {0x0028, 0x0004}) == "RGB"
@@ -117,9 +119,12 @@ defmodule Dcmix.Import.ImageTest do
       assert {:ok, dataset} = Image.from_binary(png, format: :png)
 
       # Type 2 attributes should be present (can be empty)
-      assert DataSet.has_tag?(dataset, {0x0010, 0x0010})  # PatientName
-      assert DataSet.has_tag?(dataset, {0x0010, 0x0020})  # PatientID
-      assert DataSet.has_tag?(dataset, {0x0008, 0x0020})  # StudyDate
+      # PatientName
+      assert DataSet.has_tag?(dataset, {0x0010, 0x0010})
+      # PatientID
+      assert DataSet.has_tag?(dataset, {0x0010, 0x0020})
+      # StudyDate
+      assert DataSet.has_tag?(dataset, {0x0008, 0x0020})
     end
 
     test "invents Type 1 attributes by default" do
@@ -127,10 +132,14 @@ defmodule Dcmix.Import.ImageTest do
       assert {:ok, dataset} = Image.from_binary(png, format: :png)
 
       # Type 1 attributes should have values
-      assert DataSet.get_string(dataset, {0x0008, 0x0018}) != nil  # SOPInstanceUID
-      assert DataSet.get_string(dataset, {0x0020, 0x000D}) != nil  # StudyInstanceUID
-      assert DataSet.get_string(dataset, {0x0020, 0x000E}) != nil  # SeriesInstanceUID
-      assert DataSet.get_string(dataset, {0x0008, 0x0060}) == "OT"  # Modality
+      # SOPInstanceUID
+      assert DataSet.get_string(dataset, {0x0008, 0x0018}) != nil
+      # StudyInstanceUID
+      assert DataSet.get_string(dataset, {0x0020, 0x000D}) != nil
+      # SeriesInstanceUID
+      assert DataSet.get_string(dataset, {0x0020, 0x000E}) != nil
+      # Modality
+      assert DataSet.get_string(dataset, {0x0008, 0x0060}) == "OT"
     end
 
     test "skips Type 2 attributes when insert_type2: false" do
@@ -156,8 +165,10 @@ defmodule Dcmix.Import.ImageTest do
       assert {:ok, dataset} = Image.from_binary(jpeg, format: :jpeg)
 
       # Check image dimensions
-      assert DataSet.get_value(dataset, {0x0028, 0x0010}) == 2  # Rows
-      assert DataSet.get_value(dataset, {0x0028, 0x0011}) == 2  # Columns
+      # Rows
+      assert DataSet.get_value(dataset, {0x0028, 0x0010}) == 2
+      # Columns
+      assert DataSet.get_value(dataset, {0x0028, 0x0011}) == 2
 
       # JPEG should have RGB photometric (3 components)
       assert DataSet.get_string(dataset, {0x0028, 0x0004}) == "RGB"
@@ -291,7 +302,9 @@ defmodule Dcmix.Import.ImageTest do
   describe "PNG parsing edge cases" do
     test "returns error for invalid PNG signature" do
       invalid_png = <<0x00, 0x00, 0x00, 0x00>>
-      assert {:error, {:png_decode_error, :invalid_png_signature}} = Image.from_binary(invalid_png, format: :png)
+
+      assert {:error, {:png_decode_error, :invalid_png_signature}} =
+               Image.from_binary(invalid_png, format: :png)
     end
 
     test "returns error for truncated PNG" do

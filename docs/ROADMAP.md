@@ -17,9 +17,11 @@ Dcmix aims to bring comprehensive DICOM support to Elixir, inspired by [dcmtk](h
 | **Data Dictionary** | Standard DICOM tags and VRs | Complete |
 | **CLI Tools** | `dcmix.dump`, `dcmix.to_json`, `dcmix.to_xml`, `dcmix.to_image` | Complete |
 | **Image Export** | Export pixel data to PNG, PPM, PGM image files | Complete |
+| **Multi-frame Export** | Export all frames to separate image files | Complete |
 | **JSON Import** | Create DICOM from JSON | Complete |
 | **XML Import** | Create DICOM from XML | Complete |
 | **Image Import** | Import pixel data from image files | Complete |
+| **Multi-frame Import** | Create multi-frame DICOM from multiple images | Complete |
 
 ## Planned Features
 

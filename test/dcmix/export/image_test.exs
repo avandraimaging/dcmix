@@ -289,7 +289,9 @@ defmodule Dcmix.Export.ImageTest do
 
     test "decodes 16-bit RGB image" do
       # Create 2x2 16-bit RGB image
-      pixels = <<255, 0, 0, 0, 0, 0, 0, 0, 255, 0, 0, 0, 0, 0, 0, 0, 255, 0, 255, 0, 255, 0, 255, 0>>
+      pixels =
+        <<255, 0, 0, 0, 0, 0, 0, 0, 255, 0, 0, 0, 0, 0, 0, 0, 255, 0, 255, 0, 255, 0, 255, 0>>
+
       dataset = create_rgb_dataset(2, 2, 16, "RGB", pixels)
 
       assert {:ok, decoded} = Decoder.decode(dataset)

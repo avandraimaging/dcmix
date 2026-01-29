@@ -79,8 +79,8 @@ defmodule Dcmix.PixelData.MultiFrameTest do
 
       expected = PixelData.expected_size(dataset)
 
-      # 512 x 512 x 1 frame x 2 bytes (16-bit) x 1 sample
-      assert expected == 512 * 512 * 1 * 2
+      # 512 x 512 x 2 bytes (16-bit) - single frame
+      assert expected == 512 * 512 * 2
       assert expected == 524_288
     end
   end
@@ -111,7 +111,7 @@ defmodule Dcmix.PixelData.MultiFrameTest do
 
       # Sample some pixels to verify they're valid 16-bit values
       <<first_pixel::16-little, _rest::binary>> = pixel_data
-      assert first_pixel >= 0 and first_pixel <= 65535
+      assert first_pixel >= 0 and first_pixel <= 65_535
     end
   end
 

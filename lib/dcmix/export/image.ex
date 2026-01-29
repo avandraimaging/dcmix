@@ -96,6 +96,83 @@ defmodule Dcmix.Export.Image do
     end
   end
 
+  @doc """
+  Exports all frames from a multi-frame DICOM dataset to separate image files.
+
+  Similar to dcmtk's `dcm2pnm --all-frames`.
+
+  The path must contain a format specifier for the frame number:
+  - `%d` - frame number (0, 1, 2, ...)
+  - `%04d` - zero-padded frame number (0000, 0001, 0002, ...)
+
+  ## Options
+
+  - `:frames` - List of specific frame indices to export (default: all frames)
+  - `:window` - Windowing option (same as `to_file/3`)
+  - `:format` - Output format (:png, :ppm, :pgm), auto-detected from extension
+
+  ## Examples
+
+      # Export all frames
+      {:ok, paths} = Dcmix.Export.Image.to_files(dataset, "output/frame_%04d.png")
+
+      # Export specific frames
+      {:ok, paths} = Dcmix.Export.Image.to_files(dataset, "output/frame_%04d.png", frames: [0, 5, 10])
+
+  ## Returns
+
+      {:ok, [path1, path2, ...]} - List of created file paths
+      {:error, reason} - If export fails
+  """
+  @spec to_files(DataSet.t(), Path.t(), keyword()) :: {:ok, [Path.t()]} | {:error, term()}
+  def to_files(%DataSet{} = dataset, path_pattern, opts \\ []) do
+    with {:ok, info} <- Decoder.get_pixel_info(dataset) do
+      num_frames = info.number_of_frames
+      frames_to_export = Keyword.get(opts, :frames) || Enum.to_list(0..(num_frames - 1))
+
+      # Validate frame indices
+      invalid_frames = Enum.filter(frames_to_export, fn f -> f < 0 or f >= num_frames end)
+
+      if invalid_frames != [] do
+        {:error,
+         {:invalid_frames, "Frames #{inspect(invalid_frames)} out of range (0-#{num_frames - 1})"}}
+      else
+        export_frames(dataset, path_pattern, frames_to_export, opts)
+      end
+    end
+  end
+
+  defp export_frames(dataset, path_pattern, frames, opts) do
+    results =
+      Enum.map(frames, fn frame_idx ->
+        path = format_path(path_pattern, frame_idx)
+        frame_opts = Keyword.put(opts, :frame, frame_idx)
+
+        case to_file(dataset, path, frame_opts) do
+          :ok -> {:ok, path}
+          {:error, reason} -> {:error, {frame_idx, reason}}
+        end
+      end)
+
+    errors = Enum.filter(results, fn r -> match?({:error, _}, r) end)
+
+    if errors == [] do
+      {:ok, Enum.map(results, fn {:ok, path} -> path end)}
+    else
+      {:error, {:export_failed, errors}}
+    end
+  end
+
+  defp format_path(pattern, frame_idx) do
+    # Support printf-style format specifiers like %d, %04d, %4d
+    Regex.replace(~r/%(\d*)d/, pattern, fn _match, width ->
+      case width do
+        "" -> Integer.to_string(frame_idx)
+        w -> String.pad_leading(Integer.to_string(frame_idx), String.to_integer(w), "0")
+      end
+    end)
+  end
+
   # Determine format from file extension
   defp format_from_extension(path) do
     case Path.extname(path) |> String.downcase() do
