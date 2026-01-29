@@ -4,7 +4,7 @@ defmodule Mix.Tasks.Dcmix.FromJsonTest do
   alias Mix.Tasks.Dcmix.FromJson
 
   @fixtures_path "test/fixtures"
-  @valid_dcm Path.join(@fixtures_path, "0_ORIGINAL.dcm")
+  @valid_dcm Path.join(@fixtures_path, "nema_mr_brain_512x512.dcm")
 
   setup do
     Mix.shell(Mix.Shell.Process)
@@ -58,6 +58,7 @@ defmodule Mix.Tasks.Dcmix.FromJsonTest do
         "00100010": {"vr": "PN", "Value": [{"Alphabetic": "New^Name"}]}
       }
       """
+
       File.write!(tmp_json, json)
 
       try do
@@ -91,6 +92,7 @@ defmodule Mix.Tasks.Dcmix.FromJsonTest do
         "00100010": {"vr": "PN", "Value": [{"Alphabetic": "Alias^Test"}]}
       }
       """
+
       File.write!(tmp_json, json)
 
       try do
@@ -143,7 +145,8 @@ defmodule Mix.Tasks.Dcmix.FromJsonTest do
       File.write!(tmp_json, create_test_json())
 
       try do
-        assert catch_exit(FromJson.run(["-t", "nonexistent.dcm", tmp_json, tmp_dcm])) == {:shutdown, 1}
+        assert catch_exit(FromJson.run(["-t", "nonexistent.dcm", tmp_json, tmp_dcm])) ==
+                 {:shutdown, 1}
 
         assert_received {:mix_shell, :error, [message]}
         assert message =~ "Failed to read template"

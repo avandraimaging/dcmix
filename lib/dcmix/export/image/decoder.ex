@@ -85,7 +85,7 @@ defmodule Dcmix.Export.Image.Decoder do
          samples_per_pixel: info.samples_per_pixel || 1,
          bits_allocated: bits_allocated,
          bits_stored: info.bits_stored || bits_allocated,
-         high_bit: info.high_bit || (bits_allocated - 1),
+         high_bit: info.high_bit || bits_allocated - 1,
          pixel_representation: info.pixel_representation || 0,
          photometric_interpretation: String.trim(photometric),
          number_of_frames: info.number_of_frames || 1,
@@ -99,7 +99,9 @@ defmodule Dcmix.Export.Image.Decoder do
 
   defp validate_not_encapsulated(%DataSet{} = dataset) do
     if PixelData.encapsulated?(dataset) do
-      {:error, {:compressed_pixel_data, "Decompression not yet supported. Use external tools to decompress first."}}
+      {:error,
+       {:compressed_pixel_data,
+        "Decompression not yet supported. Use external tools to decompress first."}}
     else
       :ok
     end
@@ -149,7 +151,8 @@ defmodule Dcmix.Export.Image.Decoder do
         {:error, {:unsupported_photometric, "PALETTE COLOR not yet supported"}}
 
       other ->
-        {:error, {:unsupported_photometric, "Photometric interpretation '#{other}' not supported"}}
+        {:error,
+         {:unsupported_photometric, "Photometric interpretation '#{other}' not supported"}}
     end
   end
 
@@ -218,7 +221,12 @@ defmodule Dcmix.Export.Image.Decoder do
   end
 
   # Decode monochrome pixels directly to binary output
-  defp decode_monochrome_binary(binary, %{bps: bps, mask: mask, half_range: half_range} = params, transform, output_bits) do
+  defp decode_monochrome_binary(
+         binary,
+         %{bps: bps, mask: mask, half_range: half_range} = params,
+         transform,
+         output_bits
+       ) do
     %{min_val: min_val, scale: scale, max_out: max_out, invert: invert} = transform
 
     for <<chunk::binary-size(bps) <- binary>>, into: <<>> do
@@ -324,8 +332,7 @@ defmodule Dcmix.Export.Image.Decoder do
     bytes_per_sample = div(bits_allocated, 8)
 
     pixels =
-      for <<y_bin::binary-size(bytes_per_sample),
-            cb_bin::binary-size(bytes_per_sample),
+      for <<y_bin::binary-size(bytes_per_sample), cb_bin::binary-size(bytes_per_sample),
             cr_bin::binary-size(bytes_per_sample) <- binary>> do
         y = :binary.decode_unsigned(y_bin, :little)
         cb = :binary.decode_unsigned(cb_bin, :little)

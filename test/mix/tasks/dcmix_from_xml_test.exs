@@ -4,7 +4,7 @@ defmodule Mix.Tasks.Dcmix.FromXmlTest do
   alias Mix.Tasks.Dcmix.FromXml
 
   @fixtures_path "test/fixtures"
-  @valid_dcm Path.join(@fixtures_path, "0_ORIGINAL.dcm")
+  @valid_dcm Path.join(@fixtures_path, "nema_mr_brain_512x512.dcm")
 
   setup do
     Mix.shell(Mix.Shell.Process)
@@ -78,6 +78,7 @@ defmodule Mix.Tasks.Dcmix.FromXmlTest do
         </DicomAttribute>
       </NativeDicomModel>
       """
+
       File.write!(tmp_xml, xml)
 
       try do
@@ -119,6 +120,7 @@ defmodule Mix.Tasks.Dcmix.FromXmlTest do
         </DicomAttribute>
       </NativeDicomModel>
       """
+
       File.write!(tmp_xml, xml)
 
       try do
@@ -171,7 +173,8 @@ defmodule Mix.Tasks.Dcmix.FromXmlTest do
       File.write!(tmp_xml, create_test_xml())
 
       try do
-        assert catch_exit(FromXml.run(["-t", "nonexistent.dcm", tmp_xml, tmp_dcm])) == {:shutdown, 1}
+        assert catch_exit(FromXml.run(["-t", "nonexistent.dcm", tmp_xml, tmp_dcm])) ==
+                 {:shutdown, 1}
 
         assert_received {:mix_shell, :error, [message]}
         assert message =~ "Failed to read template"

@@ -96,7 +96,10 @@ defmodule Dcmix.Import.XML do
       {:ok, content_end} ->
         content = binary_part(rest_from_content, 0, content_end)
         after_close = content_end + byte_size("</DicomAttribute>")
-        rest = binary_part(rest_from_content, after_close, byte_size(rest_from_content) - after_close)
+
+        rest =
+          binary_part(rest_from_content, after_close, byte_size(rest_from_content) - after_close)
+
         extract_dicom_attributes_acc(rest, [[attrs_str, content] | acc])
 
       :error ->
@@ -119,8 +122,19 @@ defmodule Dcmix.Import.XML do
         if depth == 0 do
           {:ok, pos + close_pos}
         else
-          rest = binary_part(xml, close_pos + byte_size("</#{tag_name}>"), byte_size(xml) - close_pos - byte_size("</#{tag_name}>"))
-          find_closing_tag(rest, tag_name, depth - 1, pos + close_pos + byte_size("</#{tag_name}>"))
+          rest =
+            binary_part(
+              xml,
+              close_pos + byte_size("</#{tag_name}>"),
+              byte_size(xml) - close_pos - byte_size("</#{tag_name}>")
+            )
+
+          find_closing_tag(
+            rest,
+            tag_name,
+            depth - 1,
+            pos + close_pos + byte_size("</#{tag_name}>")
+          )
         end
 
       {[{open_pos, open_len}], [{close_pos, _close_len}]} when open_pos < close_pos ->
@@ -132,8 +146,19 @@ defmodule Dcmix.Import.XML do
         if depth == 0 do
           {:ok, pos + close_pos}
         else
-          rest = binary_part(xml, close_pos + byte_size("</#{tag_name}>"), byte_size(xml) - close_pos - byte_size("</#{tag_name}>"))
-          find_closing_tag(rest, tag_name, depth - 1, pos + close_pos + byte_size("</#{tag_name}>"))
+          rest =
+            binary_part(
+              xml,
+              close_pos + byte_size("</#{tag_name}>"),
+              byte_size(xml) - close_pos - byte_size("</#{tag_name}>")
+            )
+
+          find_closing_tag(
+            rest,
+            tag_name,
+            depth - 1,
+            pos + close_pos + byte_size("</#{tag_name}>")
+          )
         end
     end
   end
@@ -157,6 +182,7 @@ defmodule Dcmix.Import.XML do
 
   defp extract_attribute(attrs_str, name) do
     regex = ~r/#{name}="([^"]*)"/
+
     case Regex.run(regex, attrs_str) do
       [_, value] -> {:ok, value}
       _ -> {:error, :not_found}
@@ -187,6 +213,7 @@ defmodule Dcmix.Import.XML do
 
     Enum.map(items, fn item_content ->
       attrs = extract_dicom_attributes(item_content)
+
       elements =
         attrs
         |> Enum.map(&parse_dicom_attribute/1)
@@ -286,12 +313,14 @@ defmodule Dcmix.Import.XML do
   defp extract_sequence_items(content) do
     # Match Item elements
     regex = ~r/<Item[^>]*>(.*?)<\/Item>/s
+
     Regex.scan(regex, content, capture: :all_but_first)
     |> Enum.map(fn [item_content] -> item_content end)
   end
 
   defp extract_inline_binary(content) do
     regex = ~r/<InlineBinary>([^<]*)<\/InlineBinary>/s
+
     case Regex.run(regex, content) do
       [_, base64] -> {:ok, String.trim(base64)}
       _ -> :error
@@ -300,6 +329,7 @@ defmodule Dcmix.Import.XML do
 
   defp extract_values(content) do
     regex = ~r/<Value[^>]*>([^<]*)<\/Value>/s
+
     Regex.scan(regex, content, capture: :all_but_first)
     |> Enum.map(fn [value] -> value end)
   end
@@ -325,6 +355,7 @@ defmodule Dcmix.Import.XML do
 
   defp extract_name_component(content, component_name) do
     regex = ~r/<#{component_name}>([^<]*)<\/#{component_name}>/s
+
     case Regex.run(regex, content) do
       [_, value] -> unescape_xml(value)
       _ -> ""

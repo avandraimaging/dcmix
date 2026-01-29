@@ -45,28 +45,42 @@ defmodule Dcmix.Import.Image do
 
   # Patient module tags (copied by --study-from and --series-from)
   @patient_tags [
-    {0x0010, 0x0010},  # PatientName
-    {0x0010, 0x0020},  # PatientID
-    {0x0010, 0x0030},  # PatientBirthDate
-    {0x0010, 0x0040}   # PatientSex
+    # PatientName
+    {0x0010, 0x0010},
+    # PatientID
+    {0x0010, 0x0020},
+    # PatientBirthDate
+    {0x0010, 0x0030},
+    # PatientSex
+    {0x0010, 0x0040}
   ]
 
   # Study module tags (copied by --study-from and --series-from)
   @study_tags [
-    {0x0020, 0x000D},  # StudyInstanceUID
-    {0x0008, 0x0020},  # StudyDate
-    {0x0008, 0x0030},  # StudyTime
-    {0x0008, 0x0090},  # ReferringPhysicianName
-    {0x0020, 0x0010},  # StudyID
-    {0x0008, 0x0050}   # AccessionNumber
+    # StudyInstanceUID
+    {0x0020, 0x000D},
+    # StudyDate
+    {0x0008, 0x0020},
+    # StudyTime
+    {0x0008, 0x0030},
+    # ReferringPhysicianName
+    {0x0008, 0x0090},
+    # StudyID
+    {0x0020, 0x0010},
+    # AccessionNumber
+    {0x0008, 0x0050}
   ]
 
   # Series module tags (copied by --series-from only)
   @series_tags [
-    {0x0020, 0x000E},  # SeriesInstanceUID
-    {0x0020, 0x0011},  # SeriesNumber
-    {0x0008, 0x0060},  # Modality
-    {0x0008, 0x0070}   # Manufacturer
+    # SeriesInstanceUID
+    {0x0020, 0x000E},
+    # SeriesNumber
+    {0x0020, 0x0011},
+    # Modality
+    {0x0008, 0x0060},
+    # Manufacturer
+    {0x0008, 0x0070}
   ]
 
   @doc """
@@ -97,6 +111,255 @@ defmodule Dcmix.Import.Image do
       build_dataset(image_data, opts)
     end
   end
+
+  @doc """
+  Creates a multi-frame DICOM DataSet from multiple image files.
+
+  Similar to dcmtk's `img2dcm --new-sc` with multiple input files.
+
+  Accepts either a list of file paths or a glob pattern.
+
+  ## Options
+
+  All options from `from_file/2` are supported, plus:
+
+  - `:sort` - Sort files before combining (default: true)
+    - `true` - Natural sort (file1.png, file2.png, file10.png)
+    - `false` - Use order as provided
+    - `:name` - Sort alphabetically by filename
+    - `:mtime` - Sort by modification time
+
+  ## Examples
+
+      # From list of files
+      {:ok, dataset} = Dcmix.Import.Image.from_files(["frame1.png", "frame2.png", "frame3.png"])
+
+      # From glob pattern
+      {:ok, dataset} = Dcmix.Import.Image.from_files("frames/*.png")
+
+      # With template
+      {:ok, template} = Dcmix.read_file("template.dcm")
+      {:ok, dataset} = Dcmix.Import.Image.from_files("frames/*.png", series_from: template)
+
+  ## Requirements
+
+  All input images must have:
+  - Same dimensions (width and height)
+  - Same color type (grayscale or RGB)
+  - Same bit depth
+  """
+  @spec from_files([Path.t()] | Path.t(), keyword()) :: {:ok, DataSet.t()} | {:error, term()}
+  def from_files(paths_or_pattern, opts \\ [])
+
+  def from_files(pattern, opts) when is_binary(pattern) do
+    paths = Path.wildcard(pattern)
+
+    if paths == [] do
+      {:error, {:no_files_found, "No files matching pattern: #{pattern}"}}
+    else
+      from_files(paths, opts)
+    end
+  end
+
+  def from_files([], _opts) do
+    {:error, {:no_files, "At least one image file is required"}}
+  end
+
+  def from_files(paths, opts) when is_list(paths) do
+    sorted_paths = sort_paths(paths, Keyword.get(opts, :sort, true))
+    build_multiframe_dataset(sorted_paths, opts)
+  end
+
+  defp sort_paths(paths, false), do: paths
+  defp sort_paths(paths, :name), do: Enum.sort(paths)
+  defp sort_paths(paths, :mtime), do: Enum.sort_by(paths, &file_mtime/1)
+  defp sort_paths(paths, true), do: Enum.sort_by(paths, &natural_sort_key/1)
+
+  defp file_mtime(path) do
+    case File.stat(path) do
+      {:ok, %{mtime: mtime}} -> mtime
+      _ -> {{0, 0, 0}, {0, 0, 0}}
+    end
+  end
+
+  # Natural sort: file1.png, file2.png, file10.png
+  defp natural_sort_key(path) do
+    Path.basename(path)
+    |> String.split(~r/(\d+)/)
+    |> Enum.map(&natural_sort_part/1)
+  end
+
+  defp natural_sort_part(part) do
+    case Integer.parse(part) do
+      {num, ""} -> {0, num}
+      _ -> {1, part}
+    end
+  end
+
+  defp build_multiframe_dataset(paths, opts) do
+    # Read all images and validate they're compatible
+    with {:ok, images} <- read_all_images(paths),
+         :ok <- validate_compatible_images(images) do
+      first_image = hd(images)
+      combined_pixels = combine_pixel_data(images)
+      num_frames = length(images)
+
+      # Build multi-frame image data
+      multiframe_data = %{
+        width: first_image.width,
+        height: first_image.height,
+        photometric: first_image.photometric,
+        samples_per_pixel: first_image.samples_per_pixel,
+        bits_allocated: first_image.bits_allocated,
+        bits_stored: first_image.bits_stored,
+        high_bit: first_image.high_bit,
+        pixel_data: combined_pixels,
+        compressed: false,
+        number_of_frames: num_frames
+      }
+
+      build_multiframe_dataset_from_data(multiframe_data, opts)
+    end
+  end
+
+  defp read_all_images(paths) do
+    results = Enum.map(paths, fn path -> {path, read_image(path)} end)
+    errors = Enum.filter(results, fn {_, result} -> match?({:error, _}, result) end)
+
+    if errors == [] do
+      {:ok, Enum.map(results, fn {_, {:ok, img}} -> img end)}
+    else
+      failed = Enum.map(errors, fn {path, {:error, reason}} -> {path, reason} end)
+      {:error, {:read_failed, failed}}
+    end
+  end
+
+  defp validate_compatible_images([]), do: {:error, :no_images}
+  defp validate_compatible_images([_single]), do: :ok
+
+  defp validate_compatible_images([first | rest]) do
+    incompatible =
+      Enum.filter(rest, fn img ->
+        img.width != first.width or
+          img.height != first.height or
+          img.samples_per_pixel != first.samples_per_pixel or
+          img.bits_allocated != first.bits_allocated
+      end)
+
+    if incompatible == [] do
+      :ok
+    else
+      {:error,
+       {:incompatible_images,
+        "All images must have same dimensions (#{first.width}x#{first.height}), " <>
+          "samples per pixel (#{first.samples_per_pixel}), and bit depth (#{first.bits_allocated})"}}
+    end
+  end
+
+  defp combine_pixel_data(images) do
+    images
+    |> Enum.map(fn img -> img.pixel_data end)
+    |> IO.iodata_to_binary()
+  end
+
+  defp build_multiframe_dataset_from_data(image_data, opts) do
+    dataset_from = Keyword.get(opts, :dataset_from)
+    study_from = Keyword.get(opts, :study_from)
+    series_from = Keyword.get(opts, :series_from)
+    sop_class = Keyword.get(opts, :sop_class, :multiframe_secondary_capture)
+    insert_type2 = Keyword.get(opts, :insert_type2, true)
+    invent_type1 = Keyword.get(opts, :invent_type1, true)
+
+    # Start with template or empty dataset
+    base_dataset =
+      case dataset_from do
+        %DataSet{} = ds -> ds
+        _ -> DataSet.new()
+      end
+
+    # Copy study/series info if specified
+    dataset =
+      base_dataset
+      |> maybe_copy_study_info(study_from)
+      |> maybe_copy_series_info(series_from)
+
+    # Add image-specific attributes
+    dataset =
+      dataset
+      |> add_multiframe_image_attributes(image_data)
+      |> add_multiframe_sop_class(sop_class)
+      |> maybe_insert_type2(insert_type2)
+      |> maybe_invent_type1(invent_type1)
+
+    {:ok, dataset}
+  end
+
+  defp add_multiframe_image_attributes(dataset, image_data) do
+    %{
+      width: width,
+      height: height,
+      photometric: photometric,
+      samples_per_pixel: samples_per_pixel,
+      bits_allocated: bits_allocated,
+      bits_stored: bits_stored,
+      high_bit: high_bit,
+      pixel_data: pixel_data,
+      number_of_frames: number_of_frames
+    } = image_data
+
+    photometric_str = photometric_to_string(photometric)
+    pixel_vr = if bits_allocated > 8, do: :OW, else: :OB
+
+    dataset
+    # Rows
+    |> DataSet.put_element({0x0028, 0x0010}, :US, height)
+    # Columns
+    |> DataSet.put_element({0x0028, 0x0011}, :US, width)
+    # SamplesPerPixel
+    |> DataSet.put_element({0x0028, 0x0002}, :US, samples_per_pixel)
+    # PhotometricInterpretation
+    |> DataSet.put_element({0x0028, 0x0004}, :CS, photometric_str)
+    # NumberOfFrames
+    |> DataSet.put_element({0x0028, 0x0008}, :IS, Integer.to_string(number_of_frames))
+    # BitsAllocated
+    |> DataSet.put_element({0x0028, 0x0100}, :US, bits_allocated)
+    # BitsStored
+    |> DataSet.put_element({0x0028, 0x0101}, :US, bits_stored)
+    # HighBit
+    |> DataSet.put_element({0x0028, 0x0102}, :US, high_bit)
+    # PixelRepresentation (unsigned)
+    |> DataSet.put_element({0x0028, 0x0103}, :US, 0)
+    # PixelData
+    |> DataSet.put_element({0x7FE0, 0x0010}, pixel_vr, pixel_data)
+  end
+
+  # Multi-frame Secondary Capture SOP Classes
+  @multiframe_grayscale_byte_sc_uid "1.2.840.10008.5.1.4.1.1.7.2"
+  @multiframe_grayscale_word_sc_uid "1.2.840.10008.5.1.4.1.1.7.3"
+  @multiframe_true_color_sc_uid "1.2.840.10008.5.1.4.1.1.7.4"
+
+  defp add_multiframe_sop_class(dataset, :multiframe_secondary_capture) do
+    # Choose appropriate multi-frame SC class based on image properties
+    samples = DataSet.get_value(dataset, {0x0028, 0x0002}) || 1
+    bits = DataSet.get_value(dataset, {0x0028, 0x0100}) || 8
+
+    sop_class_uid =
+      cond do
+        samples == 3 -> @multiframe_true_color_sc_uid
+        bits > 8 -> @multiframe_grayscale_word_sc_uid
+        true -> @multiframe_grayscale_byte_sc_uid
+      end
+
+    DataSet.put_element(dataset, {0x0008, 0x0016}, :UI, sop_class_uid)
+  end
+
+  defp add_multiframe_sop_class(dataset, :secondary_capture) do
+    # Use single-frame SC class (deprecated for multi-frame but still supported)
+    DataSet.put_element(dataset, {0x0008, 0x0016}, :UI, @secondary_capture_uid)
+  end
+
+  defp add_multiframe_sop_class(dataset, _),
+    do: add_multiframe_sop_class(dataset, :multiframe_secondary_capture)
 
   defp read_image(path) do
     if File.exists?(path) do
@@ -137,17 +400,18 @@ defmodule Dcmix.Import.Image do
         {photometric, samples_per_pixel} = png_color_type_to_dicom(header.color_type)
         bits_allocated = normalize_bit_depth(header.bit_depth)
 
-        {:ok, %{
-          width: header.width,
-          height: header.height,
-          photometric: photometric,
-          samples_per_pixel: samples_per_pixel,
-          bits_allocated: bits_allocated,
-          bits_stored: bits_allocated,
-          high_bit: bits_allocated - 1,
-          pixel_data: pixel_data,
-          compressed: false
-        }}
+        {:ok,
+         %{
+           width: header.width,
+           height: header.height,
+           photometric: photometric,
+           samples_per_pixel: samples_per_pixel,
+           bits_allocated: bits_allocated,
+           bits_stored: bits_allocated,
+           high_bit: bits_allocated - 1,
+           pixel_data: pixel_data,
+           compressed: false
+         }}
 
       {:error, reason} ->
         {:error, {:png_decode_error, reason}}
@@ -165,8 +429,8 @@ defmodule Dcmix.Import.Image do
   defp parse_png(_), do: {:error, :invalid_png_signature}
 
   defp parse_ihdr(<<length::32, "IHDR", ihdr_data::binary-size(length), _crc::32, rest::binary>>) do
-    <<width::32, height::32, bit_depth::8, color_type::8, _compression::8,
-      _filter::8, _interlace::8>> = ihdr_data
+    <<width::32, height::32, bit_depth::8, color_type::8, _compression::8, _filter::8,
+      _interlace::8>> = ihdr_data
 
     header = %{
       width: width,
@@ -197,7 +461,10 @@ defmodule Dcmix.Import.Image do
     end
   end
 
-  defp collect_idat_chunks(<<length::32, "IDAT", chunk_data::binary-size(length), _crc::32, rest::binary>>, acc) do
+  defp collect_idat_chunks(
+         <<length::32, "IDAT", chunk_data::binary-size(length), _crc::32, rest::binary>>,
+         acc
+       ) do
     collect_idat_chunks(rest, <<acc::binary, chunk_data::binary>>)
   end
 
@@ -205,7 +472,11 @@ defmodule Dcmix.Import.Image do
     acc
   end
 
-  defp collect_idat_chunks(<<length::32, _type::binary-size(4), _chunk_data::binary-size(length), _crc::32, rest::binary>>, acc) do
+  defp collect_idat_chunks(
+         <<length::32, _type::binary-size(4), _chunk_data::binary-size(length), _crc::32,
+           rest::binary>>,
+         acc
+       ) do
     # Skip non-IDAT chunks
     collect_idat_chunks(rest, acc)
   end
@@ -216,7 +487,8 @@ defmodule Dcmix.Import.Image do
   defp remove_filter_bytes(data, header) do
     bytes_per_pixel = bytes_per_pixel(header.color_type, header.bit_depth)
     row_bytes = header.width * bytes_per_pixel
-    scanline_bytes = row_bytes + 1  # +1 for filter byte
+    # +1 for filter byte
+    scanline_bytes = row_bytes + 1
 
     # Process each row, removing filter byte and applying filter if needed
     process_rows(data, scanline_bytes, row_bytes, <<>>)
@@ -224,7 +496,8 @@ defmodule Dcmix.Import.Image do
 
   defp process_rows(<<>>, _scanline_bytes, _row_bytes, acc), do: acc
 
-  defp process_rows(data, scanline_bytes, row_bytes, acc) when byte_size(data) >= scanline_bytes do
+  defp process_rows(data, scanline_bytes, row_bytes, acc)
+       when byte_size(data) >= scanline_bytes do
     <<_filter::8, row_data::binary-size(row_bytes), rest::binary>> = data
     # Note: We're ignoring the filter byte here. Full implementation would apply the filter.
     # For filter type 0 (None), this is correct. Other filters would need proper handling.
@@ -233,18 +506,28 @@ defmodule Dcmix.Import.Image do
 
   defp process_rows(_, _scanline_bytes, _row_bytes, acc), do: acc
 
-  defp bytes_per_pixel(0, bit_depth), do: max(1, div(bit_depth, 8))      # Grayscale
-  defp bytes_per_pixel(2, bit_depth), do: 3 * max(1, div(bit_depth, 8)) # RGB
-  defp bytes_per_pixel(3, _bit_depth), do: 1                             # Indexed
-  defp bytes_per_pixel(4, bit_depth), do: 2 * max(1, div(bit_depth, 8)) # Grayscale + Alpha
-  defp bytes_per_pixel(6, bit_depth), do: 4 * max(1, div(bit_depth, 8)) # RGBA
+  # Grayscale
+  defp bytes_per_pixel(0, bit_depth), do: max(1, div(bit_depth, 8))
+  # RGB
+  defp bytes_per_pixel(2, bit_depth), do: 3 * max(1, div(bit_depth, 8))
+  # Indexed
+  defp bytes_per_pixel(3, _bit_depth), do: 1
+  # Grayscale + Alpha
+  defp bytes_per_pixel(4, bit_depth), do: 2 * max(1, div(bit_depth, 8))
+  # RGBA
+  defp bytes_per_pixel(6, bit_depth), do: 4 * max(1, div(bit_depth, 8))
   defp bytes_per_pixel(_, _), do: 1
 
-  defp png_color_type_to_dicom(0), do: {:monochrome2, 1}  # Grayscale
-  defp png_color_type_to_dicom(2), do: {:rgb, 3}         # RGB
-  defp png_color_type_to_dicom(3), do: {:monochrome2, 1} # Indexed (treat as grayscale)
-  defp png_color_type_to_dicom(4), do: {:monochrome2, 1} # Grayscale + Alpha (drop alpha)
-  defp png_color_type_to_dicom(6), do: {:rgb, 3}         # RGBA (drop alpha)
+  # Grayscale
+  defp png_color_type_to_dicom(0), do: {:monochrome2, 1}
+  # RGB
+  defp png_color_type_to_dicom(2), do: {:rgb, 3}
+  # Indexed (treat as grayscale)
+  defp png_color_type_to_dicom(3), do: {:monochrome2, 1}
+  # Grayscale + Alpha (drop alpha)
+  defp png_color_type_to_dicom(4), do: {:monochrome2, 1}
+  # RGBA (drop alpha)
+  defp png_color_type_to_dicom(6), do: {:rgb, 3}
   defp png_color_type_to_dicom(_), do: {:monochrome2, 1}
 
   defp normalize_bit_depth(bit_depth) when bit_depth <= 8, do: 8
@@ -259,18 +542,20 @@ defmodule Dcmix.Import.Image do
       {:ok, {width, height, components}} ->
         photometric = if components == 1, do: :monochrome2, else: :rgb
 
-        {:ok, %{
-          width: width,
-          height: height,
-          photometric: photometric,
-          samples_per_pixel: components,
-          bits_allocated: 8,
-          bits_stored: 8,
-          high_bit: 7,
-          pixel_data: data,
-          compressed: true,
-          transfer_syntax: "1.2.840.10008.1.2.4.50"  # JPEG Baseline
-        }}
+        {:ok,
+         %{
+           width: width,
+           height: height,
+           photometric: photometric,
+           samples_per_pixel: components,
+           bits_allocated: 8,
+           bits_stored: 8,
+           high_bit: 7,
+           pixel_data: data,
+           compressed: true,
+           # JPEG Baseline
+           transfer_syntax: "1.2.840.10008.1.2.4.50"
+         }}
 
       :error ->
         {:error, :invalid_jpeg}
@@ -294,9 +579,11 @@ defmodule Dcmix.Import.Image do
   defp find_sof_marker(<<0xFF, _marker, length::16, rest::binary>>) do
     # Skip this marker and continue
     skip_length = length - 2
+
     case rest do
       <<_skip::binary-size(skip_length), remaining::binary>> ->
         find_sof_marker(remaining)
+
       _ ->
         :error
     end
@@ -383,15 +670,24 @@ defmodule Dcmix.Import.Image do
     pixel_vr = if bits_allocated > 8, do: :OW, else: :OB
 
     dataset
-    |> DataSet.put_element({0x0028, 0x0010}, :US, height)           # Rows
-    |> DataSet.put_element({0x0028, 0x0011}, :US, width)            # Columns
-    |> DataSet.put_element({0x0028, 0x0002}, :US, samples_per_pixel) # SamplesPerPixel
-    |> DataSet.put_element({0x0028, 0x0004}, :CS, photometric_str)  # PhotometricInterpretation
-    |> DataSet.put_element({0x0028, 0x0100}, :US, bits_allocated)   # BitsAllocated
-    |> DataSet.put_element({0x0028, 0x0101}, :US, bits_stored)      # BitsStored
-    |> DataSet.put_element({0x0028, 0x0102}, :US, high_bit)         # HighBit
-    |> DataSet.put_element({0x0028, 0x0103}, :US, 0)                # PixelRepresentation (unsigned)
-    |> DataSet.put_element({0x7FE0, 0x0010}, pixel_vr, pixel_data)  # PixelData
+    # Rows
+    |> DataSet.put_element({0x0028, 0x0010}, :US, height)
+    # Columns
+    |> DataSet.put_element({0x0028, 0x0011}, :US, width)
+    # SamplesPerPixel
+    |> DataSet.put_element({0x0028, 0x0002}, :US, samples_per_pixel)
+    # PhotometricInterpretation
+    |> DataSet.put_element({0x0028, 0x0004}, :CS, photometric_str)
+    # BitsAllocated
+    |> DataSet.put_element({0x0028, 0x0100}, :US, bits_allocated)
+    # BitsStored
+    |> DataSet.put_element({0x0028, 0x0101}, :US, bits_stored)
+    # HighBit
+    |> DataSet.put_element({0x0028, 0x0102}, :US, high_bit)
+    # PixelRepresentation (unsigned)
+    |> DataSet.put_element({0x0028, 0x0103}, :US, 0)
+    # PixelData
+    |> DataSet.put_element({0x7FE0, 0x0010}, pixel_vr, pixel_data)
   end
 
   defp photometric_to_string(:monochrome1), do: "MONOCHROME1"
@@ -414,16 +710,26 @@ defmodule Dcmix.Import.Image do
   defp maybe_insert_type2(dataset, true) do
     # Type 2 attributes - required to be present, can be empty
     type2_defaults = [
-      {{0x0008, 0x0020}, :DA, ""},          # StudyDate
-      {{0x0008, 0x0030}, :TM, ""},          # StudyTime
-      {{0x0008, 0x0050}, :SH, ""},          # AccessionNumber
-      {{0x0008, 0x0090}, :PN, ""},          # ReferringPhysicianName
-      {{0x0010, 0x0010}, :PN, ""},          # PatientName
-      {{0x0010, 0x0020}, :LO, ""},          # PatientID
-      {{0x0010, 0x0030}, :DA, ""},          # PatientBirthDate
-      {{0x0010, 0x0040}, :CS, ""},          # PatientSex
-      {{0x0020, 0x0010}, :SH, ""},          # StudyID
-      {{0x0020, 0x0011}, :IS, ""}           # SeriesNumber
+      # StudyDate
+      {{0x0008, 0x0020}, :DA, ""},
+      # StudyTime
+      {{0x0008, 0x0030}, :TM, ""},
+      # AccessionNumber
+      {{0x0008, 0x0050}, :SH, ""},
+      # ReferringPhysicianName
+      {{0x0008, 0x0090}, :PN, ""},
+      # PatientName
+      {{0x0010, 0x0010}, :PN, ""},
+      # PatientID
+      {{0x0010, 0x0020}, :LO, ""},
+      # PatientBirthDate
+      {{0x0010, 0x0030}, :DA, ""},
+      # PatientSex
+      {{0x0010, 0x0040}, :CS, ""},
+      # StudyID
+      {{0x0020, 0x0010}, :SH, ""},
+      # SeriesNumber
+      {{0x0020, 0x0011}, :IS, ""}
     ]
 
     Enum.reduce(type2_defaults, dataset, fn {tag, vr, default}, acc ->
@@ -476,7 +782,8 @@ defmodule Dcmix.Import.Image do
     if DataSet.has_tag?(dataset, {0x0008, 0x0060}) do
       dataset
     else
-      DataSet.put_element(dataset, {0x0008, 0x0060}, :CS, "OT")  # Other
+      # Other
+      DataSet.put_element(dataset, {0x0008, 0x0060}, :CS, "OT")
     end
   end
 

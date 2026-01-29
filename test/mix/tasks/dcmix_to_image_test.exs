@@ -2,7 +2,7 @@ defmodule Mix.Tasks.Dcmix.ToImageTest do
   use ExUnit.Case, async: false
 
   @fixtures_path "test/fixtures"
-  @valid_dcm Path.join(@fixtures_path, "2_ORIGINAL.dcm")
+  @valid_dcm Path.join(@fixtures_path, "nema_mr_cardiac_256x256.dcm")
 
   setup do
     Mix.shell(Mix.Shell.Process)
@@ -180,9 +180,8 @@ defmodule Mix.Tasks.Dcmix.ToImageTest do
     test "shows error for unknown format" do
       tmp_file = Path.join(System.tmp_dir!(), "output_#{:rand.uniform(100_000)}.raw")
 
-      assert catch_exit(
-               Mix.Tasks.Dcmix.ToImage.run(["--format", "bmp", @valid_dcm, tmp_file])
-             ) == {:shutdown, 1}
+      assert catch_exit(Mix.Tasks.Dcmix.ToImage.run(["--format", "bmp", @valid_dcm, tmp_file])) ==
+               {:shutdown, 1}
 
       assert_received {:mix_shell, :error, [message]}
       assert message =~ "Unknown format"

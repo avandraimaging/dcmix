@@ -136,10 +136,18 @@ defmodule Mix.Tasks.Dcmix.ToImage do
 
   defp add_format_option(image_opts, opts) do
     case Keyword.get(opts, :format) do
-      nil -> image_opts
-      "png" -> Keyword.put(image_opts, :format, :png)
-      "ppm" -> Keyword.put(image_opts, :format, :ppm)
-      "pgm" -> Keyword.put(image_opts, :format, :pgm)
+      nil ->
+        image_opts
+
+      "png" ->
+        Keyword.put(image_opts, :format, :png)
+
+      "ppm" ->
+        Keyword.put(image_opts, :format, :ppm)
+
+      "pgm" ->
+        Keyword.put(image_opts, :format, :pgm)
+
       other ->
         Mix.shell().error("Unknown format: #{other}")
         Mix.shell().error("Supported formats: png, ppm, pgm")

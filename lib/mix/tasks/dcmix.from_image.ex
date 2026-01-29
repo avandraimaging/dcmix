@@ -115,9 +115,15 @@ defmodule Mix.Tasks.Dcmix.FromImage do
 
   defp maybe_add_sop_class(import_opts, opts) do
     case Keyword.get(opts, :sop_class) do
-      nil -> import_opts
-      "secondary_capture" -> Keyword.put(import_opts, :sop_class, :secondary_capture)
-      "vl_photo" -> Keyword.put(import_opts, :sop_class, :vl_photo)
+      nil ->
+        import_opts
+
+      "secondary_capture" ->
+        Keyword.put(import_opts, :sop_class, :secondary_capture)
+
+      "vl_photo" ->
+        Keyword.put(import_opts, :sop_class, :vl_photo)
+
       other ->
         Mix.shell().error("Unknown SOP class: #{other}. Use 'secondary_capture' or 'vl_photo'.")
         exit({:shutdown, 1})

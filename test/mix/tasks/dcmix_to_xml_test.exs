@@ -2,7 +2,7 @@ defmodule Mix.Tasks.Dcmix.ToXmlTest do
   use ExUnit.Case, async: false
 
   @fixtures_path "test/fixtures"
-  @valid_dcm Path.join(@fixtures_path, "0_ORIGINAL.dcm")
+  @valid_dcm Path.join(@fixtures_path, "nema_mr_brain_512x512.dcm")
 
   setup do
     Mix.shell(Mix.Shell.Process)

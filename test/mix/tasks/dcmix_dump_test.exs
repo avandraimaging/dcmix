@@ -2,7 +2,7 @@ defmodule Mix.Tasks.Dcmix.DumpTest do
   use ExUnit.Case, async: false
 
   @fixtures_path "test/fixtures"
-  @valid_dcm Path.join(@fixtures_path, "0_ORIGINAL.dcm")
+  @valid_dcm Path.join(@fixtures_path, "nema_mr_brain_512x512.dcm")
 
   setup do
     # Use process shell to capture output

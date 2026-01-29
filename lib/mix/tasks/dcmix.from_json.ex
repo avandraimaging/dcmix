@@ -35,7 +35,10 @@ defmodule Mix.Tasks.Dcmix.FromJson do
         convert_file(input_file, output_file, opts)
 
       _ ->
-        Mix.shell().error("Usage: mix dcmix.from_json [--template <file>] <input_json> <output_dcm>")
+        Mix.shell().error(
+          "Usage: mix dcmix.from_json [--template <file>] <input_json> <output_dcm>"
+        )
+
         exit({:shutdown, 1})
     end
   end

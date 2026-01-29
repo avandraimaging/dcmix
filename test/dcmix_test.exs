@@ -117,7 +117,7 @@ defmodule DcmixTest do
 
   describe "Parser" do
     test "parses DICOM file" do
-      file = Path.join(@fixtures_path, "1_ORIGINAL.dcm")
+      file = Path.join(@fixtures_path, "nema_mr_knee_512x512.dcm")
 
       if File.exists?(file) do
         assert {:ok, dataset} = Dcmix.read_file(file)
@@ -129,7 +129,7 @@ defmodule DcmixTest do
     end
 
     test "parses implicit VR file" do
-      file = Path.join(@fixtures_path, "2_ORIGINAL.dcm")
+      file = Path.join(@fixtures_path, "nema_mr_cardiac_256x256.dcm")
 
       if File.exists?(file) do
         assert {:ok, dataset} = Dcmix.read_file(file)
@@ -144,7 +144,7 @@ defmodule DcmixTest do
 
   describe "Export.Text" do
     test "dumps dataset to text" do
-      file = Path.join(@fixtures_path, "1_ORIGINAL.dcm")
+      file = Path.join(@fixtures_path, "nema_mr_knee_512x512.dcm")
 
       if File.exists?(file) do
         {:ok, dataset} = Dcmix.read_file(file)
@@ -160,7 +160,7 @@ defmodule DcmixTest do
 
   describe "Export.JSON" do
     test "exports dataset to JSON" do
-      file = Path.join(@fixtures_path, "1_ORIGINAL.dcm")
+      file = Path.join(@fixtures_path, "nema_mr_knee_512x512.dcm")
 
       if File.exists?(file) do
         {:ok, dataset} = Dcmix.read_file(file)
@@ -173,7 +173,7 @@ defmodule DcmixTest do
     end
 
     test "exports with pretty formatting" do
-      file = Path.join(@fixtures_path, "1_ORIGINAL.dcm")
+      file = Path.join(@fixtures_path, "nema_mr_knee_512x512.dcm")
 
       if File.exists?(file) do
         {:ok, dataset} = Dcmix.read_file(file)
@@ -187,7 +187,7 @@ defmodule DcmixTest do
 
   describe "Export.XML" do
     test "exports dataset to XML" do
-      file = Path.join(@fixtures_path, "1_ORIGINAL.dcm")
+      file = Path.join(@fixtures_path, "nema_mr_knee_512x512.dcm")
 
       if File.exists?(file) do
         {:ok, dataset} = Dcmix.read_file(file)
@@ -826,7 +826,7 @@ defmodule DcmixTest do
     @fixtures_path "test/fixtures"
 
     test "parse_file_meta_only extracts file meta" do
-      file = Path.join(@fixtures_path, "1_ORIGINAL.dcm")
+      file = Path.join(@fixtures_path, "nema_mr_knee_512x512.dcm")
 
       if File.exists?(file) do
         assert {:ok, file_meta} = Parser.parse_file_meta_only(file)
@@ -839,7 +839,7 @@ defmodule DcmixTest do
     end
 
     test "get_transfer_syntax returns transfer syntax UID" do
-      file = Path.join(@fixtures_path, "1_ORIGINAL.dcm")
+      file = Path.join(@fixtures_path, "nema_mr_knee_512x512.dcm")
 
       if File.exists?(file) do
         assert {:ok, ts_uid} = Parser.get_transfer_syntax(file)
@@ -1853,7 +1853,7 @@ defmodule DcmixTest do
     @fixtures_path "test/fixtures"
 
     test "dump task runs successfully with valid file" do
-      file = Path.join(@fixtures_path, "1_ORIGINAL.dcm")
+      file = Path.join(@fixtures_path, "nema_mr_knee_512x512.dcm")
 
       if File.exists?(file) do
         # Can't directly test run/1 due to exit calls, but we can test the underlying functionality
@@ -1869,7 +1869,7 @@ defmodule DcmixTest do
     @fixtures_path "test/fixtures"
 
     test "to_json converts dataset successfully" do
-      file = Path.join(@fixtures_path, "1_ORIGINAL.dcm")
+      file = Path.join(@fixtures_path, "nema_mr_knee_512x512.dcm")
 
       if File.exists?(file) do
         {:ok, dataset} = Dcmix.read_file(file)
@@ -1884,7 +1884,7 @@ defmodule DcmixTest do
     @fixtures_path "test/fixtures"
 
     test "to_xml converts dataset successfully" do
-      file = Path.join(@fixtures_path, "1_ORIGINAL.dcm")
+      file = Path.join(@fixtures_path, "nema_mr_knee_512x512.dcm")
 
       if File.exists?(file) do
         {:ok, dataset} = Dcmix.read_file(file)
@@ -3449,7 +3449,7 @@ defmodule DcmixTest do
     @fixtures_path "test/fixtures"
 
     test "parse_file_meta_only on DICOM file" do
-      file = Path.join(@fixtures_path, "1_ORIGINAL.dcm")
+      file = Path.join(@fixtures_path, "nema_mr_knee_512x512.dcm")
 
       if File.exists?(file) do
         assert {:ok, file_meta} = Parser.parse_file_meta_only(file)
@@ -3464,7 +3464,7 @@ defmodule DcmixTest do
     end
 
     test "get_transfer_syntax on DICOM file" do
-      file = Path.join(@fixtures_path, "1_ORIGINAL.dcm")
+      file = Path.join(@fixtures_path, "nema_mr_knee_512x512.dcm")
 
       if File.exists?(file) do
         assert {:ok, uid} = Parser.get_transfer_syntax(file)
@@ -4565,9 +4565,30 @@ defmodule DcmixTest do
     test "parses item delimiter tag" do
       # Item tags (FFFE,E000) should have nil VR
       sequence_binary = <<
-        0x08, 0x00, 0x15, 0x11, 0xFF, 0xFF, 0xFF, 0xFF,
-        0xFE, 0xFF, 0x00, 0xE0, 0x00, 0x00, 0x00, 0x00,
-        0xFE, 0xFF, 0xDD, 0xE0, 0x00, 0x00, 0x00, 0x00
+        0x08,
+        0x00,
+        0x15,
+        0x11,
+        0xFF,
+        0xFF,
+        0xFF,
+        0xFF,
+        0xFE,
+        0xFF,
+        0x00,
+        0xE0,
+        0x00,
+        0x00,
+        0x00,
+        0x00,
+        0xFE,
+        0xFF,
+        0xDD,
+        0xE0,
+        0x00,
+        0x00,
+        0x00,
+        0x00
       >>
 
       {:ok, ds, _rest} = ImplicitVR.parse(sequence_binary)
@@ -4578,15 +4599,59 @@ defmodule DcmixTest do
     test "handles sequence with multiple items" do
       sequence_binary = <<
         # Sequence tag with undefined length
-        0x08, 0x00, 0x15, 0x11, 0xFF, 0xFF, 0xFF, 0xFF,
+        0x08,
+        0x00,
+        0x15,
+        0x11,
+        0xFF,
+        0xFF,
+        0xFF,
+        0xFF,
         # First item with defined length (12 bytes)
-        0xFE, 0xFF, 0x00, 0xE0, 0x0C, 0x00, 0x00, 0x00,
-        0x10, 0x00, 0x10, 0x00, 0x04, 0x00, 0x00, 0x00, "One\x00",
+        0xFE,
+        0xFF,
+        0x00,
+        0xE0,
+        0x0C,
+        0x00,
+        0x00,
+        0x00,
+        0x10,
+        0x00,
+        0x10,
+        0x00,
+        0x04,
+        0x00,
+        0x00,
+        0x00,
+        "One\x00",
         # Second item with defined length
-        0xFE, 0xFF, 0x00, 0xE0, 0x0C, 0x00, 0x00, 0x00,
-        0x10, 0x00, 0x10, 0x00, 0x04, 0x00, 0x00, 0x00, "Two\x00",
+        0xFE,
+        0xFF,
+        0x00,
+        0xE0,
+        0x0C,
+        0x00,
+        0x00,
+        0x00,
+        0x10,
+        0x00,
+        0x10,
+        0x00,
+        0x04,
+        0x00,
+        0x00,
+        0x00,
+        "Two\x00",
         # Sequence delimitation
-        0xFE, 0xFF, 0xDD, 0xE0, 0x00, 0x00, 0x00, 0x00
+        0xFE,
+        0xFF,
+        0xDD,
+        0xE0,
+        0x00,
+        0x00,
+        0x00,
+        0x00
       >>
 
       {:ok, ds, _rest} = ImplicitVR.parse(sequence_binary)
@@ -4597,9 +4662,30 @@ defmodule DcmixTest do
     test "handles UN with undefined length as sequence" do
       # Private tag with undefined length - should try sequence parsing
       sequence_binary = <<
-        0x09, 0x00, 0x10, 0x00, 0xFF, 0xFF, 0xFF, 0xFF,
-        0xFE, 0xFF, 0x00, 0xE0, 0x00, 0x00, 0x00, 0x00,
-        0xFE, 0xFF, 0xDD, 0xE0, 0x00, 0x00, 0x00, 0x00
+        0x09,
+        0x00,
+        0x10,
+        0x00,
+        0xFF,
+        0xFF,
+        0xFF,
+        0xFF,
+        0xFE,
+        0xFF,
+        0x00,
+        0xE0,
+        0x00,
+        0x00,
+        0x00,
+        0x00,
+        0xFE,
+        0xFF,
+        0xDD,
+        0xE0,
+        0x00,
+        0x00,
+        0x00,
+        0x00
       >>
 
       {:ok, ds, _rest} = ImplicitVR.parse(sequence_binary)
@@ -4610,9 +4696,24 @@ defmodule DcmixTest do
     test "returns error for unexpected tag in sequence" do
       # Sequence with invalid content (not an item tag)
       sequence_binary = <<
-        0x08, 0x00, 0x15, 0x11, 0xFF, 0xFF, 0xFF, 0xFF,
+        0x08,
+        0x00,
+        0x15,
+        0x11,
+        0xFF,
+        0xFF,
+        0xFF,
+        0xFF,
         # Regular tag instead of item tag - should fail
-        0x10, 0x00, 0x10, 0x00, 0x04, 0x00, 0x00, 0x00, "Test"
+        0x10,
+        0x00,
+        0x10,
+        0x00,
+        0x04,
+        0x00,
+        0x00,
+        0x00,
+        "Test"
       >>
 
       assert {:error, {:unexpected_tag_in_sequence, {0x0010, 0x0010}}} =
@@ -4622,9 +4723,26 @@ defmodule DcmixTest do
     test "returns error for truncated sequence delimiter" do
       # Sequence delimiter tag without length
       sequence_binary = <<
-        0x08, 0x00, 0x15, 0x11, 0xFF, 0xFF, 0xFF, 0xFF,
-        0xFE, 0xFF, 0x00, 0xE0, 0x00, 0x00, 0x00, 0x00,
-        0xFE, 0xFF, 0xDD, 0xE0
+        0x08,
+        0x00,
+        0x15,
+        0x11,
+        0xFF,
+        0xFF,
+        0xFF,
+        0xFF,
+        0xFE,
+        0xFF,
+        0x00,
+        0xE0,
+        0x00,
+        0x00,
+        0x00,
+        0x00,
+        0xFE,
+        0xFF,
+        0xDD,
+        0xE0
       >>
 
       assert {:error, :unexpected_eof} = ImplicitVR.parse(sequence_binary)
@@ -4633,8 +4751,18 @@ defmodule DcmixTest do
     test "returns error for truncated item tag" do
       # Item tag without length
       sequence_binary = <<
-        0x08, 0x00, 0x15, 0x11, 0xFF, 0xFF, 0xFF, 0xFF,
-        0xFE, 0xFF, 0x00, 0xE0
+        0x08,
+        0x00,
+        0x15,
+        0x11,
+        0xFF,
+        0xFF,
+        0xFF,
+        0xFF,
+        0xFE,
+        0xFF,
+        0x00,
+        0xE0
       >>
 
       assert {:error, :unexpected_eof} = ImplicitVR.parse(sequence_binary)
@@ -4643,7 +4771,14 @@ defmodule DcmixTest do
     test "handles defined length sequence with invalid content" do
       # SQ with defined length but content is not valid items
       sequence_binary = <<
-        0x08, 0x00, 0x15, 0x11, 0x08, 0x00, 0x00, 0x00,
+        0x08,
+        0x00,
+        0x15,
+        0x11,
+        0x08,
+        0x00,
+        0x00,
+        0x00,
         # Invalid content - not starting with item tag
         "NotValid"
       >>
@@ -4656,8 +4791,10 @@ defmodule DcmixTest do
 
     test "parses multiple UL values" do
       # (0040,A132) ReferencedSamplePositions is UL with VM 1-n
-      binary = <<0x40, 0x00, 0x32, 0xA1, 0x08, 0x00, 0x00, 0x00,
-                 0x01, 0x00, 0x00, 0x00, 0x02, 0x00, 0x00, 0x00>>
+      binary =
+        <<0x40, 0x00, 0x32, 0xA1, 0x08, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x02, 0x00,
+          0x00, 0x00>>
+
       {:ok, ds, _rest} = ImplicitVR.parse(binary)
       elem = DataSet.get(ds, {0x0040, 0xA132})
       assert elem.value == [1, 2]
