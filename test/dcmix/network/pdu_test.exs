@@ -237,6 +237,236 @@ defmodule Dcmix.Network.PDUTest do
     end
   end
 
+  describe "decode_pdu/1 - unknown PDU type" do
+    test "returns error for unknown PDU type" do
+      # Type 0xFF is not a valid DICOM PDU type
+      pdu = <<0xFF, 0x00, 4::32-big, 0x00, 0x00, 0x00, 0x00>>
+      assert {:error, {:unknown_pdu_type, 0xFF}} = PDU.decode_pdu(pdu)
+    end
+  end
+
+  describe "decode_pdu/1 - A-ABORT edge cases" do
+    test "decodes abort with default values for short payload" do
+      # Abort PDU with payload shorter than 4 bytes (e.g., 2 bytes)
+      pdu = <<0x07, 0x00, 2::32-big, 0x00, 0x00>>
+      assert {:ok, {:abort, %{source: 0, reason: 0}}, <<>>} = PDU.decode_pdu(pdu)
+    end
+
+    test "decodes abort with zero-length payload" do
+      pdu = <<0x07, 0x00, 0::32-big>>
+      assert {:ok, {:abort, %{source: 0, reason: 0}}, <<>>} = PDU.decode_pdu(pdu)
+    end
+  end
+
+  describe "decode_pdu/1 - A-ASSOCIATE-AC edge cases" do
+    test "returns error for truncated A-ASSOCIATE-AC payload" do
+      # Valid type but payload too short for fixed header (68 bytes needed)
+      pdu = <<0x02, 0x00, 4::32-big, 0x01, 0x00, 0x00, 0x00>>
+      assert {:error, :invalid_associate_ac} = PDU.decode_pdu(pdu)
+    end
+
+    test "decodes A-ASSOCIATE-AC with unknown variable items (skipped)" do
+      called_ae = String.pad_trailing("SCP", 16, " ")
+      calling_ae = String.pad_trailing("SCU", 16, " ")
+
+      # An unknown item type (0x99) that should be skipped
+      unknown_item_content = <<0xDE, 0xAD>>
+      unknown_item = <<0x99, 0x00, byte_size(unknown_item_content)::16-big, unknown_item_content::binary>>
+
+      # Max length sub-item
+      max_length_sub = <<0x51, 0x00, 4::16-big, 16_384::32-big>>
+      user_info = <<0x50, 0x00, byte_size(max_length_sub)::16-big, max_length_sub::binary>>
+
+      payload =
+        IO.iodata_to_binary([
+          <<1::16-big>>,
+          <<0::16>>,
+          called_ae,
+          calling_ae,
+          <<0::256>>,
+          unknown_item,
+          user_info
+        ])
+
+      pdu = <<0x02, 0x00, byte_size(payload)::32-big, payload::binary>>
+
+      assert {:ok, {:associate_ac, result}, <<>>} = PDU.decode_pdu(pdu)
+      assert result.presentation_contexts == []
+      assert result.max_pdu_length == 16_384
+    end
+
+    test "decodes A-ASSOCIATE-AC with user info containing unknown sub-items" do
+      called_ae = String.pad_trailing("SCP", 16, " ")
+      calling_ae = String.pad_trailing("SCU", 16, " ")
+
+      # Max length sub-item
+      max_length_sub = <<0x51, 0x00, 4::16-big, 32_768::32-big>>
+      # Implementation class UID sub-item (0x52) - will be skipped
+      impl_uid = "1.2.3.4.5"
+      impl_sub = <<0x52, 0x00, byte_size(impl_uid)::16-big, impl_uid::binary>>
+
+      user_info_content = max_length_sub <> impl_sub
+      user_info = <<0x50, 0x00, byte_size(user_info_content)::16-big, user_info_content::binary>>
+
+      payload =
+        IO.iodata_to_binary([
+          <<1::16-big>>,
+          <<0::16>>,
+          called_ae,
+          calling_ae,
+          <<0::256>>,
+          user_info
+        ])
+
+      pdu = <<0x02, 0x00, byte_size(payload)::32-big, payload::binary>>
+
+      assert {:ok, {:associate_ac, result}, <<>>} = PDU.decode_pdu(pdu)
+      assert result.max_pdu_length == 32_768
+    end
+
+    test "decodes A-ASSOCIATE-AC with empty variable items" do
+      called_ae = String.pad_trailing("SCP", 16, " ")
+      calling_ae = String.pad_trailing("SCU", 16, " ")
+
+      payload =
+        IO.iodata_to_binary([
+          <<1::16-big>>,
+          <<0::16>>,
+          called_ae,
+          calling_ae,
+          <<0::256>>
+          # No variable items at all
+        ])
+
+      pdu = <<0x02, 0x00, byte_size(payload)::32-big, payload::binary>>
+
+      assert {:ok, {:associate_ac, result}, <<>>} = PDU.decode_pdu(pdu)
+      assert result.presentation_contexts == []
+    end
+
+    test "decodes presentation context with no transfer syntax sub-item" do
+      called_ae = String.pad_trailing("SCP", 16, " ")
+      calling_ae = String.pad_trailing("SCU", 16, " ")
+
+      # Presentation context with result=0 but no transfer syntax sub-item
+      pc_content = <<1, 0x00, 0, 0x00>>
+      pc_item = <<0x21, 0x00, byte_size(pc_content)::16-big, pc_content::binary>>
+
+      payload =
+        IO.iodata_to_binary([
+          <<1::16-big>>,
+          <<0::16>>,
+          called_ae,
+          calling_ae,
+          <<0::256>>,
+          pc_item
+        ])
+
+      pdu = <<0x02, 0x00, byte_size(payload)::32-big, payload::binary>>
+
+      assert {:ok, {:associate_ac, result}, <<>>} = PDU.decode_pdu(pdu)
+      assert [%{id: 1, result: 0, transfer_syntax: ""}] = result.presentation_contexts
+    end
+
+    test "returns error for truncated variable items" do
+      called_ae = String.pad_trailing("SCP", 16, " ")
+      calling_ae = String.pad_trailing("SCU", 16, " ")
+
+      # A variable item header claiming 100 bytes but only 2 bytes follow
+      truncated = <<0x21, 0x00, 100::16-big, 0x00, 0x00>>
+
+      payload =
+        IO.iodata_to_binary([
+          <<1::16-big>>,
+          <<0::16>>,
+          called_ae,
+          calling_ae,
+          <<0::256>>,
+          truncated
+        ])
+
+      pdu = <<0x02, 0x00, byte_size(payload)::32-big, payload::binary>>
+
+      assert {:error, :invalid_variable_items} = PDU.decode_pdu(pdu)
+    end
+
+    test "returns error for truncated presentation context" do
+      called_ae = String.pad_trailing("SCP", 16, " ")
+      calling_ae = String.pad_trailing("SCU", 16, " ")
+
+      # Presentation context with insufficient data (only 1 byte instead of 4+ for header)
+      pc_content = <<0x01>>
+      pc_item = <<0x21, 0x00, byte_size(pc_content)::16-big, pc_content::binary>>
+
+      payload =
+        IO.iodata_to_binary([
+          <<1::16-big>>,
+          <<0::16>>,
+          called_ae,
+          calling_ae,
+          <<0::256>>,
+          pc_item
+        ])
+
+      pdu = <<0x02, 0x00, byte_size(payload)::32-big, payload::binary>>
+
+      assert {:error, :invalid_presentation_context} = PDU.decode_pdu(pdu)
+    end
+  end
+
+  describe "decode_pdu/1 - P-DATA edge cases" do
+    test "returns error for incomplete PDV data" do
+      # P-DATA with PDV length claiming more bytes than available
+      pdv_payload = <<100::32-big, 0x01, 0x03>>
+      pdu = <<0x04, 0x00, byte_size(pdv_payload)::32-big, pdv_payload::binary>>
+
+      assert {:error, :incomplete_pdv} = PDU.decode_pdu(pdu)
+    end
+
+    test "returns error for PDV with empty data (just context_id)" do
+      # A PDV with only 1 byte (context_id, no control header)
+      pdv_payload = <<1::32-big, 0x01>>
+      pdu = <<0x04, 0x00, byte_size(pdv_payload)::32-big, pdv_payload::binary>>
+
+      assert {:error, :invalid_pdv} = PDU.decode_pdu(pdu)
+    end
+
+    test "decodes P-DATA with multiple PDVs" do
+      # Build two PDVs manually in one P-DATA PDU
+      data1 = <<10, 20>>
+      data2 = <<30, 40, 50>>
+
+      pdv1_content = <<1::8, 0x03::8, data1::binary>>
+      pdv2_content = <<2::8, 0x02::8, data2::binary>>
+
+      payload =
+        IO.iodata_to_binary([
+          <<byte_size(pdv1_content)::32-big, pdv1_content::binary>>,
+          <<byte_size(pdv2_content)::32-big, pdv2_content::binary>>
+        ])
+
+      pdu = <<0x04, 0x00, byte_size(payload)::32-big, payload::binary>>
+
+      assert {:ok, {:p_data, [pdv1, pdv2]}, <<>>} = PDU.decode_pdu(pdu)
+      assert pdv1.context_id == 1
+      assert pdv1.is_command == true
+      assert pdv1.is_last == true
+      assert pdv1.data == data1
+
+      assert pdv2.context_id == 2
+      assert pdv2.is_command == false
+      assert pdv2.is_last == true
+      assert pdv2.data == data2
+    end
+
+    test "decodes P-DATA with data-only non-last PDV" do
+      encoded = PDU.encode_p_data(1, false, false, <<99>>)
+      assert {:ok, {:p_data, [pdv]}, <<>>} = PDU.decode_pdu(encoded)
+      assert pdv.is_command == false
+      assert pdv.is_last == false
+    end
+  end
+
   describe "remaining data handling" do
     test "returns remaining bytes after PDU" do
       pdu = PDU.encode_release_rq()

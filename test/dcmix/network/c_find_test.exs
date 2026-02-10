@@ -100,6 +100,84 @@ defmodule Dcmix.Network.CFindTest do
 
       wait_for_server(server_pid)
     end
+
+    test "returns error when server sends failure status" do
+      {port, server_pid} = start_mock_cfind_failure_server(0xA700)
+
+      assert {:error, {:cfind_failed, 0xA700}} =
+               CFind.run(%{
+                 addr: "127.0.0.1:#{port}",
+                 query: ["PatientName"],
+                 calling_ae_title: "TEST_SCU",
+                 called_ae_title: "TEST_SCP"
+               })
+
+      wait_for_server(server_pid)
+    end
+
+    test "returns error when server sends abort during response" do
+      {port, server_pid} = start_mock_cfind_abort_server()
+
+      assert {:error, :association_aborted} =
+               CFind.run(%{
+                 addr: "127.0.0.1:#{port}",
+                 query: ["PatientName"],
+                 calling_ae_title: "TEST_SCU",
+                 called_ae_title: "TEST_SCP"
+               })
+
+      wait_for_server(server_pid)
+    end
+
+    @tag capture_log: true
+    test "runs with verbose logging enabled" do
+      response_datasets = [
+        build_response_dataset("Verbose^Test", "99999", "20250601")
+      ]
+
+      {port, server_pid} = start_mock_cfind_server(response_datasets)
+
+      assert {:ok, result} =
+               CFind.run(%{
+                 addr: "127.0.0.1:#{port}",
+                 query: ["PatientName"],
+                 calling_ae_title: "TEST_SCU",
+                 called_ae_title: "TEST_SCP",
+                 verbose: true
+               })
+
+      assert result.matches == 1
+      wait_for_server(server_pid)
+    end
+
+    test "handles response with data in same PDU as command" do
+      {port, server_pid} = start_mock_cfind_inline_data_server()
+
+      assert {:ok, result} =
+               CFind.run(%{
+                 addr: "127.0.0.1:#{port}",
+                 query: ["PatientName"],
+                 calling_ae_title: "TEST_SCU",
+                 called_ae_title: "TEST_SCP"
+               })
+
+      assert result.matches == 1
+      wait_for_server(server_pid)
+    end
+
+    test "returns error when server sends unexpected release" do
+      {port, server_pid} = start_mock_cfind_release_server()
+
+      assert {:error, :unexpected_release} =
+               CFind.run(%{
+                 addr: "127.0.0.1:#{port}",
+                 query: ["PatientName"],
+                 calling_ae_title: "TEST_SCU",
+                 called_ae_title: "TEST_SCP"
+               })
+
+      wait_for_server(server_pid)
+    end
   end
 
   # ===========================================================================
@@ -257,6 +335,138 @@ defmodule Dcmix.Network.CFindTest do
       <<0x0000::16-little, 0x0000::16-little, 4::32-little, byte_size(elements)::32-little>>
 
     group_length <> elements
+  end
+
+  # Mock server that sends a failure status immediately
+  defp start_mock_cfind_failure_server(status_code) do
+    {:ok, listen} = :gen_tcp.listen(0, [:binary, active: false, reuseaddr: true])
+    {:ok, port} = :inet.port(listen)
+    parent = self()
+
+    pid =
+      spawn_link(fn ->
+        try do
+          {:ok, socket} = :gen_tcp.accept(listen, 5_000)
+          {:ok, _rq} = recv_full_pdu(socket)
+          :ok = :gen_tcp.send(socket, build_associate_ac())
+          {:ok, _cmd_pdata} = recv_full_pdu(socket)
+          {:ok, _query_pdata} = recv_full_pdu(socket)
+
+          # Send failure status response
+          command_binary = build_cfind_rsp_command(status_code)
+          pdv_len = 1 + 1 + byte_size(command_binary)
+          pdu_payload = <<pdv_len::32-big, 1::8, 0x03::8, command_binary::binary>>
+          :ok = :gen_tcp.send(socket, <<0x04, 0x00, byte_size(pdu_payload)::32-big, pdu_payload::binary>>)
+          :gen_tcp.close(socket)
+        after
+          :gen_tcp.close(listen)
+          send(parent, {:server_done, self()})
+        end
+      end)
+
+    {port, pid}
+  end
+
+  # Mock server that sends an abort during response
+  defp start_mock_cfind_abort_server do
+    {:ok, listen} = :gen_tcp.listen(0, [:binary, active: false, reuseaddr: true])
+    {:ok, port} = :inet.port(listen)
+    parent = self()
+
+    pid =
+      spawn_link(fn ->
+        try do
+          {:ok, socket} = :gen_tcp.accept(listen, 5_000)
+          {:ok, _rq} = recv_full_pdu(socket)
+          :ok = :gen_tcp.send(socket, build_associate_ac())
+          {:ok, _cmd_pdata} = recv_full_pdu(socket)
+          {:ok, _query_pdata} = recv_full_pdu(socket)
+
+          # Send abort instead of C-FIND response
+          abort = <<0x07, 0x00, 4::32-big, 0x00, 0x00, 2, 0>>
+          :ok = :gen_tcp.send(socket, abort)
+          :gen_tcp.close(socket)
+        after
+          :gen_tcp.close(listen)
+          send(parent, {:server_done, self()})
+        end
+      end)
+
+    {port, pid}
+  end
+
+  # Mock server that sends data inline (in same P-DATA PDU as command)
+  defp start_mock_cfind_inline_data_server do
+    {:ok, listen} = :gen_tcp.listen(0, [:binary, active: false, reuseaddr: true])
+    {:ok, port} = :inet.port(listen)
+    parent = self()
+
+    pid =
+      spawn_link(fn ->
+        try do
+          {:ok, socket} = :gen_tcp.accept(listen, 5_000)
+          {:ok, _rq} = recv_full_pdu(socket)
+          :ok = :gen_tcp.send(socket, build_associate_ac())
+          {:ok, _cmd_pdata} = recv_full_pdu(socket)
+          {:ok, _query_pdata} = recv_full_pdu(socket)
+
+          # Send pending response with command and data in same P-DATA PDU
+          dataset_binary = build_response_dataset("Inline^Data", "55555", "20250401")
+          command_binary = build_cfind_rsp_command(0xFF00)
+
+          cmd_pdv_len = 1 + 1 + byte_size(command_binary)
+          data_pdv_len = 1 + 1 + byte_size(dataset_binary)
+          pdu_payload = IO.iodata_to_binary([
+            <<cmd_pdv_len::32-big, 1::8, 0x03::8, command_binary::binary>>,
+            <<data_pdv_len::32-big, 1::8, 0x02::8, dataset_binary::binary>>
+          ])
+          :ok = :gen_tcp.send(socket, <<0x04, 0x00, byte_size(pdu_payload)::32-big, pdu_payload::binary>>)
+
+          # Send success
+          success_response = build_cfind_success_response()
+          :ok = :gen_tcp.send(socket, success_response)
+
+          # Handle release
+          case recv_full_pdu(socket) do
+            {:ok, _} ->
+              :ok = :gen_tcp.send(socket, <<0x06, 0x00, 4::32-big, 0::32>>)
+            {:error, :closed} -> :ok
+          end
+          :gen_tcp.close(socket)
+        after
+          :gen_tcp.close(listen)
+          send(parent, {:server_done, self()})
+        end
+      end)
+
+    {port, pid}
+  end
+
+  # Mock server that sends an unexpected release request during C-FIND
+  defp start_mock_cfind_release_server do
+    {:ok, listen} = :gen_tcp.listen(0, [:binary, active: false, reuseaddr: true])
+    {:ok, port} = :inet.port(listen)
+    parent = self()
+
+    pid =
+      spawn_link(fn ->
+        try do
+          {:ok, socket} = :gen_tcp.accept(listen, 5_000)
+          {:ok, _rq} = recv_full_pdu(socket)
+          :ok = :gen_tcp.send(socket, build_associate_ac())
+          {:ok, _cmd_pdata} = recv_full_pdu(socket)
+          {:ok, _query_pdata} = recv_full_pdu(socket)
+
+          # Send release-rq instead of C-FIND response
+          :ok = :gen_tcp.send(socket, <<0x05, 0x00, 4::32-big, 0::32>>)
+          :gen_tcp.close(socket)
+        after
+          :gen_tcp.close(listen)
+          send(parent, {:server_done, self()})
+        end
+      end)
+
+    {port, pid}
   end
 
   # Build a response dataset as Implicit VR Little Endian binary

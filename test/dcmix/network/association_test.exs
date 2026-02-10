@@ -92,6 +92,61 @@ defmodule Dcmix.Network.AssociationTest do
     end
   end
 
+  describe "abort/1" do
+    test "sends abort PDU and closes socket" do
+      {port, server_pid} = start_mock_server(:accept)
+
+      {:ok, assoc} = Association.request("127.0.0.1:#{port}",
+        calling_ae_title: "TEST_SCU",
+        called_ae_title: "TEST_SCP",
+        timeout: 5_000
+      )
+
+      assert :ok = Association.abort(assoc)
+      wait_for_server(server_pid)
+    end
+  end
+
+  describe "request/2 - association aborted by server" do
+    test "returns error when server sends abort" do
+      {port, server_pid} = start_mock_server(:abort)
+
+      assert {:error, {:association_aborted, 2, 0}} =
+               Association.request("127.0.0.1:#{port}", timeout: 5_000)
+
+      wait_for_server(server_pid)
+    end
+  end
+
+  describe "request/2 - unexpected PDU from server" do
+    test "returns error for unexpected PDU type" do
+      {port, server_pid} = start_mock_server(:unexpected)
+
+      assert {:error, {:unexpected_pdu, _}} =
+               Association.request("127.0.0.1:#{port}", timeout: 5_000)
+
+      wait_for_server(server_pid)
+    end
+  end
+
+  describe "receive_pdu/1 - timeout" do
+    test "returns error when receive times out" do
+      {port, server_pid} = start_mock_server(:accept_no_release)
+
+      {:ok, assoc} = Association.request("127.0.0.1:#{port}",
+        calling_ae_title: "TEST_SCU",
+        called_ae_title: "TEST_SCP",
+        timeout: 5_000
+      )
+
+      # Try to receive when server won't send anything — should timeout
+      assert {:error, {:recv_failed, :timeout}} = Association.receive_pdu(assoc, 500)
+
+      Association.abort(assoc)
+      wait_for_server(server_pid)
+    end
+  end
+
   # ===========================================================================
   # Mock DICOM Server
   # ===========================================================================
@@ -150,6 +205,37 @@ defmodule Dcmix.Network.AssociationTest do
 
     # Send A-ASSOCIATE-RJ
     :ok = :gen_tcp.send(socket, <<0x03, 0x00, 4::32-big, 0x00, 0x00, 1, 7>>)
+  end
+
+  defp run_mock_server(socket, :abort) do
+    # Read A-ASSOCIATE-RQ
+    {:ok, _rq} = recv_full_pdu(socket)
+
+    # Send A-ABORT instead of AC
+    :ok = :gen_tcp.send(socket, <<0x07, 0x00, 4::32-big, 0x00, 0x00, 2, 0>>)
+  end
+
+  defp run_mock_server(socket, :unexpected) do
+    # Read A-ASSOCIATE-RQ
+    {:ok, _rq} = recv_full_pdu(socket)
+
+    # Send a P-DATA PDU (unexpected during association negotiation)
+    data = <<0x01, 0x03, 0xAA>>
+    pdv_len = byte_size(data)
+    pdv_payload = <<pdv_len::32-big, data::binary>>
+    :ok = :gen_tcp.send(socket, <<0x04, 0x00, byte_size(pdv_payload)::32-big, pdv_payload::binary>>)
+  end
+
+  defp run_mock_server(socket, :accept_no_release) do
+    # Read A-ASSOCIATE-RQ
+    {:ok, _rq} = recv_full_pdu(socket)
+
+    # Send A-ASSOCIATE-AC
+    ac_pdu = build_associate_ac()
+    :ok = :gen_tcp.send(socket, ac_pdu)
+
+    # Just wait for the connection to close (don't send anything)
+    _ = :gen_tcp.recv(socket, 0, 10_000)
   end
 
   defp run_mock_server(socket, :echo_pdata) do
