@@ -30,7 +30,7 @@ defmodule Dcmix do
       Dcmix.get_string(dataset, "PatientName")
   """
 
-  alias Dcmix.{DataElement, DataSet, Dictionary, Parser, Tag, Writer}
+  alias Dcmix.{DataElement, DataSet, Dictionary, Network, Parser, Tag, Writer}
   alias Dcmix.Export.{Image, JSON, Text, XML}
   alias Dcmix.Import
 
@@ -371,4 +371,45 @@ defmodule Dcmix do
   def to_images(dataset, path_pattern, opts \\ []) do
     Image.to_files(dataset, path_pattern, opts)
   end
+
+  # ============================================================================
+  # Network Functions (DICOM C-FIND)
+  # ============================================================================
+
+  @doc """
+  Performs a DICOM C-FIND query against a remote server.
+
+  ## Parameters
+
+  - `opts` - Query options map:
+    - `:addr` - Server address as `"host:port"` (required)
+    - `:query` - List of query terms (required)
+    - `:calling_ae_title` - Calling AE Title (default: `"DCMIX"`)
+    - `:called_ae_title` - Called AE Title (default: `"ANY-SCP"`)
+    - `:verbose` - Enable verbose logging (default: `false`)
+    - `:timeout` - TCP timeout in ms (default: 30000)
+
+  ## Returns
+
+  - `{:ok, %{matches: count, matched: [json_string]}}` on success
+  - `{:error, reason}` on failure
+
+  ## Examples
+
+      {:ok, result} = Dcmix.find(%{
+        addr: "localhost:4242",
+        query: ["PatientName", "StudyDate=20250101-20251231"],
+        calling_ae_title: "MY_AE",
+        called_ae_title: "ORTHANC"
+      })
+
+      result.matches
+      # => 5
+
+      hd(result.matched)
+      # => "{\"00100010\":{\"vr\":\"PN\",\"Value\":[{\"Alphabetic\":\"Doe^John\"}]}, ...}"
+  """
+  @spec find(map()) ::
+          {:ok, %{matches: non_neg_integer(), matched: [String.t()]}} | {:error, term()}
+  defdelegate find(opts), to: Network
 end
