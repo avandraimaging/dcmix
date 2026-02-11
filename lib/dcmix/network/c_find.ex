@@ -4,16 +4,17 @@ defmodule Dcmix.Network.CFind do
 
   Orchestrates a complete C-FIND query against a DICOM server:
   association negotiation, command/query encoding, response processing,
-  and JSON result formatting.
+  and DataSet result collection.
 
-  This module produces output compatible with the `DicomRustler.run_query/1`
-  API, making it a drop-in replacement for mender's DICOM query needs.
+  Returns a list of `Dcmix.DataSet` structs — one per matching result —
+  following the conventions of established DICOM libraries (dcmtk, pynetdicom, fo-dicom).
   """
 
   require Logger
 
-  alias Dcmix.Export.JSON
-  alias Dcmix.Network.{Association, DIMSE, Query}
+  alias Dcmix.DataSet
+  alias Dcmix.Network.Association
+  alias Dcmix.Network.DIMSE
   alias Dcmix.Parser.{ExplicitVR, ImplicitVR, TransferSyntax}
   alias Dcmix.Writer
 
@@ -25,9 +26,9 @@ defmodule Dcmix.Network.CFind do
 
   ## Parameters
 
-  - `opts` - Query options map:
-    - `:addr` - Server address as `"host:port"` (required)
-    - `:query` - List of query terms (required)
+  - `addr` - Server address as `"host:port"`
+  - `query_dataset` - A `Dcmix.DataSet` containing the query identifier
+  - `opts` - Connection options:
     - `:calling_ae_title` - Calling AE Title (default: `"DCMIX"`)
     - `:called_ae_title` - Called AE Title (default: `"ANY-SCP"`)
     - `:verbose` - Enable verbose logging (default: `false`)
@@ -35,33 +36,37 @@ defmodule Dcmix.Network.CFind do
 
   ## Returns
 
-  - `{:ok, %{matches: count, matched: [json_strings]}}` on success
+  - `{:ok, [DataSet.t()]}` on success
   - `{:error, reason}` on failure
 
   ## Examples
 
-      {:ok, result} = Dcmix.Network.CFind.run(%{
-        addr: "localhost:4242",
-        query: ["PatientName", "StudyDate=20250101"],
-        calling_ae_title: "MY_AE",
-        called_ae_title: "PACS_AE"
-      })
-  """
-  @spec run(map()) ::
-          {:ok, %{matches: non_neg_integer(), matched: [String.t()]}} | {:error, term()}
-  def run(%{addr: addr, query: query_terms} = opts) do
-    verbose = Map.get(opts, :verbose, false)
-    calling_ae = Map.get(opts, :calling_ae_title, "DCMIX")
-    called_ae = Map.get(opts, :called_ae_title, "ANY-SCP")
-    timeout = Map.get(opts, :timeout, 30_000)
+      query =
+        Dcmix.DataSet.new()
+        |> Dcmix.DataSet.put_element({0x0010, 0x0010}, :PN, "")
+        |> Dcmix.DataSet.put_element({0x0008, 0x0020}, :DA, "20250101")
 
-    with {:ok, query_ds} <- Query.parse_terms(query_terms),
-         _ <- log_verbose(verbose, "Query dataset built with #{Dcmix.DataSet.size(query_ds)} elements"),
-         {:ok, assoc} <- establish_association(addr, calling_ae, called_ae, timeout),
+      {:ok, datasets} =
+        Dcmix.Network.CFind.query("localhost:4242", query,
+          calling_ae_title: "MY_AE",
+          called_ae_title: "PACS_AE"
+        )
+  """
+  @spec query(String.t(), DataSet.t(), keyword()) ::
+          {:ok, [DataSet.t()]} | {:error, term()}
+  def query(addr, %DataSet{} = query_dataset, opts \\ []) do
+    verbose = Keyword.get(opts, :verbose, false)
+    calling_ae = Keyword.get(opts, :calling_ae_title, "DCMIX")
+    called_ae = Keyword.get(opts, :called_ae_title, "ANY-SCP")
+    timeout = Keyword.get(opts, :timeout, 30_000)
+
+    log_verbose(verbose, "Query dataset built with #{DataSet.size(query_dataset)} elements")
+
+    with {:ok, assoc} <- establish_association(addr, calling_ae, called_ae, timeout),
          _ <- log_verbose(verbose, "Association established"),
          {:ok, pc} <- Association.accepted_context(assoc),
          _ <- log_verbose(verbose, "Presentation context accepted (TS: #{pc.transfer_syntax})") do
-      result = execute_cfind(assoc, pc, query_ds, verbose, timeout)
+      result = execute_cfind(assoc, pc, query_dataset, verbose, timeout)
       Association.release(assoc)
       result
     end
@@ -140,22 +145,22 @@ defmodule Dcmix.Network.CFind do
 
   defp handle_status(_assoc, _pc, verbose, _timeout, acc, status, _data_pdv)
        when status == 0x0000 do
-    count = length(acc)
-    log_verbose(verbose, "C-FIND complete: #{count} matches")
-    {:ok, %{matches: count, matched: Enum.reverse(acc)}}
+    datasets = Enum.reverse(acc)
+    log_verbose(verbose, "C-FIND complete: #{length(datasets)} matches")
+    {:ok, datasets}
   end
 
   defp handle_status(assoc, pc, verbose, timeout, acc, status, data_pdv)
        when status in [0xFF00, 0xFF01] do
-    # Pending — get the data dataset and convert to JSON
+    # Pending — get the data dataset
     case get_response_data(assoc, pc, data_pdv, timeout) do
-      {:ok, json_string} ->
+      {:ok, dataset} ->
         log_verbose(verbose, "Match ##{length(acc) + 1}")
-        receive_responses(assoc, pc, verbose, timeout, [json_string | acc])
+        receive_responses(assoc, pc, verbose, timeout, [dataset | acc])
 
       {:error, reason} ->
-        Logger.warning("Failed to decode response data: #{inspect(reason)}, using empty JSON")
-        receive_responses(assoc, pc, verbose, timeout, ["{}" | acc])
+        Logger.warning("Failed to decode response data: #{inspect(reason)}, using empty DataSet")
+        receive_responses(assoc, pc, verbose, timeout, [DataSet.new() | acc])
     end
   end
 
@@ -167,7 +172,7 @@ defmodule Dcmix.Network.CFind do
     data_bytes = extract_data_bytes(assoc, data_pdv, timeout)
 
     case data_bytes do
-      {:ok, bytes} -> dataset_to_json(bytes, pc.transfer_syntax)
+      {:ok, bytes} -> parse_dataset(bytes, pc.transfer_syntax)
       {:error, _} = error -> error
     end
   end
@@ -195,7 +200,7 @@ defmodule Dcmix.Network.CFind do
     end
   end
 
-  defp dataset_to_json(data_bytes, transfer_syntax_uid) do
+  defp parse_dataset(data_bytes, transfer_syntax_uid) do
     {:ok, ts} = TransferSyntax.lookup(transfer_syntax_uid)
 
     parse_result =
@@ -207,7 +212,7 @@ defmodule Dcmix.Network.CFind do
 
     case parse_result do
       {:ok, dataset, _rest} ->
-        JSON.encode(dataset)
+        {:ok, dataset}
 
       {:error, _} = error ->
         error

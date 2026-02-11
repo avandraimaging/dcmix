@@ -381,35 +381,31 @@ defmodule Dcmix do
 
   ## Parameters
 
-  - `opts` - Query options map:
-    - `:addr` - Server address as `"host:port"` (required)
-    - `:query` - List of query terms (required)
-    - `:calling_ae_title` - Calling AE Title (default: `"DCMIX"`)
-    - `:called_ae_title` - Called AE Title (default: `"ANY-SCP"`)
-    - `:verbose` - Enable verbose logging (default: `false`)
+  - `addr` - Server address as `"host:port"`
+  - `query` - A `Dcmix.DataSet` containing the query identifier
+  - `opts` - Connection options:
+    - `:calling_ae_title` - Calling AE Title (default: "DCMIX")
+    - `:called_ae_title` - Called AE Title (default: "ANY-SCP")
     - `:timeout` - TCP timeout in ms (default: 30000)
-
-  ## Returns
-
-  - `{:ok, %{matches: count, matched: [json_string]}}` on success
-  - `{:error, reason}` on failure
+    - `:verbose` - Enable verbose logging (default: false)
 
   ## Examples
 
-      {:ok, result} = Dcmix.find(%{
-        addr: "localhost:4242",
-        query: ["PatientName", "StudyDate=20250101-20251231"],
-        calling_ae_title: "MY_AE",
-        called_ae_title: "ORTHANC"
-      })
+      query =
+        Dcmix.DataSet.new()
+        |> Dcmix.DataSet.put_element({0x0010, 0x0010}, :PN, "")
+        |> Dcmix.DataSet.put_element({0x0008, 0x0020}, :DA, "20250101")
 
-      result.matches
-      # => 5
+      {:ok, datasets} =
+        Dcmix.find("localhost:4242", query,
+          calling_ae_title: "MY_SCU",
+          called_ae_title: "PACS_AE"
+        )
 
-      hd(result.matched)
-      # => "{\"00100010\":{\"vr\":\"PN\",\"Value\":[{\"Alphabetic\":\"Doe^John\"}]}, ...}"
+      Enum.each(datasets, fn ds ->
+        IO.puts(Dcmix.DataSet.get_string(ds, {0x0010, 0x0010}))
+      end)
   """
-  @spec find(map()) ::
-          {:ok, %{matches: non_neg_integer(), matched: [String.t()]}} | {:error, term()}
-  defdelegate find(opts), to: Network
+  @spec find(String.t(), DataSet.t(), keyword()) :: {:ok, [DataSet.t()]} | {:error, term()}
+  defdelegate find(addr, query, opts \\ []), to: Network, as: :query
 end

@@ -1,9 +1,9 @@
 defmodule Dcmix.Network.Query do
   @moduledoc """
-  Parses DICOM query terms into DataSets for C-FIND operations.
+  CLI-style query builder for C-FIND operations.
 
-  Converts mender-style query lists (e.g., `["PatientName", "StudyDate=20250708"]`)
-  into `Dcmix.DataSet` structures suitable for encoding as C-FIND identifier datasets.
+  Parses query term strings (similar to dcmtk's `-k` option) into
+  `Dcmix.DataSet` structures suitable for use as C-FIND identifier datasets.
 
   ## Query Term Syntax
 
@@ -17,6 +17,9 @@ defmodule Dcmix.Network.Query do
         "StudyDate=20250708",
         "StudyTime=070000-073000"
       ])
+
+  Automatically adds `QueryRetrieveLevel=STUDY` if not already present.
+  This default can be overridden by including an explicit `QueryRetrieveLevel` term.
   """
 
   alias Dcmix.{DataElement, DataSet, Dictionary}

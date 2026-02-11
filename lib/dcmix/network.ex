@@ -7,25 +7,31 @@ defmodule Dcmix.Network do
 
   ## Example
 
-      {:ok, result} = Dcmix.Network.find(%{
-        addr: "localhost:4242",
-        query: ["PatientName", "StudyDate=20250101"],
-        calling_ae_title: "MY_AE",
-        called_ae_title: "PACS_AE"
-      })
+      query =
+        Dcmix.DataSet.new()
+        |> Dcmix.DataSet.put_element({0x0010, 0x0010}, :PN, "")
+        |> Dcmix.DataSet.put_element({0x0008, 0x0020}, :DA, "20250101")
 
-      # result.matches => 3
-      # result.matched => [json_string, ...]
+      {:ok, datasets} =
+        Dcmix.Network.query("localhost:4242", query,
+          calling_ae_title: "MY_AE",
+          called_ae_title: "PACS_AE"
+        )
+
+      Enum.each(datasets, fn ds ->
+        IO.puts(Dcmix.DataSet.get_string(ds, {0x0010, 0x0010}))
+      end)
   """
 
+  alias Dcmix.DataSet
   alias Dcmix.Network.CFind
 
   @doc """
   Performs a C-FIND query against a DICOM server.
 
-  See `Dcmix.Network.CFind.run/1` for full documentation.
+  See `Dcmix.Network.CFind.query/3` for full documentation.
   """
-  @spec find(map()) ::
-          {:ok, %{matches: non_neg_integer(), matched: [String.t()]}} | {:error, term()}
-  defdelegate find(opts), to: CFind, as: :run
+  @spec query(String.t(), DataSet.t(), keyword()) ::
+          {:ok, [DataSet.t()]} | {:error, term()}
+  defdelegate query(addr, query_dataset, opts \\ []), to: CFind
 end

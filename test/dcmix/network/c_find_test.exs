@@ -2,29 +2,27 @@ defmodule Dcmix.Network.CFindTest do
   use ExUnit.Case
 
   alias Dcmix.{DataSet, Writer}
-  alias Dcmix.Network.CFind
+  alias Dcmix.Network.{CFind, Query}
 
   @implicit_vr_le "1.2.840.10008.1.2"
 
-  describe "run/1" do
+  describe "query/3" do
     test "returns empty results when server responds with immediate success" do
       {port, server_pid} = start_mock_cfind_server([])
+      {:ok, query_ds} = Query.parse_terms(["PatientName"])
 
-      assert {:ok, result} =
-               CFind.run(%{
-                 addr: "127.0.0.1:#{port}",
-                 query: ["PatientName"],
+      assert {:ok, datasets} =
+               CFind.query("127.0.0.1:#{port}", query_ds,
                  calling_ae_title: "TEST_SCU",
                  called_ae_title: "TEST_SCP"
-               })
+               )
 
-      assert result.matches == 0
-      assert result.matched == []
+      assert datasets == []
 
       wait_for_server(server_pid)
     end
 
-    test "returns matched studies as JSON strings" do
+    test "returns matched studies as DataSets" do
       # Build response datasets (Implicit VR LE)
       response_datasets = [
         build_response_dataset("Doe^John", "12345", "20250101"),
@@ -32,50 +30,37 @@ defmodule Dcmix.Network.CFindTest do
       ]
 
       {port, server_pid} = start_mock_cfind_server(response_datasets)
+      {:ok, query_ds} = Query.parse_terms(["PatientName", "PatientID", "StudyDate"])
 
-      assert {:ok, result} =
-               CFind.run(%{
-                 addr: "127.0.0.1:#{port}",
-                 query: ["PatientName", "PatientID", "StudyDate"],
+      assert {:ok, datasets} =
+               CFind.query("127.0.0.1:#{port}", query_ds,
                  calling_ae_title: "TEST_SCU",
                  called_ae_title: "TEST_SCP"
-               })
+               )
 
-      assert result.matches == 2
-      assert length(result.matched) == 2
+      assert length(datasets) == 2
 
-      # Verify the JSON strings are valid and contain expected data
-      [json1, json2] = result.matched
-      assert {:ok, decoded1} = Jason.decode(json1)
-      assert {:ok, decoded2} = Jason.decode(json2)
+      # Verify the DataSets contain expected data
+      [ds1, ds2] = datasets
 
-      # Check PatientName (0010,0010) in DICOM JSON format
-      assert get_in(decoded1, ["00100010", "vr"]) == "PN"
-      assert get_in(decoded2, ["00100010", "vr"]) == "PN"
+      assert %DataSet{} = ds1
+      assert %DataSet{} = ds2
 
-      # Check PatientID (0010,0020)
-      assert get_in(decoded1, ["00100020", "Value"]) == ["12345"]
-      assert get_in(decoded2, ["00100020", "Value"]) == ["67890"]
+      # Check PatientID values
+      assert DataSet.get_string(ds1, {0x0010, 0x0020}) == "12345"
+      assert DataSet.get_string(ds2, {0x0010, 0x0020}) == "67890"
 
       wait_for_server(server_pid)
     end
 
     test "returns error for connection failure" do
+      {:ok, query_ds} = Query.parse_terms(["PatientName"])
+
       assert {:error, {:connection_failed, _}} =
-               CFind.run(%{
-                 addr: "127.0.0.1:1",
-                 query: ["PatientName"],
+               CFind.query("127.0.0.1:1", query_ds,
                  calling_ae_title: "TEST",
                  called_ae_title: "MOCK"
-               })
-    end
-
-    test "returns error for unknown query keyword" do
-      assert {:error, {:unknown_keyword, "BogusTag"}} =
-               CFind.run(%{
-                 addr: "127.0.0.1:4242",
-                 query: ["BogusTag"]
-               })
+               )
     end
 
     test "handles single result" do
@@ -84,47 +69,43 @@ defmodule Dcmix.Network.CFindTest do
       ]
 
       {port, server_pid} = start_mock_cfind_server(response_datasets)
+      {:ok, query_ds} = Query.parse_terms(["PatientName", "StudyDate=20250301"])
 
-      assert {:ok, result} =
-               CFind.run(%{
-                 addr: "127.0.0.1:#{port}",
-                 query: ["PatientName", "StudyDate=20250301"],
+      assert {:ok, datasets} =
+               CFind.query("127.0.0.1:#{port}", query_ds,
                  calling_ae_title: "SCU",
                  called_ae_title: "SCP"
-               })
+               )
 
-      assert result.matches == 1
-      [json] = result.matched
-      assert {:ok, decoded} = Jason.decode(json)
-      assert get_in(decoded, ["00100020", "Value"]) == ["11111"]
+      assert length(datasets) == 1
+      [ds] = datasets
+      assert DataSet.get_string(ds, {0x0010, 0x0020}) == "11111"
 
       wait_for_server(server_pid)
     end
 
     test "returns error when server sends failure status" do
       {port, server_pid} = start_mock_cfind_failure_server(0xA700)
+      {:ok, query_ds} = Query.parse_terms(["PatientName"])
 
       assert {:error, {:cfind_failed, 0xA700}} =
-               CFind.run(%{
-                 addr: "127.0.0.1:#{port}",
-                 query: ["PatientName"],
+               CFind.query("127.0.0.1:#{port}", query_ds,
                  calling_ae_title: "TEST_SCU",
                  called_ae_title: "TEST_SCP"
-               })
+               )
 
       wait_for_server(server_pid)
     end
 
     test "returns error when server sends abort during response" do
       {port, server_pid} = start_mock_cfind_abort_server()
+      {:ok, query_ds} = Query.parse_terms(["PatientName"])
 
       assert {:error, :association_aborted} =
-               CFind.run(%{
-                 addr: "127.0.0.1:#{port}",
-                 query: ["PatientName"],
+               CFind.query("127.0.0.1:#{port}", query_ds,
                  calling_ae_title: "TEST_SCU",
                  called_ae_title: "TEST_SCP"
-               })
+               )
 
       wait_for_server(server_pid)
     end
@@ -136,45 +117,42 @@ defmodule Dcmix.Network.CFindTest do
       ]
 
       {port, server_pid} = start_mock_cfind_server(response_datasets)
+      {:ok, query_ds} = Query.parse_terms(["PatientName"])
 
-      assert {:ok, result} =
-               CFind.run(%{
-                 addr: "127.0.0.1:#{port}",
-                 query: ["PatientName"],
+      assert {:ok, datasets} =
+               CFind.query("127.0.0.1:#{port}", query_ds,
                  calling_ae_title: "TEST_SCU",
                  called_ae_title: "TEST_SCP",
                  verbose: true
-               })
+               )
 
-      assert result.matches == 1
+      assert length(datasets) == 1
       wait_for_server(server_pid)
     end
 
     test "handles response with data in same PDU as command" do
       {port, server_pid} = start_mock_cfind_inline_data_server()
+      {:ok, query_ds} = Query.parse_terms(["PatientName"])
 
-      assert {:ok, result} =
-               CFind.run(%{
-                 addr: "127.0.0.1:#{port}",
-                 query: ["PatientName"],
+      assert {:ok, datasets} =
+               CFind.query("127.0.0.1:#{port}", query_ds,
                  calling_ae_title: "TEST_SCU",
                  called_ae_title: "TEST_SCP"
-               })
+               )
 
-      assert result.matches == 1
+      assert length(datasets) == 1
       wait_for_server(server_pid)
     end
 
     test "returns error when server sends unexpected release" do
       {port, server_pid} = start_mock_cfind_release_server()
+      {:ok, query_ds} = Query.parse_terms(["PatientName"])
 
       assert {:error, :unexpected_release} =
-               CFind.run(%{
-                 addr: "127.0.0.1:#{port}",
-                 query: ["PatientName"],
+               CFind.query("127.0.0.1:#{port}", query_ds,
                  calling_ae_title: "TEST_SCU",
                  called_ae_title: "TEST_SCP"
-               })
+               )
 
       wait_for_server(server_pid)
     end

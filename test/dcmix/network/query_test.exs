@@ -46,7 +46,7 @@ defmodule Dcmix.Network.QueryTest do
       assert {:error, {:unknown_keyword, "NotARealTag"}} = Query.parse_terms(["NotARealTag"])
     end
 
-    test "handles mender-style full query" do
+    test "handles full query with return fields and filters" do
       terms = [
         "StudyInstanceUID",
         "PatientName",
