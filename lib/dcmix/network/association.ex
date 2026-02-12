@@ -71,7 +71,15 @@ defmodule Dcmix.Network.Association do
 
     with {:ok, {host, port}} <- parse_address(addr),
          {:ok, socket} <- connect(host, port, timeout),
-         :ok <- send_associate_rq(socket, calling_ae, called_ae, abstract_syntaxes, transfer_syntaxes, max_pdu_length),
+         :ok <-
+           send_associate_rq(
+             socket,
+             calling_ae,
+             called_ae,
+             abstract_syntaxes,
+             transfer_syntaxes,
+             max_pdu_length
+           ),
          {:ok, result} <- receive_associate_response(socket, timeout) do
       {:ok,
        %__MODULE__{
@@ -185,7 +193,14 @@ defmodule Dcmix.Network.Association do
     end
   end
 
-  defp send_associate_rq(socket, calling_ae, called_ae, abstract_syntaxes, transfer_syntaxes, max_pdu_length) do
+  defp send_associate_rq(
+         socket,
+         calling_ae,
+         called_ae,
+         abstract_syntaxes,
+         transfer_syntaxes,
+         max_pdu_length
+       ) do
     presentation_contexts =
       abstract_syntaxes
       |> Enum.with_index(1)
@@ -200,9 +215,10 @@ defmodule Dcmix.Network.Association do
         }
       end)
 
-    pdu = PDU.encode_associate_rq(calling_ae, called_ae, presentation_contexts,
-      max_pdu_length: max_pdu_length
-    )
+    pdu =
+      PDU.encode_associate_rq(calling_ae, called_ae, presentation_contexts,
+        max_pdu_length: max_pdu_length
+      )
 
     tcp_send(socket, pdu)
   end

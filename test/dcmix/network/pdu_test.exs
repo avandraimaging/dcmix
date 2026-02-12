@@ -15,6 +15,7 @@ defmodule Dcmix.Network.PDUTest do
 
     test "pads AE titles to 16 bytes" do
       pdu = PDU.encode_associate_rq("A", "B", [])
+
       <<0x01, 0x00, _len::32-big, _version::16, _reserved::16, called::binary-size(16),
         calling::binary-size(16), _rest::binary>> = pdu
 
@@ -212,7 +213,9 @@ defmodule Dcmix.Network.PDUTest do
       assert result.called_ae_title == "SCP"
       assert result.calling_ae_title == "SCU"
       assert result.max_pdu_length == 65_536
-      assert [%{id: 1, result: 0, transfer_syntax: @implicit_vr_le}] = result.presentation_contexts
+
+      assert [%{id: 1, result: 0, transfer_syntax: @implicit_vr_le}] =
+               result.presentation_contexts
     end
   end
 
@@ -271,7 +274,9 @@ defmodule Dcmix.Network.PDUTest do
 
       # An unknown item type (0x99) that should be skipped
       unknown_item_content = <<0xDE, 0xAD>>
-      unknown_item = <<0x99, 0x00, byte_size(unknown_item_content)::16-big, unknown_item_content::binary>>
+
+      unknown_item =
+        <<0x99, 0x00, byte_size(unknown_item_content)::16-big, unknown_item_content::binary>>
 
       # Max length sub-item
       max_length_sub = <<0x51, 0x00, 4::16-big, 16_384::32-big>>

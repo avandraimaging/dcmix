@@ -334,7 +334,13 @@ defmodule Dcmix.Network.CFindTest do
           command_binary = build_cfind_rsp_command(status_code)
           pdv_len = 1 + 1 + byte_size(command_binary)
           pdu_payload = <<pdv_len::32-big, 1::8, 0x03::8, command_binary::binary>>
-          :ok = :gen_tcp.send(socket, <<0x04, 0x00, byte_size(pdu_payload)::32-big, pdu_payload::binary>>)
+
+          :ok =
+            :gen_tcp.send(
+              socket,
+              <<0x04, 0x00, byte_size(pdu_payload)::32-big, pdu_payload::binary>>
+            )
+
           :gen_tcp.close(socket)
         after
           :gen_tcp.close(listen)
@@ -394,11 +400,18 @@ defmodule Dcmix.Network.CFindTest do
 
           cmd_pdv_len = 1 + 1 + byte_size(command_binary)
           data_pdv_len = 1 + 1 + byte_size(dataset_binary)
-          pdu_payload = IO.iodata_to_binary([
-            <<cmd_pdv_len::32-big, 1::8, 0x03::8, command_binary::binary>>,
-            <<data_pdv_len::32-big, 1::8, 0x02::8, dataset_binary::binary>>
-          ])
-          :ok = :gen_tcp.send(socket, <<0x04, 0x00, byte_size(pdu_payload)::32-big, pdu_payload::binary>>)
+
+          pdu_payload =
+            IO.iodata_to_binary([
+              <<cmd_pdv_len::32-big, 1::8, 0x03::8, command_binary::binary>>,
+              <<data_pdv_len::32-big, 1::8, 0x02::8, dataset_binary::binary>>
+            ])
+
+          :ok =
+            :gen_tcp.send(
+              socket,
+              <<0x04, 0x00, byte_size(pdu_payload)::32-big, pdu_payload::binary>>
+            )
 
           # Send success
           success_response = build_cfind_success_response()
@@ -408,8 +421,11 @@ defmodule Dcmix.Network.CFindTest do
           case recv_full_pdu(socket) do
             {:ok, _} ->
               :ok = :gen_tcp.send(socket, <<0x06, 0x00, 4::32-big, 0::32>>)
-            {:error, :closed} -> :ok
+
+            {:error, :closed} ->
+              :ok
           end
+
           :gen_tcp.close(socket)
         after
           :gen_tcp.close(listen)

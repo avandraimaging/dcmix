@@ -226,10 +226,12 @@ defmodule Dcmix.Network.PDU do
 
   defp decode_associate_ac_payload(
          <<_protocol_version::16-big, _reserved::16, called_ae::binary-size(16),
-           calling_ae::binary-size(16), _reserved2::binary-size(32),
-           variable_items::binary>>
+           calling_ae::binary-size(16), _reserved2::binary-size(32), variable_items::binary>>
        ) do
-    case decode_variable_items(variable_items, %{presentation_contexts: [], max_pdu_length: @default_max_pdu_length}) do
+    case decode_variable_items(variable_items, %{
+           presentation_contexts: [],
+           max_pdu_length: @default_max_pdu_length
+         }) do
       {:ok, items} ->
         {:ok,
          %{
@@ -396,8 +398,7 @@ defmodule Dcmix.Network.PDU do
          transfer_syntaxes: transfer_syntaxes
        }) do
     abstract_syntax_item =
-      <<@abstract_syntax_item, 0x00, byte_size(abstract_syntax)::16-big,
-        abstract_syntax::binary>>
+      <<@abstract_syntax_item, 0x00, byte_size(abstract_syntax)::16-big, abstract_syntax::binary>>
 
     ts_items =
       Enum.map(transfer_syntaxes, fn ts ->

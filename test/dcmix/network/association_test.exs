@@ -9,11 +9,12 @@ defmodule Dcmix.Network.AssociationTest do
     test "establishes association with mock server" do
       {port, server_pid} = start_mock_server(:accept)
 
-      assert {:ok, assoc} = Association.request("127.0.0.1:#{port}",
-        calling_ae_title: "TEST_SCU",
-        called_ae_title: "TEST_SCP",
-        timeout: 5_000
-      )
+      assert {:ok, assoc} =
+               Association.request("127.0.0.1:#{port}",
+                 calling_ae_title: "TEST_SCU",
+                 called_ae_title: "TEST_SCP",
+                 timeout: 5_000
+               )
 
       assert %Association{} = assoc
       assert assoc.max_pdu_length == 65_536
@@ -57,11 +58,12 @@ defmodule Dcmix.Network.AssociationTest do
     test "sends and receives P-DATA through mock server echo" do
       {port, server_pid} = start_mock_server(:echo_pdata)
 
-      {:ok, assoc} = Association.request("127.0.0.1:#{port}",
-        calling_ae_title: "TEST_SCU",
-        called_ae_title: "TEST_SCP",
-        timeout: 5_000
-      )
+      {:ok, assoc} =
+        Association.request("127.0.0.1:#{port}",
+          calling_ae_title: "TEST_SCU",
+          called_ae_title: "TEST_SCP",
+          timeout: 5_000
+        )
 
       {:ok, pc} = Association.accepted_context(assoc)
 
@@ -96,11 +98,12 @@ defmodule Dcmix.Network.AssociationTest do
     test "sends abort PDU and closes socket" do
       {port, server_pid} = start_mock_server(:accept)
 
-      {:ok, assoc} = Association.request("127.0.0.1:#{port}",
-        calling_ae_title: "TEST_SCU",
-        called_ae_title: "TEST_SCP",
-        timeout: 5_000
-      )
+      {:ok, assoc} =
+        Association.request("127.0.0.1:#{port}",
+          calling_ae_title: "TEST_SCU",
+          called_ae_title: "TEST_SCP",
+          timeout: 5_000
+        )
 
       assert :ok = Association.abort(assoc)
       wait_for_server(server_pid)
@@ -133,11 +136,12 @@ defmodule Dcmix.Network.AssociationTest do
     test "returns error when receive times out" do
       {port, server_pid} = start_mock_server(:accept_no_release)
 
-      {:ok, assoc} = Association.request("127.0.0.1:#{port}",
-        calling_ae_title: "TEST_SCU",
-        called_ae_title: "TEST_SCP",
-        timeout: 5_000
-      )
+      {:ok, assoc} =
+        Association.request("127.0.0.1:#{port}",
+          calling_ae_title: "TEST_SCU",
+          called_ae_title: "TEST_SCP",
+          timeout: 5_000
+        )
 
       # Try to receive when server won't send anything — should timeout
       assert {:error, {:recv_failed, :timeout}} = Association.receive_pdu(assoc, 500)
@@ -223,7 +227,9 @@ defmodule Dcmix.Network.AssociationTest do
     data = <<0x01, 0x03, 0xAA>>
     pdv_len = byte_size(data)
     pdv_payload = <<pdv_len::32-big, data::binary>>
-    :ok = :gen_tcp.send(socket, <<0x04, 0x00, byte_size(pdv_payload)::32-big, pdv_payload::binary>>)
+
+    :ok =
+      :gen_tcp.send(socket, <<0x04, 0x00, byte_size(pdv_payload)::32-big, pdv_payload::binary>>)
   end
 
   defp run_mock_server(socket, :accept_no_release) do
