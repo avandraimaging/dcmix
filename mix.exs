@@ -59,6 +59,14 @@ defmodule Dcmix.MixProject do
         Writing: [Dcmix.Writer, Dcmix.Writer.ExplicitVR, Dcmix.Writer.ImplicitVR],
         Export: [Dcmix.Export.JSON, Dcmix.Export.XML, Dcmix.Export.Text, Dcmix.Export.Image],
         Import: [Dcmix.Import.JSON, Dcmix.Import.XML, Dcmix.Import.Image],
+        Network: [
+          Dcmix.Network,
+          Dcmix.Network.CFind,
+          Dcmix.Network.Association,
+          Dcmix.Network.PDU,
+          Dcmix.Network.DIMSE,
+          Dcmix.Network.Query
+        ],
         Support: [Dcmix.Dictionary, Dcmix.PixelData, Dcmix.PrivateTag]
       ]
     ]

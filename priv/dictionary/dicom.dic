@@ -33,6 +33,9 @@
 0008 0032 TM AcquisitionTime 1 Acquisition Time
 0008 0033 TM ContentTime 1 Content Time
 0008 0050 SH AccessionNumber 1 Accession Number
+0008 0052 CS QueryRetrieveLevel 1 Query/Retrieve Level
+0008 0054 AE RetrieveAETitle 1-n Retrieve AE Title
+0008 0056 CS InstanceAvailability 1 Instance Availability
 0008 0060 CS Modality 1 Modality
 0008 0061 CS ModalitiesInStudy 1-n Modalities in Study
 0008 0064 CS ConversionType 1 Conversion Type

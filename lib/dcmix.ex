@@ -30,7 +30,7 @@ defmodule Dcmix do
       Dcmix.get_string(dataset, "PatientName")
   """
 
-  alias Dcmix.{DataElement, DataSet, Dictionary, Parser, Tag, Writer}
+  alias Dcmix.{DataElement, DataSet, Dictionary, Network, Parser, Tag, Writer}
   alias Dcmix.Export.{Image, JSON, Text, XML}
   alias Dcmix.Import
 
@@ -371,4 +371,41 @@ defmodule Dcmix do
   def to_images(dataset, path_pattern, opts \\ []) do
     Image.to_files(dataset, path_pattern, opts)
   end
+
+  # ============================================================================
+  # Network Functions (DICOM C-FIND)
+  # ============================================================================
+
+  @doc """
+  Performs a DICOM C-FIND query against a remote server.
+
+  ## Parameters
+
+  - `addr` - Server address as `"host:port"`
+  - `query` - A `Dcmix.DataSet` containing the query identifier
+  - `opts` - Connection options:
+    - `:calling_ae_title` - Calling AE Title (default: "DCMIX")
+    - `:called_ae_title` - Called AE Title (default: "ANY-SCP")
+    - `:timeout` - TCP timeout in ms (default: 30000)
+    - `:verbose` - Enable verbose logging (default: false)
+
+  ## Examples
+
+      query =
+        Dcmix.DataSet.new()
+        |> Dcmix.DataSet.put_element({0x0010, 0x0010}, :PN, "")
+        |> Dcmix.DataSet.put_element({0x0008, 0x0020}, :DA, "20250101")
+
+      {:ok, datasets} =
+        Dcmix.find("localhost:4242", query,
+          calling_ae_title: "MY_SCU",
+          called_ae_title: "PACS_AE"
+        )
+
+      Enum.each(datasets, fn ds ->
+        IO.puts(Dcmix.DataSet.get_string(ds, {0x0010, 0x0010}))
+      end)
+  """
+  @spec find(String.t(), DataSet.t(), keyword()) :: {:ok, [DataSet.t()]} | {:error, term()}
+  defdelegate find(addr, query, opts \\ []), to: Network, as: :query
 end
