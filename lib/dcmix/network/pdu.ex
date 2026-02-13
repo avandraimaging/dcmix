@@ -290,7 +290,6 @@ defmodule Dcmix.Network.PDU do
     decode_variable_items(remaining, acc)
   end
 
-  defp decode_variable_items(<<>>, acc), do: {:ok, acc}
   defp decode_variable_items(_, _acc), do: {:error, :invalid_variable_items}
 
   defp decode_presentation_context_ac(
