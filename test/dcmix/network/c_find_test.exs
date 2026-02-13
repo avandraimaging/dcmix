@@ -156,6 +156,23 @@ defmodule Dcmix.Network.CFindTest do
 
       wait_for_server(server_pid)
     end
+
+    test "releases association when no presentation context is accepted" do
+      {port, server_pid} = start_mock_cfind_reject_context_server()
+      {:ok, query_ds} = Query.parse_terms(["PatientName"])
+
+      assert {:error, :no_accepted_presentation_context} =
+               CFind.query("127.0.0.1:#{port}", query_ds,
+                 calling_ae_title: "TEST_SCU",
+                 called_ae_title: "TEST_SCP"
+               )
+
+      # Server detects whether the client properly closed the connection.
+      # If the socket leaked, the server times out and reports false.
+      assert_receive {:server_connection_closed, true}, 5_000
+
+      wait_for_server(server_pid)
+    end
   end
 
   # ===========================================================================
@@ -461,6 +478,69 @@ defmodule Dcmix.Network.CFindTest do
       end)
 
     {port, pid}
+  end
+
+  # Mock server that accepts association but rejects all presentation contexts
+  defp start_mock_cfind_reject_context_server do
+    {:ok, listen} = :gen_tcp.listen(0, [:binary, active: false, reuseaddr: true])
+    {:ok, port} = :inet.port(listen)
+    parent = self()
+
+    pid =
+      spawn_link(fn ->
+        try do
+          {:ok, socket} = :gen_tcp.accept(listen, 5_000)
+          {:ok, _rq} = recv_full_pdu(socket)
+
+          # Send A-ASSOCIATE-AC with all PCs rejected
+          :ok = :gen_tcp.send(socket, build_associate_ac_all_rejected())
+
+          # Wait for the client to close/release/abort the connection.
+          # If the socket leaked, this will timeout.
+          connection_closed =
+            case :gen_tcp.recv(socket, 0, 2_000) do
+              {:error, :closed} -> true
+              {:ok, _data} -> true
+              {:error, :timeout} -> false
+            end
+
+          send(parent, {:server_connection_closed, connection_closed})
+          :gen_tcp.close(socket)
+        after
+          :gen_tcp.close(listen)
+          send(parent, {:server_done, self()})
+        end
+      end)
+
+    {port, pid}
+  end
+
+  # Build an A-ASSOCIATE-AC where all presentation contexts are rejected (result=1)
+  defp build_associate_ac_all_rejected do
+    called_ae = String.pad_trailing("TEST_SCP", 16, " ")
+    calling_ae = String.pad_trailing("TEST_SCU", 16, " ")
+
+    ts_uid = @implicit_vr_le
+    ts_item = <<0x40, 0x00, byte_size(ts_uid)::16-big, ts_uid::binary>>
+
+    # result=1 (user-rejection) instead of result=0 (acceptance)
+    pc_content = <<1, 0x00, 1, 0x00, ts_item::binary>>
+    pc_item = <<0x21, 0x00, byte_size(pc_content)::16-big, pc_content::binary>>
+
+    max_length_sub = <<0x51, 0x00, 4::16-big, 65_536::32-big>>
+    user_info = <<0x50, 0x00, byte_size(max_length_sub)::16-big, max_length_sub::binary>>
+
+    payload =
+      IO.iodata_to_binary([
+        <<1::16-big, 0::16>>,
+        called_ae,
+        calling_ae,
+        <<0::256>>,
+        pc_item,
+        user_info
+      ])
+
+    <<0x02, 0x00, byte_size(payload)::32-big, payload::binary>>
   end
 
   # Build a response dataset as Implicit VR Little Endian binary

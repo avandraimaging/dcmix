@@ -63,12 +63,16 @@ defmodule Dcmix.Network.CFind do
     log_verbose(verbose, "Query dataset built with #{DataSet.size(query_dataset)} elements")
 
     with {:ok, assoc} <- establish_association(addr, calling_ae, called_ae, timeout),
-         _ <- log_verbose(verbose, "Association established"),
-         {:ok, pc} <- Association.accepted_context(assoc),
-         _ <- log_verbose(verbose, "Presentation context accepted (TS: #{pc.transfer_syntax})") do
-      result = execute_cfind(assoc, pc, query_dataset, verbose, timeout)
-      Association.release(assoc)
-      result
+         _ <- log_verbose(verbose, "Association established") do
+      try do
+        with {:ok, pc} <- Association.accepted_context(assoc),
+             _ <-
+               log_verbose(verbose, "Presentation context accepted (TS: #{pc.transfer_syntax})") do
+          execute_cfind(assoc, pc, query_dataset, verbose, timeout)
+        end
+      after
+        Association.release(assoc)
+      end
     end
   end
 
