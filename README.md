@@ -11,6 +11,8 @@ Dcmix (pronounced "DCM-icks") is a pure Elixir implementation for working with D
 > fully vetted for correctness, security, or compliance with the DICOM standard. Use at your
 > own risk and please report any issues you encounter.
 
+![](./docs/dcmix.png)
+
 ## Features
 
 - Read and parse DICOM Part 10 files
