@@ -5,6 +5,9 @@ name: Nightly hex audit
 # run CI, and Dependabot alerts can't cover this: GitHub's dependency graph
 # does not parse mix.lock. This workflow is copied verbatim across the Elixir
 # repos except for the OTP_VERSION/ELIXIR_VERSION env block below (AVA-1549).
+# dcmix additionally enforces zizmor's blanket pin policy in CI, so the actions
+# here are pinned to the same SHAs ci.yml already uses and checkout sets
+# persist-credentials: false.
 
 on:
   workflow_dispatch:
@@ -29,13 +32,15 @@ jobs:
       SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
     steps:
       - name: Set up Elixir
-        uses: erlef/setup-beam@v1
+        uses: erlef/setup-beam@54075bcc5e249e4758d363f27d099f55d843f124 # v1.24.1
         with:
           otp-version: ${{ env.OTP_VERSION }}
           elixir-version: ${{ env.ELIXIR_VERSION }}
 
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
 
       - name: Install dependencies
         run: mix deps.get
@@ -58,7 +63,7 @@ jobs:
           exit 1
 
       - name: Post failure to engineering support slack channel
-        uses: slackapi/slack-github-action@v2.0.0
+        uses: slackapi/slack-github-action@485a9d42d3a73031f12ec201c457e2162c45d02d # v2.0.0
         if: failure() && env.SLACK_WEBHOOK_URL != ''
         with:
           webhook: ${{ secrets.SLACK_WEBHOOK_URL }}
