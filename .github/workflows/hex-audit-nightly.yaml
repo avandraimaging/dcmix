@@ -57,9 +57,17 @@ jobs:
 
       - name: Fail if either audit found issues
         if: steps.hex_audit.outcome == 'failure' || steps.deps_audit.outcome == 'failure'
+        # Outcomes are passed through env rather than interpolated into the run
+        # block. These particular values are enum-valued and not
+        # attacker-controllable, so this is a false positive in substance, but
+        # zizmor's blanket template-injection rule flags any expansion inside
+        # run: and the env form is the documented remediation.
+        env:
+          HEX_AUDIT_OUTCOME: ${{ steps.hex_audit.outcome }}
+          DEPS_AUDIT_OUTCOME: ${{ steps.deps_audit.outcome }}
         run: |
-          echo "hex.audit: ${{ steps.hex_audit.outcome }}"
-          echo "deps.audit: ${{ steps.deps_audit.outcome }}"
+          echo "hex.audit: $HEX_AUDIT_OUTCOME"
+          echo "deps.audit: $DEPS_AUDIT_OUTCOME"
           exit 1
 
       - name: Post failure to engineering support slack channel
