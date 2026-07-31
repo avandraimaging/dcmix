@@ -1,0 +1,93 @@
+name: Nightly hex audit
+
+# Scheduled source-level dependency audit. New Hex security advisories
+# (EEF/osv.dev feed) otherwise only surface when an unrelated push happens to
+# run CI, and Dependabot alerts can't cover this: GitHub's dependency graph
+# does not parse mix.lock. This workflow is copied verbatim across the Elixir
+# repos except for the OTP_VERSION/ELIXIR_VERSION env block below (AVA-1549).
+# dcmix additionally enforces zizmor's blanket pin policy in CI, so the actions
+# here are pinned to the same SHAs ci.yml already uses and checkout sets
+# persist-credentials: false.
+
+on:
+  workflow_dispatch:
+  schedule:
+    # 08:30 UTC daily, alongside harvester's nightly trivy scans
+    - cron: "30 8 * * *"
+
+permissions:
+  contents: read
+
+env:
+  OTP_VERSION: "27"
+  ELIXIR_VERSION: "1.18"
+
+jobs:
+  hex_audit:
+    name: Hex security audit
+    runs-on: ubuntu-latest
+    env:
+      # Mapped to job env so the Slack step can be skipped (instead of
+      # erroring) in repos where the secret hasn't been configured yet.
+      SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+    steps:
+      - name: Set up Elixir
+        uses: erlef/setup-beam@54075bcc5e249e4758d363f27d099f55d843f124 # v1.24.1
+        with:
+          otp-version: ${{ env.OTP_VERSION }}
+          elixir-version: ${{ env.ELIXIR_VERSION }}
+
+      - name: Checkout code
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+
+      - name: Install dependencies
+        run: mix deps.get
+
+      - name: Run hex audit (retired packages and security advisories)
+        id: hex_audit
+        continue-on-error: true
+        run: mix hex.audit
+
+      - name: Run deps audit (known vulnerabilities)
+        id: deps_audit
+        continue-on-error: true
+        run: mix deps.audit
+
+      - name: Fail if either audit found issues
+        if: steps.hex_audit.outcome == 'failure' || steps.deps_audit.outcome == 'failure'
+        # Outcomes are passed through env rather than interpolated into the run
+        # block. These particular values are enum-valued and not
+        # attacker-controllable, so this is a false positive in substance, but
+        # zizmor's blanket template-injection rule flags any expansion inside
+        # run: and the env form is the documented remediation.
+        env:
+          HEX_AUDIT_OUTCOME: ${{ steps.hex_audit.outcome }}
+          DEPS_AUDIT_OUTCOME: ${{ steps.deps_audit.outcome }}
+        run: |
+          echo "hex.audit: $HEX_AUDIT_OUTCOME"
+          echo "deps.audit: $DEPS_AUDIT_OUTCOME"
+          exit 1
+
+      - name: Post failure to engineering support slack channel
+        uses: slackapi/slack-github-action@485a9d42d3a73031f12ec201c457e2162c45d02d # v2.0.0
+        if: failure() && env.SLACK_WEBHOOK_URL != ''
+        with:
+          webhook: ${{ secrets.SLACK_WEBHOOK_URL }}
+          webhook-type: incoming-webhook
+          payload: |
+            text: "*Nightly hex audit failure for ${{ github.event.repository.name }}*"
+            blocks:
+                - type: "section"
+                  text:
+                    type: "mrkdwn"
+                    text: "Nightly hex audit *FOUND POSSIBLE VULNERABILITIES* in ${{ github.event.repository.name }} (hex.audit: ${{ steps.hex_audit.outcome }}, deps.audit: ${{ steps.deps_audit.outcome }})"
+                - type: "section"
+                  text:
+                    type: "mrkdwn"
+                    text: "Please review the <${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|latest Nightly hex audit run> for the list of retired packages and security advisories affecting mix.lock"
+                - type: "section"
+                  text:
+                    type: "mrkdwn"
+                    text: "CRITICAL CVE's should be addressed within 7 days. HIGH CVE's should be addressed within 14 days. Anything lower within 90 days."
