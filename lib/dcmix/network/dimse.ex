@@ -8,6 +8,7 @@ defmodule Dcmix.Network.DIMSE do
 
   Currently supports:
   - C-FIND-RQ command building
+  - C-STORE-RQ command building
   - Response status parsing
   """
 
@@ -19,9 +20,11 @@ defmodule Dcmix.Network.DIMSE do
   @priority {0x0000, 0x0700}
   @command_data_set_type {0x0000, 0x0800}
   @status {0x0000, 0x0900}
+  @affected_sop_instance_uid {0x0000, 0x1000}
 
   # Command field values
   @cfind_rq 0x0020
+  @cstore_rq 0x0001
 
   # Priority values
   @priority_medium 0x0000
@@ -53,6 +56,37 @@ defmodule Dcmix.Network.DIMSE do
       ])
 
     # Prepend group length: (0000,0000) UL = byte_size(elements)
+    group_length = encode_ul_element(@command_group_length, byte_size(elements))
+
+    group_length <> elements
+  end
+
+  @doc """
+  Builds a C-STORE-RQ command as encoded binary (Implicit VR Little Endian).
+
+  The binary includes the Command Group Length element (0000,0000) followed
+  by all other command elements. Per PS3.7 9.1.1, a C-STORE-RQ also carries
+  the Affected SOP Instance UID identifying the specific instance being
+  stored.
+
+  ## Parameters
+  - `sop_class_uid` - The abstract syntax UID being stored (e.g., CT Image
+    Storage `1.2.840.10008.5.1.4.1.1.2`)
+  - `sop_instance_uid` - The SOP Instance UID of the dataset being stored
+  - `message_id` - Message ID (typically 1)
+  """
+  @spec build_cstore_rq(String.t(), String.t(), non_neg_integer()) :: binary()
+  def build_cstore_rq(sop_class_uid, sop_instance_uid, message_id) do
+    elements =
+      IO.iodata_to_binary([
+        encode_ui_element(@affected_sop_class_uid, sop_class_uid),
+        encode_us_element(@command_field, @cstore_rq),
+        encode_us_element(@message_id, message_id),
+        encode_us_element(@priority, @priority_medium),
+        encode_us_element(@command_data_set_type, @dataset_present),
+        encode_ui_element(@affected_sop_instance_uid, sop_instance_uid)
+      ])
+
     group_length = encode_ul_element(@command_group_length, byte_size(elements))
 
     group_length <> elements

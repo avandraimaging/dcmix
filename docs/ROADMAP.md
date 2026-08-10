@@ -23,21 +23,28 @@ Dcmix aims to bring comprehensive DICOM support to Elixir, inspired by [dcmtk](h
 | **Image Import** | Import pixel data from image files | Complete |
 | **Multi-frame Import** | Create multi-frame DICOM from multiple images | Complete |
 | **DICOM Networking (C-FIND SCU)** | Query remote PACS servers via C-FIND | Complete |
+| **DICOM Networking (C-STORE SCU)** | Send DICOM instances to a remote SCP via C-STORE | Complete |
 
 ## Planned Features
 
-| Feature | Description | Priority |
-|---------|-------------|----------|
-| **Pixel Data Decompression** | Decode JPEG, JPEG2000, RLE compressed images | High |
-| **Transfer Syntax Conversion** | Transcode between transfer syntaxes | High |
-| **DICOM Networking (DIMSE)** | C-ECHO, C-STORE, C-MOVE, C-GET (C-FIND complete) | High |
-| **Storage SCP/SCU** | Send/receive DICOM files over network | High |
-| **Query/Retrieve** | C-MOVE and C-GET retrieval from PACS (C-FIND complete) | Medium |
-| **DICOMDIR** | Create/read media directory files | Medium |
-| **Anonymization** | De-identify patient data | Medium |
-| **Validation** | IOD conformance checking | Low |
-| **Structured Reports** | SR document support | Low |
-| **Presentation States** | GSPS support | Low |
+`Status` reflects current code state: `Not started` means no implementation
+exists yet; `Partial` means some sub-operations are complete (see the row
+description for what is and isn't done). C-FIND SCU and C-STORE SCU are
+shipped — see the Implemented Features table above.
+
+| Feature | Description | Status | Priority |
+|---------|-------------|--------|----------|
+| **Pixel Data Decompression** | Decode JPEG, JPEG2000, RLE compressed images | Not started | High |
+| **Transfer Syntax Conversion** | Transcode between transfer syntaxes | Not started | High |
+| **C-ECHO** | DIMSE association verification (SCU + SCP) | Not started | High |
+| **C-STORE** | Send and receive DICOM files over the network | Partial — SCU done | High |
+| **C-MOVE** | Retrieve studies from PACS to a destination AE | Not started | Medium |
+| **C-GET** | Retrieve studies over the active association | Not started | Medium |
+| **DICOMDIR** | Create/read media directory files | Not started | Medium |
+| **Anonymization** | De-identify patient data | Not started | Medium |
+| **Validation** | IOD conformance checking | Not started | Low |
+| **Structured Reports** | SR document support | Not started | Low |
+| **Presentation States** | GSPS support | Not started | Low |
 
 ## Feature Comparison
 

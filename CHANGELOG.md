@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- DICOM C-STORE SCU support for sending DICOM instances to a remote SCP
+  - `Dcmix.store/3` (and `Dcmix.Network.store/3`, `Dcmix.Network.CStore.send/3`)
+    high-level API
+  - `Dcmix.Network.DIMSE.build_cstore_rq/3` for the C-STORE-RQ command
+    payload (Affected SOP Class UID, Affected SOP Instance UID, Message ID,
+    Priority, Command Field 0x0001)
+  - File's transfer syntax is proposed during association negotiation and
+    used to encode the outgoing dataset
+
 ## [0.1.0] - 2025-01-27
 
 ### Added
