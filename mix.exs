@@ -62,6 +62,7 @@ defmodule Dcmix.MixProject do
         Network: [
           Dcmix.Network,
           Dcmix.Network.CFind,
+          Dcmix.Network.CStore,
           Dcmix.Network.Association,
           Dcmix.Network.PDU,
           Dcmix.Network.DIMSE,

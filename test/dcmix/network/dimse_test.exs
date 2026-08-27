@@ -61,6 +61,69 @@ defmodule Dcmix.Network.DIMSETest do
     end
   end
 
+  describe "build_cstore_rq/3" do
+    @ct_image_storage "1.2.840.10008.5.1.4.1.1.2"
+    @sop_instance_uid "1.2.3.4.5.6.7.8.9"
+
+    test "starts with group length element (0000,0000)" do
+      binary = DIMSE.build_cstore_rq(@ct_image_storage, @sop_instance_uid, 1)
+
+      assert <<0x0000::16-little, 0x0000::16-little, 4::32-little, _group_length::32-little,
+               _rest::binary>> = binary
+    end
+
+    test "group length value matches remaining bytes" do
+      binary = DIMSE.build_cstore_rq(@ct_image_storage, @sop_instance_uid, 1)
+
+      <<0x0000::16-little, 0x0000::16-little, 4::32-little, group_length::32-little,
+        rest::binary>> = binary
+
+      assert group_length == byte_size(rest)
+    end
+
+    test "contains Affected SOP Class UID (0000,0002)" do
+      binary = DIMSE.build_cstore_rq(@ct_image_storage, @sop_instance_uid, 1)
+      assert :binary.match(binary, @ct_image_storage) != :nomatch
+    end
+
+    test "contains Command Field = 0x0001 (C-STORE-RQ)" do
+      binary = DIMSE.build_cstore_rq(@ct_image_storage, @sop_instance_uid, 1)
+      pattern = <<0x0000::16-little, 0x0100::16-little, 2::32-little, 0x0001::16-little>>
+      assert :binary.match(binary, pattern) != :nomatch
+    end
+
+    test "contains Message ID" do
+      binary = DIMSE.build_cstore_rq(@ct_image_storage, @sop_instance_uid, 99)
+      pattern = <<0x0000::16-little, 0x0110::16-little, 2::32-little, 99::16-little>>
+      assert :binary.match(binary, pattern) != :nomatch
+    end
+
+    test "contains Priority = Medium (0x0000)" do
+      binary = DIMSE.build_cstore_rq(@ct_image_storage, @sop_instance_uid, 1)
+      pattern = <<0x0000::16-little, 0x0700::16-little, 2::32-little, 0x0000::16-little>>
+      assert :binary.match(binary, pattern) != :nomatch
+    end
+
+    test "contains Command Data Set Type = Present (0x0001)" do
+      binary = DIMSE.build_cstore_rq(@ct_image_storage, @sop_instance_uid, 1)
+      pattern = <<0x0000::16-little, 0x0800::16-little, 2::32-little, 0x0001::16-little>>
+      assert :binary.match(binary, pattern) != :nomatch
+    end
+
+    test "contains Affected SOP Instance UID (0000,1000)" do
+      binary = DIMSE.build_cstore_rq(@ct_image_storage, @sop_instance_uid, 1)
+      assert :binary.match(binary, @sop_instance_uid) != :nomatch
+    end
+
+    test "SOP Instance UID with odd length is null-padded to even" do
+      odd_instance = "1.2.3"
+      assert rem(byte_size(odd_instance), 2) == 1
+
+      binary = DIMSE.build_cstore_rq(@ct_image_storage, odd_instance, 1)
+      assert :binary.match(binary, odd_instance <> <<0>>) != :nomatch
+    end
+  end
+
   describe "parse_status/1" do
     test "extracts success status from command response" do
       response = build_status_response(0x0000)

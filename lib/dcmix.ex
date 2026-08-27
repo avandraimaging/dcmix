@@ -373,7 +373,7 @@ defmodule Dcmix do
   end
 
   # ============================================================================
-  # Network Functions (DICOM C-FIND)
+  # Network Functions (DICOM C-FIND, C-STORE)
   # ============================================================================
 
   @doc """
@@ -408,4 +408,39 @@ defmodule Dcmix do
   """
   @spec find(String.t(), DataSet.t(), keyword()) :: {:ok, [DataSet.t()]} | {:error, term()}
   defdelegate find(addr, query, opts \\ []), to: Network, as: :query
+
+  @doc """
+  Sends a single DICOM file to a remote SCP via C-STORE.
+
+  Reads the file, extracts its SOP Class UID, SOP Instance UID, and
+  transfer syntax, negotiates an association, and transmits the dataset.
+
+  ## Parameters
+
+  - `addr` - Server address as `"host:port"`
+  - `file_path` - Path to a DICOM Part 10 file to send
+  - `opts` - Connection options:
+    - `:calling_ae_title` - Calling AE Title (default: "DCMIX")
+    - `:called_ae_title` - Called AE Title (default: "ANY-SCP")
+    - `:timeout` - TCP timeout in ms (default: 30000)
+    - `:verbose` - Enable verbose logging (default: false)
+    - `:message_id` - DIMSE Message ID (default: 1)
+
+  ## Returns
+
+  - `{:ok, status}` where `status` is the DIMSE status code returned
+    by the SCP (`0x0000` for success)
+  - `{:error, reason}` on transport, association, or file-read failures
+
+  ## Examples
+
+      {:ok, 0x0000} =
+        Dcmix.store("localhost:104", "ct_image.dcm",
+          calling_ae_title: "MY_SCU",
+          called_ae_title: "ORTHANC"
+        )
+  """
+  @spec store(String.t(), Path.t(), keyword()) ::
+          {:ok, non_neg_integer()} | {:error, term()}
+  defdelegate store(addr, file_path, opts \\ []), to: Network
 end

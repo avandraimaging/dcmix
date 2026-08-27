@@ -3,7 +3,8 @@ defmodule Dcmix.Network do
   DICOM networking operations.
 
   Provides Service Class User (SCU) functionality for DICOM network operations.
-  Currently supports C-FIND for querying remote DICOM servers.
+  Currently supports C-FIND for querying remote DICOM servers and C-STORE
+  for sending DICOM instances.
 
   ## Example
 
@@ -24,7 +25,7 @@ defmodule Dcmix.Network do
   """
 
   alias Dcmix.DataSet
-  alias Dcmix.Network.CFind
+  alias Dcmix.Network.{CFind, CStore}
 
   @doc """
   Performs a C-FIND query against a DICOM server.
@@ -34,4 +35,13 @@ defmodule Dcmix.Network do
   @spec query(String.t(), DataSet.t(), keyword()) ::
           {:ok, [DataSet.t()]} | {:error, term()}
   defdelegate query(addr, query_dataset, opts \\ []), to: CFind
+
+  @doc """
+  Sends a single DICOM file to a remote SCP via C-STORE.
+
+  See `Dcmix.Network.CStore.send/3` for full documentation.
+  """
+  @spec store(String.t(), Path.t(), keyword()) ::
+          {:ok, non_neg_integer()} | {:error, term()}
+  defdelegate store(addr, file_path, opts \\ []), to: CStore, as: :send
 end

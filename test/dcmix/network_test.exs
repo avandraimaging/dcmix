@@ -27,4 +27,11 @@ defmodule Dcmix.NetworkTest do
                Network.query("127.0.0.1:1", query_ds)
     end
   end
+
+  describe "store/3" do
+    test "delegates to CStore.send and returns file error for a missing file" do
+      assert {:error, {:file_error, :enoent}} =
+               Network.store("127.0.0.1:1", "/nonexistent/missing.dcm")
+    end
+  end
 end
