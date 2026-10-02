@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- `stop_before_pixels: true` option for `Dcmix.read_file/2` and `Dcmix.Parser.parse/2`:
+  returns every element before the first top-level pixel data element, and reads
+  the file only as far as that element, so a large image costs no more than its
+  header. `:read_size` sets the first read (default 64 KiB), which doubles as needed.
+
 ## [0.1.0] - 2025-01-27
 
 ### Added
