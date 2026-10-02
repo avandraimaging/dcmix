@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- DICOM networking with C-GET SCU support (`Dcmix.Network.get/3`): retrieved
+  instances are streamed to Part 10 files as they arrive (bit-preserving), or
+  discarded with `storage_mode: :ignore`.
+- `Dcmix.Network.Association.request/2` takes per-context proposals with
+  SCP/SCU Role Selection (`:presentation_contexts`), and `send_pdata/4` splits
+  data larger than the peer's maximum PDU length. `receive_pdu/2` rejects a
+  P-DATA-TF PDU longer than the proposed maximum (`:pdu_too_large`) and reports a
+  timeout after a PDU header as `:pdu_read_timeout`.
+- `Dcmix.Writer.file_meta_header/4` encodes a Part 10 header for an already
+  encoded data set.
+
 ## [0.2.0] - 2026-10-02
 
 ### Added
