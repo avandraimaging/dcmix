@@ -37,6 +37,7 @@ defmodule Dcmix.Network.PDU do
   @user_information_item 0x50
   @max_length_item 0x51
   @implementation_class_uid_item 0x52
+  @role_selection_item 0x54
   @implementation_version_name_item 0x55
 
   # Standard UIDs
@@ -57,9 +58,18 @@ defmodule Dcmix.Network.PDU do
         }
 
   @type accepted_context :: %{
-          id: non_neg_integer(),
-          result: non_neg_integer(),
-          transfer_syntax: String.t()
+          required(:id) => non_neg_integer(),
+          required(:result) => non_neg_integer(),
+          required(:transfer_syntax) => String.t(),
+          optional(:abstract_syntax) => String.t(),
+          optional(:scu_role) => boolean() | nil,
+          optional(:scp_role) => boolean() | nil
+        }
+
+  @type role_selection :: %{
+          sop_class_uid: String.t(),
+          scu_role: boolean(),
+          scp_role: boolean()
         }
 
   @type pdv :: %{
@@ -91,11 +101,14 @@ defmodule Dcmix.Network.PDU do
   - `presentation_contexts` - List of presentation context maps
   - `opts` - Options:
     - `:max_pdu_length` - Maximum PDU length to propose (default: 16384)
+    - `:role_selections` - SCP/SCU Role Selection sub-items to propose
+      (PS3.7 D.3.3.4), as `t:role_selection/0` maps (default: none)
   """
   @spec encode_associate_rq(String.t(), String.t(), [presentation_context()], keyword()) ::
           binary()
   def encode_associate_rq(calling_ae, called_ae, presentation_contexts, opts \\ []) do
     max_pdu_length = Keyword.get(opts, :max_pdu_length, @default_max_pdu_length)
+    role_selections = Keyword.get(opts, :role_selections, [])
 
     payload =
       IO.iodata_to_binary([
@@ -114,7 +127,7 @@ defmodule Dcmix.Network.PDU do
         # Presentation Context Items
         Enum.map(presentation_contexts, &encode_presentation_context_rq/1),
         # User Information Item
-        encode_user_information(max_pdu_length)
+        encode_user_information(max_pdu_length, role_selections)
       ])
 
     <<@associate_rq, 0x00, byte_size(payload)::32-big, payload::binary>>
@@ -230,7 +243,8 @@ defmodule Dcmix.Network.PDU do
        ) do
     case decode_variable_items(variable_items, %{
            presentation_contexts: [],
-           max_pdu_length: @default_max_pdu_length
+           max_pdu_length: @default_max_pdu_length,
+           role_selections: []
          }) do
       {:ok, items} ->
         {:ok,
@@ -238,7 +252,8 @@ defmodule Dcmix.Network.PDU do
            called_ae_title: String.trim(called_ae),
            calling_ae_title: String.trim(calling_ae),
            presentation_contexts: items.presentation_contexts,
-           max_pdu_length: items.max_pdu_length
+           max_pdu_length: items.max_pdu_length,
+           role_selections: Enum.reverse(items.role_selections)
          }}
 
       {:error, _} = error ->
@@ -317,6 +332,15 @@ defmodule Dcmix.Network.PDU do
   end
 
   defp decode_user_information(
+         <<@role_selection_item, _reserved::8, length::16-big, rest::binary>>,
+         acc
+       )
+       when byte_size(rest) >= length do
+    <<item::binary-size(length), remaining::binary>> = rest
+    decode_user_information(remaining, add_role_selection(item, acc))
+  end
+
+  defp decode_user_information(
          <<_type::8, _reserved::8, length::16-big, rest::binary>>,
          acc
        )
@@ -326,6 +350,22 @@ defmodule Dcmix.Network.PDU do
   end
 
   defp decode_user_information(_, acc), do: {:ok, acc}
+
+  defp add_role_selection(
+         <<uid_length::16-big, uid::binary-size(uid_length), scu_role::8, scp_role::8>>,
+         acc
+       ) do
+    role = %{
+      sop_class_uid: String.trim_trailing(uid, <<0>>),
+      scu_role: scu_role == 1,
+      scp_role: scp_role == 1
+    }
+
+    %{acc | role_selections: [role | acc.role_selections]}
+  end
+
+  # Malformed role item: ignore it so the peer falls back to default roles
+  defp add_role_selection(_item, acc), do: acc
 
   # ===========================================================================
   # PDV Decoding
@@ -411,7 +451,7 @@ defmodule Dcmix.Network.PDU do
     <<@presentation_context_rq_item, 0x00, byte_size(pc_data)::16-big, pc_data::binary>>
   end
 
-  defp encode_user_information(max_pdu_length) do
+  defp encode_user_information(max_pdu_length, role_selections) do
     max_length_sub =
       <<@max_length_item, 0x00, 4::16-big, max_pdu_length::32-big>>
 
@@ -427,11 +467,27 @@ defmodule Dcmix.Network.PDU do
       <<@implementation_version_name_item, 0x00, byte_size(impl_version)::16-big,
         impl_version::binary>>
 
+    # Sub-item order follows dcmtk: max length, impl class, roles, impl version
     content =
-      IO.iodata_to_binary([max_length_sub, impl_class_sub, impl_version_sub])
+      IO.iodata_to_binary([
+        max_length_sub,
+        impl_class_sub,
+        Enum.map(role_selections, &encode_role_selection/1),
+        impl_version_sub
+      ])
 
     <<@user_information_item, 0x00, byte_size(content)::16-big, content::binary>>
   end
+
+  defp encode_role_selection(%{sop_class_uid: uid, scu_role: scu_role, scp_role: scp_role}) do
+    content =
+      <<byte_size(uid)::16-big, uid::binary, role_byte(scu_role)::8, role_byte(scp_role)::8>>
+
+    <<@role_selection_item, 0x00, byte_size(content)::16-big, content::binary>>
+  end
+
+  defp role_byte(true), do: 1
+  defp role_byte(false), do: 0
 
   defp extract_sub_item_uid(_type, <<>>), do: nil
 

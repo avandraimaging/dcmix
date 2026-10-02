@@ -284,6 +284,26 @@ defmodule DcmixTest do
       end
     end
 
+    test "file_meta_header/4 encodes a parseable Part 10 header" do
+      header =
+        Writer.file_meta_header("1.2.840.10008.5.1.4.1.1.2", "1.2.3.4", "1.2.840.10008.1.2",
+          source_ae_title: "MY_AE"
+        )
+
+      assert <<0::1024, "DICM", _meta::binary>> = header
+      assert {:ok, meta} = Dcmix.Parser.parse(header)
+      assert DataSet.get_string(meta, {0x0002, 0x0002}) == "1.2.840.10008.5.1.4.1.1.2"
+      assert DataSet.get_string(meta, {0x0002, 0x0003}) == "1.2.3.4"
+      assert DataSet.get_string(meta, {0x0002, 0x0010}) == "1.2.840.10008.1.2"
+      assert DataSet.get_string(meta, {0x0002, 0x0016}) == "MY_AE"
+    end
+
+    test "file_meta_header/4 omits Source AE Title by default" do
+      header = Writer.file_meta_header("1.2.3", "1.2.3.4", "1.2.840.10008.1.2.1")
+      assert {:ok, meta} = Dcmix.Parser.parse(header)
+      refute DataSet.has_tag?(meta, {0x0002, 0x0016})
+    end
+
     test "generates unique UIDs" do
       uid1 = Writer.generate_uid()
       uid2 = Writer.generate_uid()

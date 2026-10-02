@@ -21,7 +21,7 @@ Dcmix (pronounced "DCM-icks") is a pure Elixir implementation for working with D
 - Export to JSON, XML, and image formats (PNG, PPM, PGM)
 - Import from JSON, XML, and image files
 - Human-readable dump output (dcmdump style)
-- DICOM networking: C-FIND SCU (query remote PACS servers)
+- DICOM networking: C-FIND SCU (query remote PACS servers) and C-GET SCU (retrieve from them)
 - Private tag support
 - Mix tasks for CLI usage
 
@@ -95,6 +95,24 @@ query =
 Enum.each(datasets, fn ds ->
   IO.puts(Dcmix.DataSet.get_string(ds, {0x0010, 0x0010}))
 end)
+```
+
+### Retrieving from a PACS Server
+
+```elixir
+identifier =
+  Dcmix.DataSet.new()
+  |> Dcmix.DataSet.put_element({0x0008, 0x0052}, :CS, "STUDY")
+  |> Dcmix.DataSet.put_element({0x0020, 0x000D}, :UI, "1.2.3.4")
+
+# C-GET: the server sends each instance back on the same association
+{:ok, %Dcmix.Network.CGet.Result{status: 0x0000, files: files}} =
+  Dcmix.Network.get("localhost:4242", identifier,
+    calling_ae_title: "MY_SCU",
+    called_ae_title: "PACS_AE",
+    query_model: :study_root,
+    output_directory: "retrieved"
+  )
 ```
 
 ### CLI Tools
