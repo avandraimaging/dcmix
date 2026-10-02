@@ -50,7 +50,7 @@ defmodule Dcmix.Parser do
   end
 
   defp parse_file_before_pixels(path, opts) do
-    read_size = max(Keyword.get(opts, :read_size, @default_read_size), @preamble_size + 4)
+    read_size = max(read_size!(opts), @preamble_size + 4)
 
     case File.open(path, [:read, :binary]) do
       {:ok, file} ->
@@ -65,9 +65,20 @@ defmodule Dcmix.Parser do
     end
   end
 
+  defp read_size!(opts) do
+    case Keyword.get(opts, :read_size, @default_read_size) do
+      size when is_integer(size) and size > 0 ->
+        size
+
+      other ->
+        raise ArgumentError, ":read_size must be a positive integer, got: #{inspect(other)}"
+    end
+  end
+
   # Everything before a stop was parsed from bytes actually read, so a stop is
-  # final. Anything short of one -- an error from a value cut off mid-read, or
-  # running out of data -- only means more of the file is needed.
+  # final. Cutting a read short only ever runs the parser out of data, so that
+  # and a parse that simply ended mean more of the file is needed. Any other
+  # error came from bytes already read, and reading further cannot fix it.
   defp read_until_pixels(file, data, read_size, opts) do
     case IO.binread(file, read_size) do
       :eof ->
@@ -84,7 +95,9 @@ defmodule Dcmix.Parser do
 
         case parse_binary(data, opts) do
           {:ok, dataset, :stopped} -> {:ok, dataset}
-          _incomplete -> read_until_pixels(file, data, byte_size(data), opts)
+          {:ok, _dataset, :complete} -> read_until_pixels(file, data, byte_size(data), opts)
+          {:error, :unexpected_eof} -> read_until_pixels(file, data, byte_size(data), opts)
+          {:error, _} = error -> error
         end
     end
   end

@@ -46,6 +46,29 @@ defmodule Dcmix.Parser.StopBeforePixelsTest do
       assert DataSet.to_list(header) == elements_before_pixels(full)
     end
 
+    test "matches a full read whatever the read size" do
+      for fixture <- File.ls!(@fixtures_path), String.ends_with?(fixture, ".dcm") do
+        file = Path.join(@fixtures_path, fixture)
+        {:ok, full} = Dcmix.read_file(file)
+        expected = elements_before_pixels(full)
+
+        for read_size <- [132, 133, 200, 517, 1_000, 2_048] do
+          assert {:ok, header} =
+                   Dcmix.read_file(file, stop_before_pixels: true, read_size: read_size)
+
+          assert DataSet.to_list(header) == expected, "#{fixture} at read_size #{read_size}"
+        end
+      end
+    end
+
+    test "rejects a read size that is not a positive integer" do
+      file = Path.join(@fixtures_path, "nema_mr_knee_512x512.dcm")
+
+      assert_raise ArgumentError, fn ->
+        Dcmix.read_file(file, stop_before_pixels: true, read_size: nil)
+      end
+    end
+
     @tag :tmp_dir
     test "never parses the pixel data, so a truncated pixel value does not matter", %{
       tmp_dir: tmp_dir
