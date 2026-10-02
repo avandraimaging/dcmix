@@ -61,6 +61,28 @@ defmodule Dcmix.Network.PDUTest do
       assert :binary.match(pdu, <<32_768::32-big>>) != :nomatch
     end
 
+    test "encodes SCP/SCU role selection sub-items" do
+      roles = [
+        %{sop_class_uid: "1.2.840.10008.5.1.4.1.1.2", scu_role: false, scp_role: true},
+        %{sop_class_uid: "1.2.3", scu_role: true, scp_role: false}
+      ]
+
+      pdu = PDU.encode_associate_rq("SCU", "SCP", [], role_selections: roles)
+
+      ct = "1.2.840.10008.5.1.4.1.1.2"
+      ct_item = <<0x54, 0x00, byte_size(ct) + 4::16-big, byte_size(ct)::16-big, ct::binary, 0, 1>>
+      other_item = <<0x54, 0x00, 9::16-big, 5::16-big, "1.2.3", 1, 0>>
+
+      assert :binary.match(pdu, ct_item) != :nomatch
+      assert :binary.match(pdu, other_item) != :nomatch
+    end
+
+    test "omits role selection when none requested" do
+      pdu = PDU.encode_associate_rq("SCU", "SCP", [])
+      <<_::binary-size(74), items::binary>> = pdu
+      assert :binary.match(items, <<0x54, 0x00>>) == :nomatch
+    end
+
     test "PDU length field matches actual payload size" do
       pdu = PDU.encode_associate_rq("SCU", "SCP", [])
       <<0x01, 0x00, length::32-big, payload::binary>> = pdu
@@ -216,6 +238,55 @@ defmodule Dcmix.Network.PDUTest do
 
       assert [%{id: 1, result: 0, transfer_syntax: @implicit_vr_le}] =
                result.presentation_contexts
+    end
+  end
+
+  describe "decode_pdu/1 - A-ASSOCIATE-AC role selection" do
+    test "decodes role selection sub-items" do
+      ct = "1.2.840.10008.5.1.4.1.1.2"
+
+      user_info_content =
+        IO.iodata_to_binary([
+          <<0x51, 0x00, 4::16-big, 16_384::32-big>>,
+          <<0x54, 0x00, byte_size(ct) + 4::16-big, byte_size(ct)::16-big, ct::binary, 0, 1>>,
+          <<0x54, 0x00, 9::16-big, 5::16-big, "1.2.3", 1, 0>>
+        ])
+
+      assert {:ok, {:associate_ac, result}, <<>>} =
+               PDU.decode_pdu(ac_with_user_info(user_info_content))
+
+      assert result.role_selections == [
+               %{sop_class_uid: ct, scu_role: false, scp_role: true},
+               %{sop_class_uid: "1.2.3", scu_role: true, scp_role: false}
+             ]
+    end
+
+    test "round-trips role selection through encode and decode" do
+      roles = [%{sop_class_uid: "1.2.840.10008.5.1.4.1.1.4", scu_role: false, scp_role: true}]
+      rq = PDU.encode_associate_rq("SCU", "SCP", [], role_selections: roles)
+
+      # The RQ and AC share the User Information item format
+      <<_::binary-size(74), _app_ctx::binary-size(25), 0x50, 0x00, len::16-big,
+        user_info::binary-size(len)>> = rq
+
+      assert {:ok, {:associate_ac, result}, <<>>} = PDU.decode_pdu(ac_with_user_info(user_info))
+      assert result.role_selections == roles
+    end
+
+    test "ignores a malformed role selection sub-item" do
+      user_info_content = <<0x54, 0x00, 3::16-big, 9::16-big, 0>>
+
+      assert {:ok, {:associate_ac, result}, <<>>} =
+               PDU.decode_pdu(ac_with_user_info(user_info_content))
+
+      assert result.role_selections == []
+    end
+
+    test "defaults to no role selections" do
+      user_info_content = <<0x51, 0x00, 4::16-big, 16_384::32-big>>
+
+      assert {:ok, {:associate_ac, %{role_selections: []}}, <<>>} =
+               PDU.decode_pdu(ac_with_user_info(user_info_content))
     end
   end
 
@@ -479,5 +550,20 @@ defmodule Dcmix.Network.PDUTest do
 
       assert {:ok, :release_rq, ^extra} = PDU.decode_pdu(pdu <> extra)
     end
+  end
+
+  defp ac_with_user_info(user_info_content) do
+    user_info = <<0x50, 0x00, byte_size(user_info_content)::16-big, user_info_content::binary>>
+
+    payload =
+      IO.iodata_to_binary([
+        <<1::16-big, 0::16>>,
+        String.pad_trailing("SCP", 16, " "),
+        String.pad_trailing("SCU", 16, " "),
+        <<0::256>>,
+        user_info
+      ])
+
+    <<0x02, 0x00, byte_size(payload)::32-big, payload::binary>>
   end
 end
