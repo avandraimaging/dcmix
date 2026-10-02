@@ -39,10 +39,16 @@ defmodule Dcmix do
 
   ## Options
   - `:force_transfer_syntax` - Override the transfer syntax from file meta
+  - `:stop_before_pixels` - Read only as far as the first top-level pixel data
+    element and return everything before it, so a large image costs no more
+    than its header. Elements after the pixel data are not read.
+  - `:read_size` - With `:stop_before_pixels`, how many bytes to read first
+    (default 64 KiB). The read doubles until the pixel data is reached.
 
   ## Examples
 
       {:ok, dataset} = Dcmix.read_file("/path/to/file.dcm")
+      {:ok, header} = Dcmix.read_file("/path/to/file.dcm", stop_before_pixels: true)
   """
   @spec read_file(Path.t(), keyword()) :: {:ok, DataSet.t()} | {:error, term()}
   defdelegate read_file(path, opts \\ []), to: Parser, as: :parse_file
