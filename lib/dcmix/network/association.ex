@@ -34,7 +34,13 @@ defmodule Dcmix.Network.Association do
   # PDU header size
   @pdu_header_size 6
 
+  @associate_ac 0x02
   @p_data_tf 0x04
+
+  # Caps for PDUs whose size we don't negotiate. An AC grows with the number of
+  # presentation contexts and role items, so it gets more room.
+  @max_associate_ac_length 1_048_576
+  @max_control_pdu_length 65_536
 
   # PDV item overhead: item length (4) + context ID (1) + control header (1)
   @pdv_overhead 6
@@ -142,14 +148,15 @@ defmodule Dcmix.Network.Association do
   boundary is then lost and the association must be aborted.
 
   A P-DATA-TF PDU longer than the maximum length we proposed (PS3.8 9.3.1;
-  0 means unlimited) returns `{:error, :pdu_too_large}` without reading its
-  payload; the association must be aborted.
+  0 means unlimited), or any other PDU longer than 64 KiB, returns
+  `{:error, :pdu_too_large}` without reading its payload; the association
+  must be aborted.
   """
   @spec receive_pdu(t(), non_neg_integer()) :: {:ok, PDU.pdu()} | {:error, term()}
   def receive_pdu(%__MODULE__{socket: socket} = assoc, timeout \\ @default_timeout) do
     with {:ok, header_bytes} <- tcp_recv(socket, @pdu_header_size, timeout),
          {:ok, type, length} <- PDU.decode_header(header_bytes),
-         :ok <- check_pdu_length(assoc, type, length),
+         :ok <- check_pdu_length(assoc.local_max_pdu_length, type, length),
          {:ok, payload} <- recv_payload(socket, length, timeout) do
       case PDU.decode_pdu(header_bytes <> payload) do
         {:ok, pdu, _rest} -> {:ok, pdu}
@@ -167,20 +174,13 @@ defmodule Dcmix.Network.Association do
     _ = tcp_send(socket, pdu)
 
     # Try to receive the release response, but don't fail if we can't
-    case tcp_recv(socket, @pdu_header_size, 5_000) do
-      {:ok, header} ->
-        case PDU.decode_header(header) do
-          {:ok, _type, length} ->
-            _ = tcp_recv(socket, length, 5_000)
-            :ok
-
-          _ ->
-            :ok
-        end
-
-      _ ->
-        :ok
+    with {:ok, header} <- tcp_recv(socket, @pdu_header_size, 5_000),
+         {:ok, type, length} <- PDU.decode_header(header),
+         :ok <- check_pdu_length(0, type, length) do
+      _ = tcp_recv(socket, length, 5_000)
     end
+
+    :ok
   after
     :gen_tcp.close(socket)
   end
@@ -287,12 +287,25 @@ defmodule Dcmix.Network.Association do
     tcp_send(socket, pdu)
   end
 
-  # The limit covers the PDU's variable field, i.e. the header's length value
-  defp check_pdu_length(%__MODULE__{local_max_pdu_length: max}, @p_data_tf, length)
-       when max > 0 and length > max,
+  # Checked before the payload is read, so a peer can't make us buffer an
+  # arbitrary declared length. The P-DATA limit covers the PDU's variable
+  # field, i.e. the header's length value.
+  defp check_pdu_length(local_max, @p_data_tf, length)
+       when local_max > 0 and length > local_max,
        do: {:error, :pdu_too_large}
 
-  defp check_pdu_length(_assoc, _type, _length), do: :ok
+  defp check_pdu_length(_local_max, @p_data_tf, _length), do: :ok
+
+  defp check_pdu_length(_local_max, @associate_ac, length)
+       when length > @max_associate_ac_length,
+       do: {:error, :pdu_too_large}
+
+  defp check_pdu_length(_local_max, @associate_ac, _length), do: :ok
+
+  defp check_pdu_length(_local_max, _type, length) when length > @max_control_pdu_length,
+    do: {:error, :pdu_too_large}
+
+  defp check_pdu_length(_local_max, _type, _length), do: :ok
 
   defp recv_payload(socket, length, timeout) do
     case tcp_recv(socket, length, timeout) do
@@ -318,7 +331,8 @@ defmodule Dcmix.Network.Association do
 
   defp receive_associate_response(socket, timeout) do
     with {:ok, header_bytes} <- tcp_recv(socket, @pdu_header_size, timeout),
-         {:ok, _type, length} <- PDU.decode_header(header_bytes),
+         {:ok, type, length} <- PDU.decode_header(header_bytes),
+         :ok <- close_if_too_large(socket, check_pdu_length(0, type, length)),
          {:ok, payload} <- tcp_recv(socket, length, timeout) do
       case PDU.decode_pdu(header_bytes <> payload) do
         {:ok, {:associate_ac, result}, _rest} ->
@@ -337,6 +351,13 @@ defmodule Dcmix.Network.Association do
           error
       end
     end
+  end
+
+  defp close_if_too_large(_socket, :ok), do: :ok
+
+  defp close_if_too_large(socket, error) do
+    :gen_tcp.close(socket)
+    error
   end
 
   defp tcp_send(socket, data) do

@@ -144,6 +144,56 @@ defmodule Dcmix.Network.CFindTest do
       wait_for_server(server_pid)
     end
 
+    test "aborts when a response PDU exceeds the proposed maximum" do
+      # The client proposes 16384
+      {port, server_pid} = start_mock_cfind_raw_server(<<0x04, 0x00, 16_385::32-big>>)
+      {:ok, query_ds} = Query.parse_terms(["PatientName"])
+
+      assert {:error, :pdu_too_large} =
+               CFind.query("127.0.0.1:#{port}", query_ds,
+                 calling_ae_title: "TEST_SCU",
+                 called_ae_title: "TEST_SCP"
+               )
+
+      assert_receive {:after_raw, {:ok, <<0x07, _::binary>>}}, 5_000
+      wait_for_server(server_pid)
+    end
+
+    test "aborts when a response PDU stalls after its header" do
+      {port, server_pid} = start_mock_cfind_raw_server(<<0x04, 0x00, 100::32-big, 0, 0>>)
+      {:ok, query_ds} = Query.parse_terms(["PatientName"])
+
+      assert {:error, :pdu_read_timeout} =
+               CFind.query("127.0.0.1:#{port}", query_ds,
+                 calling_ae_title: "TEST_SCU",
+                 called_ae_title: "TEST_SCP",
+                 timeout: 300
+               )
+
+      assert_receive {:after_raw, {:ok, <<0x07, _::binary>>}}, 5_000
+      wait_for_server(server_pid)
+    end
+
+    test "aborts when a pending response's data PDU is too large" do
+      pending = build_cfind_rsp_command(0xFF00)
+      pdv = <<byte_size(pending) + 2::32-big, 1, 0x03, pending::binary>>
+      cmd_pdu = <<0x04, 0x00, byte_size(pdv)::32-big, pdv::binary>>
+
+      {port, server_pid} =
+        start_mock_cfind_raw_server(cmd_pdu <> <<0x04, 0x00, 16_385::32-big>>)
+
+      {:ok, query_ds} = Query.parse_terms(["PatientName"])
+
+      assert {:error, :pdu_too_large} =
+               CFind.query("127.0.0.1:#{port}", query_ds,
+                 calling_ae_title: "TEST_SCU",
+                 called_ae_title: "TEST_SCP"
+               )
+
+      assert_receive {:after_raw, {:ok, <<0x07, _::binary>>}}, 5_000
+      wait_for_server(server_pid)
+    end
+
     test "returns error when server sends unexpected release" do
       {port, server_pid} = start_mock_cfind_release_server()
       {:ok, query_ds} = Query.parse_terms(["PatientName"])
@@ -470,6 +520,33 @@ defmodule Dcmix.Network.CFindTest do
 
           # Send release-rq instead of C-FIND response
           :ok = :gen_tcp.send(socket, <<0x05, 0x00, 4::32-big, 0::32>>)
+          :gen_tcp.close(socket)
+        after
+          :gen_tcp.close(listen)
+          send(parent, {:server_done, self()})
+        end
+      end)
+
+    {port, pid}
+  end
+
+  # Mock server that answers the query with raw bytes, then reports what the
+  # client sends next (release or abort)
+  defp start_mock_cfind_raw_server(bytes) do
+    {:ok, listen} = :gen_tcp.listen(0, [:binary, active: false, reuseaddr: true])
+    {:ok, port} = :inet.port(listen)
+    parent = self()
+
+    pid =
+      spawn_link(fn ->
+        try do
+          {:ok, socket} = :gen_tcp.accept(listen, 5_000)
+          {:ok, _rq} = recv_full_pdu(socket)
+          :ok = :gen_tcp.send(socket, build_associate_ac())
+          {:ok, _cmd_pdata} = recv_full_pdu(socket)
+          {:ok, _query_pdata} = recv_full_pdu(socket)
+          :ok = :gen_tcp.send(socket, bytes)
+          send(parent, {:after_raw, :gen_tcp.recv(socket, 0, 5_000)})
           :gen_tcp.close(socket)
         after
           :gen_tcp.close(listen)

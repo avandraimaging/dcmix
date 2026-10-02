@@ -25,12 +25,17 @@ defmodule Dcmix.Network.CGet do
 
   ## Timeouts
 
-  `:timeout` applies to every network read. If the SCP goes quiet for that
-  long during the retrieve, a C-CANCEL-RQ is sent and the final C-GET-RSP is
-  awaited for at most five more seconds. Either way the call returns
-  `{:error, {:timeout, result}}`, where `result` holds the files received so
-  far and, if the SCP answered the cancel, its final status. The association
-  is released when the SCP answered and aborted otherwise.
+  `:timeout` applies to every network read. If the SCP sends nothing for that
+  long while we wait for its next PDU, a C-CANCEL-RQ is sent and the final
+  C-GET-RSP is awaited until a deadline of five seconds (or `:timeout`, if
+  shorter) after the cancel. Sub-operations that arrive before the deadline
+  are still stored, as dcmtk does. If the SCP stalls partway through a PDU,
+  the PDU boundary is lost, so no cancel is attempted.
+
+  Every timeout returns `{:error, {:timeout, result}}`, where `result` holds
+  the files completed so far and, if the SCP answered the cancel, its final
+  status. An instance still being received is discarded. The association is
+  released when the SCP answered the cancel and aborted otherwise.
   """
 
   require Logger
@@ -104,9 +109,11 @@ defmodule Dcmix.Network.CGet do
 
   - `{:ok, %Dcmix.Network.CGet.Result{}}` when the SCP sent a final
     C-GET-RSP, whatever its status (success, warning, failure or cancel)
-  - `{:error, {:timeout, %Dcmix.Network.CGet.Result{}}}` on a read timeout
-    (see the module docs)
-  - `{:error, reason}` on connection, association or protocol failure
+  - `{:error, {:timeout, %Dcmix.Network.CGet.Result{}}}` on any read
+    timeout once the request was sent, including after a cancel and partway
+    through a PDU (see the module docs)
+  - `{:error, reason}` on connection, association or protocol failure; no
+    Result is returned for these
 
   ## Examples
 
@@ -226,7 +233,7 @@ defmodule Dcmix.Network.CGet do
         get_context_id: pc.id,
         storage_contexts: storage_contexts,
         timeout: config.timeout,
-        cancelled: false,
+        cancel_deadline: nil,
         command: <<>>,
         incoming: nil,
         result: %Result{}
@@ -269,7 +276,7 @@ defmodule Dcmix.Network.CGet do
     end
   end
 
-  defp finish({:done, %{cancelled: false} = state}) do
+  defp finish({:done, %{cancel_deadline: nil} = state}) do
     Association.release(state.assoc)
     {:ok, final_result(state)}
   end
@@ -294,7 +301,23 @@ defmodule Dcmix.Network.CGet do
   defp final_result(%{result: result}), do: %{result | files: Enum.reverse(result.files)}
 
   defp receive_loop(state) do
-    case Association.receive_pdu(state.assoc, state.timeout) do
+    case read_timeout(state) do
+      :expired -> {:timed_out, state}
+      timeout -> receive_next(state, timeout)
+    end
+  end
+
+  # After a cancel, reads share one absolute deadline so an SCP that keeps
+  # sending sub-operations can't hold the call open forever
+  defp read_timeout(%{cancel_deadline: nil, timeout: timeout}), do: timeout
+
+  defp read_timeout(%{cancel_deadline: deadline}) do
+    remaining = deadline - System.monotonic_time(:millisecond)
+    if remaining > 0, do: remaining, else: :expired
+  end
+
+  defp receive_next(state, timeout) do
+    case Association.receive_pdu(state.assoc, timeout) do
       {:ok, {:p_data, pdvs}} ->
         case handle_pdvs(pdvs, state) do
           {:cont, state} -> receive_loop(state)
@@ -310,25 +333,27 @@ defmodule Dcmix.Network.CGet do
       {:ok, other} ->
         {:error, {:unexpected_pdu, other}, state}
 
-      {:error, {:recv_failed, :timeout}} ->
-        handle_timeout(state)
-
       {:error, reason} ->
-        {:error, reason, state}
+        handle_receive_error(reason, state)
     end
   end
 
-  defp handle_timeout(%{cancelled: true} = state), do: {:timed_out, state}
+  defp handle_receive_error({:recv_failed, :timeout}, state), do: handle_timeout(state)
+  defp handle_receive_error(:pdu_read_timeout, state), do: {:timed_out, state}
+  defp handle_receive_error(reason, state), do: {:error, reason, state}
 
-  defp handle_timeout(state) do
+  defp handle_timeout(%{cancel_deadline: nil} = state) do
     log_verbose(state.config, "No response within timeout, sending C-CANCEL-RQ")
     cancel = DIMSE.build_ccancel_rq(@message_id)
+    deadline = System.monotonic_time(:millisecond) + min(state.timeout, @cancel_wait)
 
     case Association.send_pdata(state.assoc, state.get_context_id, true, cancel) do
-      :ok -> receive_loop(%{state | cancelled: true, timeout: min(state.timeout, @cancel_wait)})
+      :ok -> receive_loop(%{state | cancel_deadline: deadline})
       {:error, reason} -> {:error, reason, state}
     end
   end
+
+  defp handle_timeout(state), do: {:timed_out, state}
 
   # A P-DATA PDU may mix command and data PDVs, and a command or data set may
   # span several PDUs, so PDVs are handled one at a time.
@@ -535,7 +560,8 @@ defmodule Dcmix.Network.CGet do
   #
   # Deliberately stricter than sanitizeFilename() for Windows hosts: ":" (NTFS
   # alternate data streams) and space are replaced, and names that are empty
-  # or end in "." (which Windows strips; covers "." and "..") are refused.
+  # or end in "." (which Windows strips; covers "." and "..") are refused, as
+  # are reserved device names.
   # Valid UIDs are only [0-9.] and never end in ".", so names still match
   # dcmtk's for them.
   defp storage_filename(uid) when is_binary(uid) do
@@ -545,12 +571,21 @@ defmodule Dcmix.Network.CGet do
       |> String.trim()
       |> sanitize_filename()
 
-    if name == "" or String.ends_with?(name, "."),
+    if name == "" or String.ends_with?(name, ".") or reserved_device_name?(name),
       do: {:error, :invalid_filename},
       else: {:ok, name}
   end
 
   defp storage_filename(_uid), do: {:error, :invalid_filename}
+
+  # Windows opens the device, not a file, for these whatever the extension
+  @reserved_device_names ~w(CON PRN AUX NUL) ++
+                           for(n <- 1..9, prefix <- ~w(COM LPT), do: "#{prefix}#{n}")
+
+  defp reserved_device_name?(name) do
+    [base | _] = String.split(name, ".", parts: 2)
+    String.upcase(base) in @reserved_device_names
+  end
 
   # Letters, digits, "-", ".", "@", "_"
   defp sanitize_filename(name) do

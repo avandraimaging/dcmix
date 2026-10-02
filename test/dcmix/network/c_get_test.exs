@@ -164,6 +164,49 @@ defmodule Dcmix.Network.CGetTest do
       wait_for_server(pid)
     end
 
+    test "refuses Windows reserved device names and continues", %{dir: dir} do
+      uids = ["CON.1.2", "aux", "lpt9.5", "Com1", "COM10.1", "CONSOLE"]
+
+      {port, pid} =
+        start_scp(fn socket, ctx ->
+          {get_ctx, _} = recv_command(socket)
+          _ = recv_dataset(socket)
+
+          for {uid, n} <- Enum.with_index(uids, 2) do
+            send_command(socket, ctx[@ct_storage], cstore_rq(@ct_storage, uid, n))
+            send_data(socket, ctx[@ct_storage], ct_dataset(uid), 10_000)
+            send_parent({:store_rsp, uid, recv_command(socket)})
+          end
+
+          send_command(socket, get_ctx, cget_rsp(0xB000, completed: 2, failed: 4))
+          handle_release(socket)
+        end)
+
+      assert {:ok, %Result{files: files}} =
+               CGet.get("127.0.0.1:#{port}", study_identifier("1.2.3"),
+                 output_directory: dir,
+                 storage_sop_classes: [@ct_storage]
+               )
+
+      statuses =
+        for uid <- uids do
+          assert_received {:store_rsp, ^uid, {_ctx, %{status: status}}}
+          {uid, status}
+        end
+
+      assert statuses == [
+               {"CON.1.2", 0xC000},
+               {"aux", 0xC000},
+               {"lpt9.5", 0xC000},
+               {"Com1", 0xC000},
+               {"COM10.1", 0x0000},
+               {"CONSOLE", 0x0000}
+             ]
+
+      assert files == [Path.join(dir, "COM10.1"), Path.join(dir, "CONSOLE")]
+      wait_for_server(pid)
+    end
+
     test "refuses a file name ending in a dot and continues", %{dir: dir} do
       {port, pid} = start_scp(single_store_script(@ct_storage, "1.2.3."))
 
@@ -560,24 +603,91 @@ defmodule Dcmix.Network.CGetTest do
       wait_for_server(pid)
     end
 
-    test "aborts when a PDU stalls after its header", %{dir: dir} do
+    test "a stall partway through a PDU aborts and keeps completed files", %{dir: dir} do
       {port, pid} =
-        start_scp(fn socket, _ctx ->
+        start_scp(fn socket, ctx ->
           _ = recv_command(socket)
           _ = recv_dataset(socket)
+
+          send_command(socket, ctx[@ct_storage], cstore_rq(@ct_storage, "1.2.3.30", 2))
+          send_data(socket, ctx[@ct_storage], ct_dataset("1.2.3.30"), 10_000)
+          _ = recv_command(socket)
+
+          # Second instance: its data PDU stalls after the header
+          send_command(socket, ctx[@ct_storage], cstore_rq(@ct_storage, "1.2.3.31", 3))
           :ok = :gen_tcp.send(socket, <<0x04, 0x00, 100::32-big, 0, 0, 0, 10>>)
           send_parent({:after_stall, :gen_tcp.recv(socket, 0, 5_000)})
         end)
 
-      assert {:error, :pdu_read_timeout} =
+      assert {:error, {:timeout, %Result{files: [path]}}} =
                CGet.get("127.0.0.1:#{port}", study_identifier("1.2.3"),
                  output_directory: dir,
                  storage_sop_classes: [@ct_storage],
                  timeout: 200
                )
 
+      assert path == Path.join(dir, "1.2.3.30")
+      assert File.ls!(dir) == ["1.2.3.30"]
+
       # A-ABORT, not a C-CANCEL P-DATA
       assert_receive {:after_stall, {:ok, <<0x07, _::binary>>}}, 5_000
+      wait_for_server(pid)
+    end
+
+    test "a stall partway through a PDU after the cancel still returns the Result", %{dir: dir} do
+      {port, pid} =
+        start_scp(fn socket, ctx ->
+          _ = recv_command(socket)
+          _ = recv_dataset(socket)
+
+          send_command(socket, ctx[@ct_storage], cstore_rq(@ct_storage, "1.2.3.32", 2))
+          send_data(socket, ctx[@ct_storage], ct_dataset("1.2.3.32"), 10_000)
+          _ = recv_command(socket)
+
+          # Go quiet until the cancel, then stall mid-PDU
+          {_ctx, %{command_field: 0x0FFF}} = recv_command(socket)
+          :ok = :gen_tcp.send(socket, <<0x04, 0x00, 100::32-big, 0, 0>>)
+          send_parent({:after_stall, :gen_tcp.recv(socket, 0, 5_000)})
+        end)
+
+      assert {:error, {:timeout, %Result{status: nil, files: [_]}}} =
+               CGet.get("127.0.0.1:#{port}", study_identifier("1.2.3"),
+                 output_directory: dir,
+                 storage_sop_classes: [@ct_storage],
+                 timeout: 200
+               )
+
+      assert_receive {:after_stall, {:ok, <<0x07, _::binary>>}}, 5_000
+      wait_for_server(pid)
+    end
+
+    test "the cancel deadline holds while the SCP keeps sending sub-operations", %{dir: dir} do
+      {port, pid} =
+        start_scp(fn socket, ctx ->
+          _ = recv_command(socket)
+          _ = recv_dataset(socket)
+          {_ctx, %{command_field: 0x0FFF}} = recv_command(socket)
+          send_parent(:cancelled)
+          keep_storing(socket, ctx[@ct_storage], 1)
+        end)
+
+      started = System.monotonic_time(:millisecond)
+
+      assert {:error, {:timeout, %Result{status: nil, files: files}}} =
+               CGet.get("127.0.0.1:#{port}", study_identifier("1.2.3"),
+                 output_directory: dir,
+                 storage_sop_classes: [@ct_storage],
+                 timeout: 300
+               )
+
+      elapsed = System.monotonic_time(:millisecond) - started
+      assert_received :cancelled
+      # 300 ms to the cancel, then the 300 ms deadline, not one per read
+      assert elapsed < 2_000
+      # Sub-operations arriving before the deadline are still stored
+      assert files != []
+      assert_receive {:stores_sent, sent}, 5_000
+      assert length(files) <= sent
       wait_for_server(pid)
     end
 
@@ -865,6 +975,30 @@ defmodule Dcmix.Network.CGetTest do
            4::16-little, group_length::32-little, rest::binary>>
        ),
        do: {group_length, rest}
+
+  # Sends a C-STORE every 50 ms until the client stops answering. Sends are
+  # unchecked because the client may abort at any point.
+  defp keep_storing(socket, context_id, n) do
+    uid = "1.2.3.40.#{n}"
+
+    _ =
+      :gen_tcp.send(
+        socket,
+        pdata([
+          {context_id, 0x03, cstore_rq(@ct_storage, uid, n + 1)},
+          {context_id, 0x02, ct_dataset(uid)}
+        ])
+      )
+
+    case recv_raw_pdu(socket) do
+      {:ok, <<0x04, _::binary>>} ->
+        Process.sleep(50)
+        keep_storing(socket, context_id, n + 1)
+
+      _ ->
+        send_parent({:stores_sent, n})
+    end
+  end
 
   defp single_store_script(sop_class, sop_instance_uid) do
     fn socket, ctx ->
