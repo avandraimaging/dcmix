@@ -34,8 +34,12 @@ Dcmix aims to bring comprehensive DICOM support to Elixir, inspired by [dcmtk](h
 | **DICOM Networking (DIMSE)** | C-ECHO, C-STORE, C-MOVE (C-FIND and C-GET complete) | High |
 | **Storage SCP/SCU** | Send/receive DICOM files over network | High |
 | **Query/Retrieve** | C-MOVE retrieval from PACS (C-FIND and C-GET complete) | Medium |
+| **Compressed transfer syntaxes over the network** | Accept JPEG / JPEG 2000 / RLE storage contexts in C-GET (pairs with Pixel Data Decompression) | Medium |
 | **DICOMDIR** | Create/read media directory files | Medium |
 | **Anonymization** | De-identify patient data | Medium |
+| **C-GET options parity** | Configurable GET-context transfer syntaxes; patient/study-only query model (getscu `-O`) | Low |
+| **Network timeouts and TLS** | Separate association and DIMSE timeouts; DICOM TLS | Low |
+| **CLI tools for networking** | `mix dcmix.find` / `mix dcmix.get` (findscu / getscu equivalents) | Low |
 | **Validation** | IOD conformance checking | Low |
 | **Structured Reports** | SR document support | Low |
 | **Presentation States** | GSPS support | Low |
@@ -49,6 +53,7 @@ Dcmix aims to bring comprehensive DICOM support to Elixir, inspired by [dcmtk](h
 | JSON/XML Export | Yes | Yes | Yes |
 | Pixel Decompression | No | Yes | Yes |
 | DICOM Networking | Partial | Yes | Yes |
+| C-GET retrieve | Yes | No | Yes |
 | Image Export | Yes | Yes | Yes |
 | DICOMDIR | No | No | Yes |
 | Anonymization | No | No | Yes |
