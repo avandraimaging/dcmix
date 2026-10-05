@@ -3,9 +3,10 @@ defmodule Dcmix.Network do
   DICOM networking operations.
 
   Provides Service Class User (SCU) functionality for DICOM network operations.
-  Currently supports C-FIND for querying remote DICOM servers.
+  Currently supports C-FIND for querying remote DICOM servers and C-GET for
+  retrieving instances from them.
 
-  ## Example
+  ## C-FIND example
 
       query =
         Dcmix.DataSet.new()
@@ -21,10 +22,24 @@ defmodule Dcmix.Network do
       Enum.each(datasets, fn ds ->
         IO.puts(Dcmix.DataSet.get_string(ds, {0x0010, 0x0010}))
       end)
+
+  ## C-GET example
+
+      identifier =
+        Dcmix.DataSet.new()
+        |> Dcmix.DataSet.put_element({0x0008, 0x0052}, :CS, "STUDY")
+        |> Dcmix.DataSet.put_element({0x0020, 0x000D}, :UI, "1.2.3.4")
+
+      {:ok, %Dcmix.Network.CGet.Result{files: files}} =
+        Dcmix.Network.get("localhost:4242", identifier,
+          called_ae_title: "PACS_AE",
+          query_model: :study_root,
+          output_directory: "retrieved"
+        )
   """
 
   alias Dcmix.DataSet
-  alias Dcmix.Network.CFind
+  alias Dcmix.Network.{CFind, CGet}
 
   @doc """
   Performs a C-FIND query against a DICOM server.
@@ -34,4 +49,14 @@ defmodule Dcmix.Network do
   @spec query(String.t(), DataSet.t(), keyword()) ::
           {:ok, [DataSet.t()]} | {:error, term()}
   defdelegate query(addr, query_dataset, opts \\ []), to: CFind
+
+  @doc """
+  Performs a C-GET retrieve against a DICOM server, storing the instances it
+  sends back.
+
+  See `Dcmix.Network.CGet.get/3` for full documentation.
+  """
+  @spec get(String.t(), DataSet.t(), keyword()) ::
+          {:ok, CGet.Result.t()} | {:error, term()}
+  defdelegate get(addr, query_dataset, opts \\ []), to: CGet
 end

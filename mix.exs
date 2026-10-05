@@ -62,10 +62,13 @@ defmodule Dcmix.MixProject do
         Network: [
           Dcmix.Network,
           Dcmix.Network.CFind,
+          Dcmix.Network.CGet,
+          Dcmix.Network.CGet.Result,
           Dcmix.Network.Association,
           Dcmix.Network.PDU,
           Dcmix.Network.DIMSE,
-          Dcmix.Network.Query
+          Dcmix.Network.Query,
+          Dcmix.Network.StorageSOPClasses
         ],
         Support: [Dcmix.Dictionary, Dcmix.PixelData, Dcmix.PrivateTag]
       ]

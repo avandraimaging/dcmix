@@ -21,6 +21,9 @@ defmodule Dcmix.Network.CFind do
   # Study Root Query/Retrieve Information Model - FIND
   @study_root_qr_find "1.2.840.10008.5.1.4.1.2.2.1"
 
+  # The PDU stream is out of step after these, so it must not be read again
+  @desync_errors [:pdu_too_large, :pdu_read_timeout]
+
   @doc """
   Performs a C-FIND query against a DICOM server.
 
@@ -73,13 +76,26 @@ defmodule Dcmix.Network.CFind do
   # ===========================================================================
 
   defp run_cfind(assoc, query_dataset, verbose, timeout) do
-    with {:ok, pc} <- Association.accepted_context(assoc) do
-      log_verbose(verbose, "Presentation context accepted (TS: #{pc.transfer_syntax})")
-      execute_cfind(assoc, pc, query_dataset, verbose, timeout)
-    end
-  after
-    Association.release(assoc)
+    result =
+      try do
+        with {:ok, pc} <- Association.accepted_context(assoc) do
+          log_verbose(verbose, "Presentation context accepted (TS: #{pc.transfer_syntax})")
+          execute_cfind(assoc, pc, query_dataset, verbose, timeout)
+        end
+      rescue
+        exception ->
+          Association.abort(assoc)
+          reraise exception, __STACKTRACE__
+      end
+
+    close_association(assoc, result)
+    result
   end
+
+  defp close_association(assoc, {:error, reason}) when reason in @desync_errors,
+    do: Association.abort(assoc)
+
+  defp close_association(assoc, _result), do: Association.release(assoc)
 
   defp establish_association(addr, calling_ae, called_ae, timeout) do
     Association.request(addr,
@@ -162,6 +178,9 @@ defmodule Dcmix.Network.CFind do
       {:ok, dataset} ->
         log_verbose(verbose, "Match ##{length(acc) + 1}")
         receive_responses(assoc, pc, verbose, timeout, [dataset | acc])
+
+      {:error, reason} when reason in @desync_errors ->
+        {:error, reason}
 
       {:error, reason} ->
         Logger.warning("Failed to decode response data: #{inspect(reason)}, using empty DataSet")

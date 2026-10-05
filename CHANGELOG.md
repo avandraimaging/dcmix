@@ -7,6 +7,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- DICOM networking with C-GET SCU support: `Dcmix.Network.get/3` (delegating to
+  `Dcmix.Network.CGet.get/3`) returns a `Dcmix.Network.CGet.Result`. Retrieved
+  instances are streamed to Part 10 files as they arrive (bit-preserving), or
+  discarded with `storage_mode: :ignore`.
+- `Dcmix.Network.StorageSOPClasses`: the 120 Storage SOP Classes dcmtk proposes
+  by default for C-GET sub-operations.
+- `Dcmix.Network.Association`: `request/2` takes per-context proposals with
+  SCP/SCU Role Selection (`:presentation_contexts`); accepted contexts carry
+  their `:abstract_syntax` and the negotiated `:scu_role` / `:scp_role`;
+  `accepted_context/2` finds the context for an abstract syntax; and
+  `send_pdata/4` splits data larger than the peer's maximum PDU length.
+- `Dcmix.Network.PDU`: encodes SCP/SCU Role Selection sub-items in an
+  A-ASSOCIATE-RQ (`:role_selections`) and decodes them from an A-ASSOCIATE-AC.
+- `Dcmix.Network.DIMSE`: `build_cget_rq/3`, `build_cstore_rsp/4`,
+  `build_ccancel_rq/1`, `decode_command/1` and `dataset_present?/1`.
+- `Dcmix.Writer.file_meta_header/4` encodes a Part 10 header for an already
+  encoded data set.
+
+### Changed
+
+- Inbound P-DATA-TF PDUs longer than the proposed maximum PDU length are now
+  refused with `{:error, :pdu_too_large}` for every network operation,
+  including C-FIND, and the association is aborted. Other PDUs are capped at
+  64 KiB (an A-ASSOCIATE-AC at 1 MiB).
+- A stall after a PDU header has been read is reported as
+  `{:error, :pdu_read_timeout}` (C-FIND aborts the association;
+  C-GET returns it as a timeout), instead of being read as a fresh PDU.
+
 ## [0.2.0] - 2026-10-02
 
 ### Added

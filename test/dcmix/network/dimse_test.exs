@@ -107,6 +107,109 @@ defmodule Dcmix.Network.DIMSETest do
     end
   end
 
+  describe "build_cget_rq/3" do
+    @patient_root_get "1.2.840.10008.5.1.4.1.2.1.3"
+
+    test "encodes a C-GET-RQ with medium priority by default" do
+      binary = DIMSE.build_cget_rq(@patient_root_get, 5)
+
+      assert {:ok, command} = DIMSE.decode_command(binary)
+      assert command.command_field == 0x0010
+      assert command.affected_sop_class_uid == @patient_root_get
+      assert command.message_id == 5
+      assert command.command_data_set_type == 0x0001
+
+      assert :binary.match(binary, <<0x0000::16-little, 0x0700::16-little, 2::32-little, 0::16>>) !=
+               :nomatch
+    end
+
+    test "encodes the given priority" do
+      binary = DIMSE.build_cget_rq(@patient_root_get, 1, 0x0001)
+      pattern = <<0x0000::16-little, 0x0700::16-little, 2::32-little, 0x0001::16-little>>
+      assert :binary.match(binary, pattern) != :nomatch
+    end
+
+    test "group length matches remaining bytes" do
+      <<0::16, 0::16, 4::32-little, group_length::32-little, rest::binary>> =
+        DIMSE.build_cget_rq(@patient_root_get, 1)
+
+      assert group_length == byte_size(rest)
+    end
+  end
+
+  describe "build_cstore_rsp/4" do
+    test "encodes a C-STORE-RSP with no data set" do
+      binary = DIMSE.build_cstore_rsp("1.2.840.10008.5.1.4.1.1.2", "1.2.3.4", 9, 0xA700)
+
+      assert {:ok, command} = DIMSE.decode_command(binary)
+      assert command.command_field == 0x8001
+      assert command.affected_sop_class_uid == "1.2.840.10008.5.1.4.1.1.2"
+      assert command.affected_sop_instance_uid == "1.2.3.4"
+      assert command.message_id_being_responded_to == 9
+      assert command.status == 0xA700
+      assert command.command_data_set_type == 0x0101
+      refute DIMSE.dataset_present?(command.command_data_set_type)
+    end
+  end
+
+  describe "build_ccancel_rq/1" do
+    test "encodes a C-CANCEL-RQ for the given message" do
+      assert {:ok, command} = DIMSE.decode_command(DIMSE.build_ccancel_rq(3))
+      assert command.command_field == 0x0FFF
+      assert command.message_id_being_responded_to == 3
+      assert command.command_data_set_type == 0x0101
+      assert command.message_id == nil
+    end
+  end
+
+  describe "decode_command/1" do
+    test "decodes sub-operation counts" do
+      elements =
+        for {element, value} <- [
+              {0x0100, 0x8010},
+              {0x0120, 1},
+              {0x0800, 0x0101},
+              {0x0900, 0xFF00},
+              {0x1020, 4},
+              {0x1021, 3},
+              {0x1022, 2},
+              {0x1023, 1}
+            ],
+            into: <<>> do
+          <<0x0000::16-little, element::16-little, 2::32-little, value::16-little>>
+        end
+
+      assert {:ok, command} = DIMSE.decode_command(elements)
+      assert command.status == 0xFF00
+
+      assert {command.remaining, command.completed, command.failed, command.warning} ==
+               {4, 3, 2, 1}
+
+      assert command.affected_sop_class_uid == nil
+    end
+
+    test "skips elements it does not interpret" do
+      move_destination = <<0x0000::16-little, 0x0600::16-little, 4::32-little, "DEST">>
+      status = <<0x0000::16-little, 0x0900::16-little, 2::32-little, 0::16>>
+
+      assert {:ok, %{status: 0}} = DIMSE.decode_command(move_destination <> status)
+    end
+
+    test "returns error for a truncated element" do
+      assert {:error, :invalid_command} =
+               DIMSE.decode_command(<<0x0000::16-little, 0x0900::16-little, 10::32-little, 0>>)
+    end
+  end
+
+  describe "dataset_present?/1" do
+    test "only 0x0101 and nil mean no data set" do
+      refute DIMSE.dataset_present?(0x0101)
+      refute DIMSE.dataset_present?(nil)
+      assert DIMSE.dataset_present?(0x0000)
+      assert DIMSE.dataset_present?(0x0001)
+    end
+  end
+
   describe "status_pending?/1" do
     test "0xFF00 is pending" do
       assert DIMSE.status_pending?(0xFF00)

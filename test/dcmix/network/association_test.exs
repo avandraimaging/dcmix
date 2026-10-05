@@ -1,7 +1,7 @@
 defmodule Dcmix.Network.AssociationTest do
   use ExUnit.Case
 
-  alias Dcmix.Network.Association
+  alias Dcmix.Network.{Association, PDU, StorageSOPClasses}
 
   @implicit_vr_le "1.2.840.10008.1.2"
 
@@ -51,6 +51,97 @@ defmodule Dcmix.Network.AssociationTest do
     test "returns error for invalid port" do
       assert {:error, {:invalid_port, "abc"}} =
                Association.request("localhost:abc")
+    end
+  end
+
+  describe "request/2 - presentation_contexts option" do
+    @ct_storage "1.2.840.10008.5.1.4.1.1.2"
+    @mr_storage "1.2.840.10008.5.1.4.1.1.4"
+    @patient_root_get "1.2.840.10008.5.1.4.1.2.1.3"
+
+    test "proposes each context and annotates the accepted ones with syntax and roles" do
+      {port, server_pid} = start_mock_server({:roles, self()})
+
+      assert {:ok, assoc} =
+               Association.request("127.0.0.1:#{port}",
+                 timeout: 5_000,
+                 presentation_contexts: [
+                   %{abstract_syntax: @patient_root_get, transfer_syntaxes: [@implicit_vr_le]},
+                   %{
+                     abstract_syntax: @ct_storage,
+                     transfer_syntaxes: [@implicit_vr_le],
+                     scu_role: false,
+                     scp_role: true
+                   },
+                   %{
+                     abstract_syntax: @mr_storage,
+                     transfer_syntaxes: [@implicit_vr_le],
+                     scp_role: true
+                   }
+                 ]
+               )
+
+      assert_receive {:associate_rq, rq}, 5_000
+      assert :binary.match(rq, @patient_root_get) != :nomatch
+      ct_role = <<0x54, 0x00, 29::16-big, 25::16-big, @ct_storage::binary, 0, 1>>
+      mr_role = <<0x54, 0x00, 29::16-big, 25::16-big, @mr_storage::binary, 0, 1>>
+      assert :binary.match(rq, ct_role) != :nomatch
+      assert :binary.match(rq, mr_role) != :nomatch
+      # No role item for the GET context, which asked for none
+      assert :binary.matches(rq, <<0x54, 0x00>>) |> length() == 2
+
+      assert [get, ct, mr] = assoc.presentation_contexts
+      assert %{id: 1, result: 0, abstract_syntax: @patient_root_get, scp_role: nil} = get
+
+      assert %{id: 3, result: 0, abstract_syntax: @ct_storage, scu_role: false, scp_role: true} =
+               ct
+
+      assert %{id: 5, result: 3, abstract_syntax: @mr_storage} = mr
+
+      assert {:ok, %{id: 3}} = Association.accepted_context(assoc, @ct_storage)
+
+      assert {:error, :no_accepted_presentation_context} =
+               Association.accepted_context(assoc, @mr_storage)
+
+      Association.release(assoc)
+      wait_for_server(server_pid)
+    end
+
+    test "legacy options still produce annotated contexts" do
+      {port, server_pid} = start_mock_server(:accept)
+
+      assert {:ok, assoc} =
+               Association.request("127.0.0.1:#{port}",
+                 abstract_syntaxes: ["1.2.840.10008.5.1.4.1.2.2.1"],
+                 transfer_syntaxes: [@implicit_vr_le],
+                 timeout: 5_000
+               )
+
+      assert {:ok, %{id: 1, abstract_syntax: "1.2.840.10008.5.1.4.1.2.2.1"}} =
+               Association.accepted_context(assoc, "1.2.840.10008.5.1.4.1.2.2.1")
+
+      Association.release(assoc)
+      wait_for_server(server_pid)
+    end
+  end
+
+  describe "send_pdata/4 - fragmentation" do
+    test "splits data over PDUs no larger than the peer's maximum" do
+      {port, server_pid} = start_mock_server({:fragments, self()})
+
+      {:ok, assoc} = Association.request("127.0.0.1:#{port}", timeout: 5_000)
+      assert assoc.max_pdu_length == 20
+
+      data = :binary.copy(<<7>>, 40)
+      assert :ok = Association.send_pdata(assoc, 1, false, data)
+
+      assert_receive {:fragments, pdvs}, 5_000
+      assert Enum.map(pdvs, &byte_size(&1.data)) == [14, 14, 12]
+      assert Enum.map(pdvs, & &1.is_last) == [false, false, true]
+      assert pdvs |> Enum.map(& &1.data) |> IO.iodata_to_binary() == data
+
+      Association.release(assoc)
+      wait_for_server(server_pid)
     end
   end
 
@@ -128,6 +219,138 @@ defmodule Dcmix.Network.AssociationTest do
       assert {:error, {:unexpected_pdu, _}} =
                Association.request("127.0.0.1:#{port}", timeout: 5_000)
 
+      wait_for_server(server_pid)
+    end
+  end
+
+  describe "receive_pdu/2 - PDU length and partial reads" do
+    test "records the proposed maximum as the local limit" do
+      {port, server_pid} = start_mock_server({:send_after_accept, <<>>})
+
+      {:ok, assoc} =
+        Association.request("127.0.0.1:#{port}", timeout: 5_000, max_pdu_length: 4_096)
+
+      assert assoc.local_max_pdu_length == 4_096
+      assert assoc.max_pdu_length == 65_536
+
+      Association.abort(assoc)
+      wait_for_server(server_pid)
+    end
+
+    test "rejects a P-DATA PDU longer than the local maximum without reading it" do
+      {port, server_pid} = start_mock_server({:send_after_accept, p_data_of_length(1_025)})
+
+      {:ok, assoc} =
+        Association.request("127.0.0.1:#{port}", timeout: 5_000, max_pdu_length: 1_024)
+
+      assert {:error, :pdu_too_large} = Association.receive_pdu(assoc, 1_000)
+      Association.abort(assoc)
+      wait_for_server(server_pid)
+    end
+
+    test "accepts a P-DATA PDU exactly at the local maximum" do
+      {port, server_pid} = start_mock_server({:send_after_accept, p_data_of_length(1_024)})
+
+      {:ok, assoc} =
+        Association.request("127.0.0.1:#{port}", timeout: 5_000, max_pdu_length: 1_024)
+
+      assert {:ok, {:p_data, [%{data: data}]}} = Association.receive_pdu(assoc, 1_000)
+      assert byte_size(data) == 1_024 - 6
+      Association.abort(assoc)
+      wait_for_server(server_pid)
+    end
+
+    test "a local maximum of 0 means unlimited" do
+      {port, server_pid} = start_mock_server({:send_after_accept, p_data_of_length(70_000)})
+
+      {:ok, assoc} = Association.request("127.0.0.1:#{port}", timeout: 5_000, max_pdu_length: 0)
+
+      assert {:ok, {:p_data, [_]}} = Association.receive_pdu(assoc, 1_000)
+      Association.abort(assoc)
+      wait_for_server(server_pid)
+    end
+
+    test "rejects an oversized A-ABORT without reading it" do
+      {port, server_pid} = start_mock_server({:send_after_accept, <<0x07, 0x00, 65_537::32-big>>})
+      {:ok, assoc} = Association.request("127.0.0.1:#{port}", timeout: 5_000)
+
+      assert {:error, :pdu_too_large} = Association.receive_pdu(assoc, 1_000)
+      Association.abort(assoc)
+      wait_for_server(server_pid)
+    end
+
+    test "rejects an oversized A-RELEASE-RP even with an unlimited local maximum" do
+      {port, server_pid} = start_mock_server({:send_after_accept, <<0x06, 0x00, 65_537::32-big>>})
+      {:ok, assoc} = Association.request("127.0.0.1:#{port}", timeout: 5_000, max_pdu_length: 0)
+
+      assert {:error, :pdu_too_large} = Association.receive_pdu(assoc, 1_000)
+      Association.abort(assoc)
+      wait_for_server(server_pid)
+    end
+
+    test "rejects an A-ASSOCIATE-AC over 1 MiB" do
+      {port, server_pid} = start_mock_server({:raw_ac, <<0x02, 0x00, 1_048_577::32-big>>})
+
+      assert {:error, :pdu_too_large} = Association.request("127.0.0.1:#{port}", timeout: 5_000)
+      wait_for_server(server_pid)
+    end
+
+    test "accepts an A-ASSOCIATE-AC larger than 64 KiB" do
+      padding = :binary.copy(<<0>>, 40_000)
+      unknown_item = <<0x60, 0x00, byte_size(padding)::16-big, padding::binary>>
+
+      {port, server_pid} =
+        start_mock_server(
+          {:raw_ac, build_associate_ac([{1, 0}], 16_384, <<>>, unknown_item <> unknown_item)}
+        )
+
+      assert {:ok, assoc} = Association.request("127.0.0.1:#{port}", timeout: 5_000)
+      assert {:ok, %{id: 1}} = Association.accepted_context(assoc)
+      Association.abort(assoc)
+      wait_for_server(server_pid)
+    end
+
+    test "negotiates 121 contexts with 120 role selections" do
+      storage = StorageSOPClasses.uids()
+      {port, server_pid} = start_mock_server({:accept_all, storage})
+
+      contexts = [
+        %{abstract_syntax: @patient_root_get, transfer_syntaxes: [@implicit_vr_le]}
+        | Enum.map(
+            storage,
+            &%{
+              abstract_syntax: &1,
+              transfer_syntaxes: [@implicit_vr_le],
+              scu_role: false,
+              scp_role: true
+            }
+          )
+      ]
+
+      assert {:ok, assoc} =
+               Association.request("127.0.0.1:#{port}",
+                 timeout: 5_000,
+                 presentation_contexts: contexts
+               )
+
+      assert length(assoc.presentation_contexts) == 121
+      [get | stored] = assoc.presentation_contexts
+      assert get.abstract_syntax == @patient_root_get
+      assert Enum.map(stored, & &1.abstract_syntax) == storage
+      assert Enum.all?(stored, &(&1.result == 0 and &1.scp_role == true and &1.scu_role == false))
+
+      Association.release(assoc)
+      wait_for_server(server_pid)
+    end
+
+    test "a stall after the PDU header is a distinct error" do
+      header_only = <<0x04, 0x00, 100::32-big, 0, 0>>
+      {port, server_pid} = start_mock_server({:send_after_accept, header_only})
+
+      {:ok, assoc} = Association.request("127.0.0.1:#{port}", timeout: 5_000)
+
+      assert {:error, :pdu_read_timeout} = Association.receive_pdu(assoc, 300)
+      Association.abort(assoc)
       wait_for_server(server_pid)
     end
   end
@@ -266,6 +489,75 @@ defmodule Dcmix.Network.AssociationTest do
     end
   end
 
+  defp run_mock_server(socket, {:raw_ac, bytes}) do
+    {:ok, _rq} = recv_full_pdu(socket)
+    :ok = :gen_tcp.send(socket, bytes)
+    _ = :gen_tcp.recv(socket, 0, 2_000)
+  end
+
+  defp run_mock_server(socket, {:accept_all, storage}) do
+    {:ok, rq} = recv_full_pdu(socket)
+    # 121 contexts and 120 role items push the RQ well past a single small PDU
+    true = byte_size(rq) > 10_000
+
+    role_items =
+      for uid <- storage, into: <<>> do
+        <<0x54, 0x00, byte_size(uid) + 4::16-big, byte_size(uid)::16-big, uid::binary, 0, 1>>
+      end
+
+    contexts = for id <- 1..241//2, do: {id, 0}
+    :ok = :gen_tcp.send(socket, build_associate_ac(contexts, 16_384, role_items))
+    reply_release(socket)
+  end
+
+  defp run_mock_server(socket, {:send_after_accept, bytes}) do
+    {:ok, _rq} = recv_full_pdu(socket)
+    :ok = :gen_tcp.send(socket, build_associate_ac() <> bytes)
+    _ = :gen_tcp.recv(socket, 0, 10_000)
+  end
+
+  defp run_mock_server(socket, {:roles, parent}) do
+    {:ok, rq} = recv_full_pdu(socket)
+    send(parent, {:associate_rq, rq})
+
+    ct = "1.2.840.10008.5.1.4.1.1.2"
+    role_item = <<0x54, 0x00, 29::16-big, 25::16-big, ct::binary, 0, 1>>
+
+    contexts = [{1, 0}, {3, 0}, {5, 3}]
+    :ok = :gen_tcp.send(socket, build_associate_ac(contexts, 16_384, role_item))
+    reply_release(socket)
+  end
+
+  defp run_mock_server(socket, {:fragments, parent}) do
+    {:ok, _rq} = recv_full_pdu(socket)
+    :ok = :gen_tcp.send(socket, build_associate_ac([{1, 0}], 20, <<>>))
+    send(parent, {:fragments, recv_until_last(socket, [])})
+    reply_release(socket)
+  end
+
+  defp recv_until_last(socket, acc) do
+    {:ok, pdu} = recv_full_pdu(socket)
+    # PDUs must respect the 20-byte maximum advertised in the AC
+    <<0x04, 0x00, length::32-big, _::binary>> = pdu
+    true = length <= 20
+    {:ok, {:p_data, [pdv]}, <<>>} = PDU.decode_pdu(pdu)
+    acc = [pdv | acc]
+    if pdv.is_last, do: Enum.reverse(acc), else: recv_until_last(socket, acc)
+  end
+
+  # A one-PDV P-DATA-TF PDU whose length field is `length`
+  defp p_data_of_length(length) do
+    data = :binary.copy(<<0>>, length - 6)
+    <<0x04, 0x00, length::32-big, length - 4::32-big, 1, 0x02, data::binary>>
+  end
+
+  defp reply_release(socket) do
+    case recv_full_pdu(socket) do
+      {:ok, _} -> :ok = :gen_tcp.send(socket, <<0x06, 0x00, 4::32-big, 0::32>>)
+      {:error, :closed} -> :ok
+    end
+  end
+
   defp recv_full_pdu(socket) do
     case :gen_tcp.recv(socket, 6, 5_000) do
       {:ok, <<_type::8, _reserved::8, length::32-big>> = header} ->
@@ -280,6 +572,35 @@ defmodule Dcmix.Network.AssociationTest do
       error ->
         error
     end
+  end
+
+  defp build_associate_ac(contexts, max_pdu_length, extra_user_info, extra_items \\ <<>>) do
+    ts_uid = @implicit_vr_le
+    ts_item = <<0x40, 0x00, byte_size(ts_uid)::16-big, ts_uid::binary>>
+
+    pc_items =
+      for {id, result} <- contexts, into: <<>> do
+        content = <<id, 0x00, result, 0x00, ts_item::binary>>
+        <<0x21, 0x00, byte_size(content)::16-big, content::binary>>
+      end
+
+    user_info_content =
+      <<0x51, 0x00, 4::16-big, max_pdu_length::32-big, extra_user_info::binary>>
+
+    user_info = <<0x50, 0x00, byte_size(user_info_content)::16-big, user_info_content::binary>>
+
+    payload =
+      IO.iodata_to_binary([
+        <<1::16-big, 0::16>>,
+        String.pad_trailing("TEST_SCP", 16, " "),
+        String.pad_trailing("TEST_SCU", 16, " "),
+        <<0::256>>,
+        pc_items,
+        user_info,
+        extra_items
+      ])
+
+    <<0x02, 0x00, byte_size(payload)::32-big, payload::binary>>
   end
 
   defp build_associate_ac do
