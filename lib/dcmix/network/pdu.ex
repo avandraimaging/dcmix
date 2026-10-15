@@ -193,8 +193,13 @@ defmodule Dcmix.Network.PDU do
     end
   end
 
-  defp decode_pdu_payload(PDUType.associate_rj(), <<_::8, _::8, result::8, reason::8>>, rest) do
-    {:ok, {:associate_rj, %{result: result, reason: reason}}, rest}
+  # Reserved, then result, source and reason (PS3.8 9.3.4)
+  defp decode_pdu_payload(
+         PDUType.associate_rj(),
+         <<_reserved::8, result::8, source::8, reason::8>>,
+         rest
+       ) do
+    {:ok, {:associate_rj, %{result: result, source: source, reason: reason}}, rest}
   end
 
   defp decode_pdu_payload(PDUType.p_data_tf(), payload, rest) do

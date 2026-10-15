@@ -206,8 +206,10 @@ defmodule Dcmix.Network.PDUTest do
 
   describe "decode_pdu/1 - A-ASSOCIATE-RJ" do
     test "decodes association rejection" do
-      reject = <<0x03, 0x00, 4::32-big, 0x00, 0x00, 1, 2>>
-      assert {:ok, {:associate_rj, %{result: 1, reason: 2}}, <<>>} = PDU.decode_pdu(reject)
+      reject = <<0x03, 0x00, 4::32-big, 0x00, 2, 3, 1>>
+
+      assert {:ok, {:associate_rj, %{result: 2, source: 3, reason: 1}}, <<>>} =
+               PDU.decode_pdu(reject)
     end
   end
 

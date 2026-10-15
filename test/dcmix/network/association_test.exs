@@ -43,6 +43,16 @@ defmodule Dcmix.Network.AssociationTest do
       wait_for_server(server_pid)
     end
 
+    test "reports the rejection's result and reason, not its source" do
+      # Transient, from the presentation service provider: local limit exceeded
+      {port, server_pid} = start_mock_server({:reject, 2, 3, 2})
+
+      assert {:error, {:association_rejected, 2, 2}} =
+               Association.request("127.0.0.1:#{port}", timeout: 5_000)
+
+      wait_for_server(server_pid)
+    end
+
     test "returns error for invalid address" do
       assert {:error, {:invalid_address, "no-port"}} =
                Association.request("no-port")
@@ -426,12 +436,15 @@ defmodule Dcmix.Network.AssociationTest do
     end
   end
 
-  defp run_mock_server(socket, :reject) do
+  defp run_mock_server(socket, :reject),
+    do: run_mock_server(socket, {:reject, 1, 1, 7})
+
+  defp run_mock_server(socket, {:reject, result, source, reason}) do
     # Read A-ASSOCIATE-RQ
     {:ok, _rq} = recv_full_pdu(socket)
 
     # Send A-ASSOCIATE-RJ
-    :ok = :gen_tcp.send(socket, <<0x03, 0x00, 4::32-big, 0x00, 0x00, 1, 7>>)
+    :ok = :gen_tcp.send(socket, <<0x03, 0x00, 4::32-big, 0x00, result, source, reason>>)
   end
 
   defp run_mock_server(socket, :abort) do

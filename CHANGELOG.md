@@ -55,6 +55,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `1.2.826.0.1.3680043.10.1712.1.1`, and the time component no longer has
   leading zeros, which made UIDs generated before 10:00 UTC invalid.
 
+### Fixed
+
+- An A-ASSOCIATE-RJ's result is read from its own byte. It was read from the
+  source byte, so a transient local-limit rejection came back as
+  `{:association_rejected, 3, 2}` rather than `{:association_rejected, 2, 2}`.
+  The decoded PDU also carries the source.
+
 ## [0.2.0] - 2026-10-02
 
 ### Added
