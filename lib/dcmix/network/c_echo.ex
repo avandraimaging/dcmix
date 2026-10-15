@@ -6,13 +6,11 @@ defmodule Dcmix.Network.CEcho do
   Verification SOP Class and answers a C-ECHO-RQ with success.
   """
 
-  alias Dcmix.Network.Association
-  alias Dcmix.Network.DIMSE
+  alias Dcmix.Network.{Association, DIMSE, SOPClassUID}
   alias Dcmix.Parser.TransferSyntax
 
-  @verification_sop_class_uid "1.2.840.10008.1.1"
+  require Dcmix.Network.DIMSE.CommandField, as: CommandField
 
-  @cecho_rsp 0x8030
   @message_id 1
 
   # The PDU stream is out of step after these, so it must not be read again
@@ -47,7 +45,7 @@ defmodule Dcmix.Network.CEcho do
            Association.request(addr,
              calling_ae_title: Keyword.get(opts, :calling_ae_title, "DCMIX"),
              called_ae_title: Keyword.get(opts, :called_ae_title, "ANY-SCP"),
-             abstract_syntaxes: [@verification_sop_class_uid],
+             abstract_syntaxes: [SOPClassUID.verification()],
              transfer_syntaxes: [TransferSyntax.implicit_vr_little_endian()],
              timeout: timeout
            ) do
@@ -58,7 +56,7 @@ defmodule Dcmix.Network.CEcho do
   end
 
   defp run_echo(assoc, timeout) do
-    with {:ok, pc} <- Association.accepted_context(assoc, @verification_sop_class_uid),
+    with {:ok, pc} <- Association.accepted_context(assoc, SOPClassUID.verification()),
          :ok <- Association.send_pdata(assoc, pc.id, true, DIMSE.build_cecho_rq(@message_id)),
          {:ok, command} <- receive_command(assoc, timeout, []) do
       check_response(command)
@@ -85,7 +83,7 @@ defmodule Dcmix.Network.CEcho do
   end
 
   defp check_response(%{
-         command_field: @cecho_rsp,
+         command_field: CommandField.c_echo_rsp(),
          message_id_being_responded_to: @message_id,
          status: status
        }) do

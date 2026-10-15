@@ -41,9 +41,12 @@ defmodule Dcmix.Network.CGet do
   require Logger
 
   alias Dcmix.DataSet
-  alias Dcmix.Network.{Association, DIMSE, StorageSOPClasses}
+  alias Dcmix.Network.{Association, DIMSE, SOPClassUID, StorageSOPClasses}
   alias Dcmix.Parser.TransferSyntax
   alias Dcmix.Writer
+
+  require Dcmix.Network.DIMSE.CommandField, as: CommandField
+  require Dcmix.Network.DIMSE.Status, as: Status
 
   defmodule Result do
     @moduledoc """
@@ -64,17 +67,6 @@ defmodule Dcmix.Network.CGet do
 
     defstruct status: nil, completed: 0, failed: 0, warning: 0, files: []
   end
-
-  @patient_root_qr_get "1.2.840.10008.5.1.4.1.2.1.3"
-  @study_root_qr_get "1.2.840.10008.5.1.4.1.2.2.3"
-
-  @cstore_rq 0x0001
-  @cget_rsp 0x8010
-
-  @status_success 0x0000
-  @status_sop_class_not_supported 0x0122
-  @status_out_of_resources 0xA700
-  @status_cannot_understand 0xC000
 
   @max_presentation_contexts 128
   @cancel_wait 5_000
@@ -163,8 +155,8 @@ defmodule Dcmix.Network.CGet do
   # Setup
   # ===========================================================================
 
-  defp query_model_uid(:patient_root), do: {:ok, @patient_root_qr_get}
-  defp query_model_uid(:study_root), do: {:ok, @study_root_qr_get}
+  defp query_model_uid(:patient_root), do: {:ok, SOPClassUID.patient_root_query_retrieve_get()}
+  defp query_model_uid(:study_root), do: {:ok, SOPClassUID.study_root_query_retrieve_get()}
   defp query_model_uid(other), do: {:error, {:invalid_query_model, other}}
 
   defp check_storage_mode(mode) when mode in [:bit_preserving, :ignore], do: :ok
@@ -391,7 +383,7 @@ defmodule Dcmix.Network.CGet do
     if pdv.is_last, do: complete_incoming(state), else: {:cont, state}
   end
 
-  defp handle_command(%{command_field: @cget_rsp} = command, context_id, state) do
+  defp handle_command(%{command_field: CommandField.c_get_rsp()} = command, context_id, state) do
     final = not DIMSE.status_pending?(command.status)
     state = %{state | result: update_result(state.result, command, final)}
     log_verbose(state.config, "C-GET-RSP status 0x#{hex(command.status)}")
@@ -409,7 +401,7 @@ defmodule Dcmix.Network.CGet do
     end
   end
 
-  defp handle_command(%{command_field: @cstore_rq} = command, context_id, state) do
+  defp handle_command(%{command_field: CommandField.c_store_rq()} = command, context_id, state) do
     log_verbose(state.config, "C-STORE-RQ #{command.affected_sop_instance_uid}")
 
     if DIMSE.dataset_present?(command.command_data_set_type) do
@@ -420,7 +412,7 @@ defmodule Dcmix.Network.CGet do
         kind: :discard,
         command: command,
         context_id: context_id,
-        status: @status_cannot_understand
+        status: Status.cannot_understand()
       }
 
       complete_incoming(%{state | incoming: store})
@@ -445,12 +437,12 @@ defmodule Dcmix.Network.CGet do
   # ===========================================================================
 
   defp start_store(command, context_id, state) do
-    store = %{kind: :discard, command: command, context_id: context_id, status: @status_success}
+    store = %{kind: :discard, command: command, context_id: context_id, status: Status.success()}
 
     case Map.fetch(state.storage_contexts, context_id) do
       :error ->
         # dcmtk rejects these as DIMSE_NOVALIDPRESENTATIONCONTEXTID
-        %{store | status: @status_sop_class_not_supported}
+        %{store | status: Status.sop_class_not_supported()}
 
       {:ok, _pc} when state.config.storage_mode == :ignore ->
         store
@@ -469,8 +461,8 @@ defmodule Dcmix.Network.CGet do
       |> Map.merge(%{kind: :file, io: io, path: path, part_path: part_path})
       |> write_fragment(file_meta_header(store.command, pc, config))
     else
-      {:error, :invalid_filename} -> %{store | status: @status_cannot_understand}
-      {:error, _reason} -> %{store | status: @status_out_of_resources}
+      {:error, :invalid_filename} -> %{store | status: Status.cannot_understand()}
+      {:error, _reason} -> %{store | status: Status.out_of_resources()}
     end
   end
 
@@ -490,7 +482,7 @@ defmodule Dcmix.Network.CGet do
 
       {:error, _reason} ->
         close_and_delete(store.io, store.part_path)
-        %{store | kind: :discard, status: @status_out_of_resources}
+        %{store | kind: :discard, status: Status.out_of_resources()}
     end
   end
 
@@ -526,11 +518,11 @@ defmodule Dcmix.Network.CGet do
   defp close_store(%{kind: :file} = store, state) do
     with :ok <- File.close(store.io),
          :ok <- File.rename(store.part_path, store.path) do
-      {@status_success, %{state | result: add_file(state.result, store.path)}}
+      {Status.success(), %{state | result: add_file(state.result, store.path)}}
     else
       {:error, _reason} ->
         _ = File.rm(store.part_path)
-        {@status_out_of_resources, state}
+        {Status.out_of_resources(), state}
     end
   end
 
