@@ -19,6 +19,7 @@ defmodule Dcmix.Network.PDU do
   | 0x07 | A-ABORT        | Both           |
   """
 
+  alias Dcmix.Network.ApplicationContext
   alias Dcmix.UID
 
   require Dcmix.Network.PDU.Type, as: PDUType
@@ -34,9 +35,6 @@ defmodule Dcmix.Network.PDU do
   @implementation_class_uid_item 0x52
   @role_selection_item 0x54
   @implementation_version_name_item 0x55
-
-  # Standard UIDs
-  @application_context_uid "1.2.840.10008.3.1.1.1"
 
   # Default max PDU length (16KB, conservative for wide compatibility)
   @default_max_pdu_length 16_384
@@ -420,7 +418,7 @@ defmodule Dcmix.Network.PDU do
   end
 
   defp encode_application_context do
-    uid = @application_context_uid
+    uid = ApplicationContext.dicom()
     <<@application_context_item, 0x00, byte_size(uid)::16-big, uid::binary>>
   end
 

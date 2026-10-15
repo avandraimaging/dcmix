@@ -1,11 +1,15 @@
 defmodule Dcmix.Network.ConstantsTest do
   use ExUnit.Case, async: true
 
-  alias Dcmix.Network.SOPClassUID
+  alias Dcmix.Network.{ApplicationContext, SOPClassUID}
 
   require Dcmix.Network.DIMSE.CommandField, as: CommandField
   require Dcmix.Network.DIMSE.Status, as: Status
   require Dcmix.Network.PDU.Type, as: PDUType
+
+  test "Application Context Name matches PS3.7 A.2.1" do
+    assert ApplicationContext.dicom() == "1.2.840.10008.3.1.1.1"
+  end
 
   test "SOP Class UIDs match PS3.4" do
     assert SOPClassUID.verification() == "1.2.840.10008.1.1"

@@ -1,7 +1,7 @@
 defmodule Dcmix.Network.PDUTest do
   use ExUnit.Case, async: true
 
-  alias Dcmix.Network.PDU
+  alias Dcmix.Network.{ApplicationContext, PDU}
 
   @implicit_vr_le "1.2.840.10008.1.2"
   @explicit_vr_le "1.2.840.10008.1.2.1"
@@ -52,7 +52,7 @@ defmodule Dcmix.Network.PDUTest do
 
     test "includes application context UID" do
       pdu = PDU.encode_associate_rq("SCU", "SCP", [])
-      assert :binary.match(pdu, "1.2.840.10008.3.1.1.1") != :nomatch
+      assert :binary.match(pdu, ApplicationContext.dicom()) != :nomatch
     end
 
     test "identifies dcmix with its implementation class UID and version name" do
