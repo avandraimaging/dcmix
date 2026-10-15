@@ -10,8 +10,7 @@ defmodule Dcmix.Network.CEcho do
   alias Dcmix.Network.DIMSE
   alias Dcmix.Parser.TransferSyntax
 
-  # Verification SOP Class
-  @verification "1.2.840.10008.1.1"
+  @verification_sop_class_uid "1.2.840.10008.1.1"
 
   @cecho_rsp 0x8030
   @message_id 1
@@ -48,7 +47,7 @@ defmodule Dcmix.Network.CEcho do
            Association.request(addr,
              calling_ae_title: Keyword.get(opts, :calling_ae_title, "DCMIX"),
              called_ae_title: Keyword.get(opts, :called_ae_title, "ANY-SCP"),
-             abstract_syntaxes: [@verification],
+             abstract_syntaxes: [@verification_sop_class_uid],
              transfer_syntaxes: [TransferSyntax.implicit_vr_little_endian()],
              timeout: timeout
            ) do
@@ -59,7 +58,7 @@ defmodule Dcmix.Network.CEcho do
   end
 
   defp run_echo(assoc, timeout) do
-    with {:ok, pc} <- Association.accepted_context(assoc, @verification),
+    with {:ok, pc} <- Association.accepted_context(assoc, @verification_sop_class_uid),
          :ok <- Association.send_pdata(assoc, pc.id, true, DIMSE.build_cecho_rq(@message_id)),
          {:ok, command} <- receive_command(assoc, timeout, []) do
       check_response(command)
