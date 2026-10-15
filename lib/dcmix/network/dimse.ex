@@ -14,6 +14,7 @@ defmodule Dcmix.Network.DIMSE do
   alias Dcmix.Network.SOPClassUID
 
   require Dcmix.Network.DIMSE.CommandField, as: CommandField
+  require Dcmix.Network.DIMSE.Status, as: Status
 
   # Command tags (group 0000, not in data dictionary)
   @command_group_length {0x0000, 0x0000}
@@ -29,12 +30,6 @@ defmodule Dcmix.Network.DIMSE do
   @completed_sub_operations {0x0000, 0x1021}
   @failed_sub_operations {0x0000, 0x1022}
   @warning_sub_operations {0x0000, 0x1023}
-
-  # Command field values
-  @cstore_rsp 0x8001
-  @cget_rq 0x0010
-  @cfind_rq 0x0020
-  @ccancel_rq 0x0FFF
 
   # Priority values
   @priority_medium 0x0000
@@ -100,7 +95,7 @@ defmodule Dcmix.Network.DIMSE do
   def build_cfind_rq(sop_class_uid, message_id) do
     with_group_length([
       encode_ui_element(@affected_sop_class_uid, sop_class_uid),
-      encode_us_element(@command_field, @cfind_rq),
+      encode_us_element(@command_field, CommandField.c_find_rq()),
       encode_us_element(@message_id, message_id),
       encode_us_element(@priority, @priority_medium),
       encode_us_element(@command_data_set_type, @dataset_present)
@@ -119,7 +114,7 @@ defmodule Dcmix.Network.DIMSE do
   def build_cget_rq(sop_class_uid, message_id, priority \\ @priority_medium) do
     with_group_length([
       encode_ui_element(@affected_sop_class_uid, sop_class_uid),
-      encode_us_element(@command_field, @cget_rq),
+      encode_us_element(@command_field, CommandField.c_get_rq()),
       encode_us_element(@message_id, message_id),
       encode_us_element(@priority, priority),
       encode_us_element(@command_data_set_type, @dataset_present)
@@ -134,7 +129,7 @@ defmodule Dcmix.Network.DIMSE do
   def build_cstore_rsp(sop_class_uid, sop_instance_uid, message_id_being_responded_to, status) do
     with_group_length([
       encode_ui_element(@affected_sop_class_uid, sop_class_uid),
-      encode_us_element(@command_field, @cstore_rsp),
+      encode_us_element(@command_field, CommandField.c_store_rsp()),
       encode_us_element(@message_id_being_responded_to, message_id_being_responded_to),
       encode_us_element(@command_data_set_type, @no_dataset),
       encode_us_element(@status, status),
@@ -149,7 +144,7 @@ defmodule Dcmix.Network.DIMSE do
   @spec build_ccancel_rq(non_neg_integer()) :: binary()
   def build_ccancel_rq(message_id_being_responded_to) do
     with_group_length([
-      encode_us_element(@command_field, @ccancel_rq),
+      encode_us_element(@command_field, CommandField.c_cancel_rq()),
       encode_us_element(@message_id_being_responded_to, message_id_being_responded_to),
       encode_us_element(@command_data_set_type, @no_dataset)
     ])
@@ -205,25 +200,25 @@ defmodule Dcmix.Network.DIMSE do
   Returns true if the status code indicates a pending response (more data follows).
   """
   @spec status_pending?(non_neg_integer()) :: boolean()
-  def status_pending?(0xFF00), do: true
-  def status_pending?(0xFF01), do: true
+  def status_pending?(Status.pending()), do: true
+  def status_pending?(Status.pending_optional_keys_not_supported()), do: true
   def status_pending?(_), do: false
 
   @doc """
   Returns true if the status code indicates success (operation complete).
   """
   @spec status_success?(non_neg_integer()) :: boolean()
-  def status_success?(0x0000), do: true
+  def status_success?(Status.success()), do: true
   def status_success?(_), do: false
 
   @doc """
   Classifies a status code into a category.
   """
   @spec status_meaning(non_neg_integer()) :: :success | :pending | :cancel | :failure
-  def status_meaning(0x0000), do: :success
-  def status_meaning(0xFF00), do: :pending
-  def status_meaning(0xFF01), do: :pending
-  def status_meaning(0xFE00), do: :cancel
+  def status_meaning(Status.success()), do: :success
+  def status_meaning(Status.pending()), do: :pending
+  def status_meaning(Status.pending_optional_keys_not_supported()), do: :pending
+  def status_meaning(Status.cancel()), do: :cancel
   def status_meaning(_), do: :failure
 
   # ===========================================================================

@@ -250,7 +250,7 @@ defmodule DcmixTest do
   end
 
   describe "Writer" do
-    alias Dcmix.{DataSet, DataElement, Writer}
+    alias Dcmix.{DataElement, DataSet, Tag, Writer}
 
     test "encodes dataset to binary" do
       ds =
@@ -298,6 +298,17 @@ defmodule DcmixTest do
       assert DataSet.get_string(meta, {0x0002, 0x0016}) == "MY_AE"
     end
 
+    test "file_meta_header/4 identifies dcmix by default" do
+      header = Writer.file_meta_header("1.2.3", "1.2.3.4", "1.2.840.10008.1.2.1")
+      assert {:ok, meta} = Dcmix.Parser.parse(header)
+
+      assert DataSet.get_value(meta, Tag.implementation_class_uid()) ==
+               "1.2.826.0.1.3680043.10.1712.1"
+
+      assert DataSet.get_value(meta, Tag.implementation_version_name()) ==
+               Dcmix.UID.implementation_version_name()
+    end
+
     test "file_meta_header/4 omits Source AE Title by default" do
       header = Writer.file_meta_header("1.2.3", "1.2.3.4", "1.2.840.10008.1.2.1")
       assert {:ok, meta} = Dcmix.Parser.parse(header)
@@ -309,7 +320,7 @@ defmodule DcmixTest do
       uid2 = Writer.generate_uid()
 
       assert is_binary(uid1)
-      assert String.starts_with?(uid1, "1.2.826.0.1.3680043.9.7433.1.")
+      assert String.starts_with?(uid1, "1.2.826.0.1.3680043.10.1712.1.1.")
       # UIDs should be unique (with high probability)
       assert uid1 != uid2
     end
