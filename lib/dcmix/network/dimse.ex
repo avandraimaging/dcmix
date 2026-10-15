@@ -7,7 +7,7 @@ defmodule Dcmix.Network.DIMSE do
   Implicit VR Little Endian per the DICOM standard.
 
   Currently supports:
-  - C-FIND-RQ, C-GET-RQ, C-CANCEL-RQ and C-STORE-RSP command building
+  - C-ECHO-RQ, C-FIND-RQ, C-GET-RQ, C-CANCEL-RQ and C-STORE-RSP command building
   - Response status parsing and general command decoding
   """
 
@@ -28,9 +28,13 @@ defmodule Dcmix.Network.DIMSE do
 
   # Command field values
   @cstore_rsp 0x8001
+  @cecho_rq 0x0030
   @cget_rq 0x0010
   @cfind_rq 0x0020
   @ccancel_rq 0x0FFF
+
+  # Verification SOP Class, the abstract syntax of C-ECHO
+  @verification "1.2.840.10008.1.1"
 
   # Priority values
   @priority_medium 0x0000
@@ -67,6 +71,20 @@ defmodule Dcmix.Network.DIMSE do
           failed: non_neg_integer() | nil,
           warning: non_neg_integer() | nil
         }
+
+  @doc """
+  Builds a C-ECHO-RQ command (Implicit VR Little Endian) for the Verification
+  SOP Class. A C-ECHO carries no data set.
+  """
+  @spec build_cecho_rq(non_neg_integer()) :: binary()
+  def build_cecho_rq(message_id) do
+    with_group_length([
+      encode_ui_element(@affected_sop_class_uid, @verification),
+      encode_us_element(@command_field, @cecho_rq),
+      encode_us_element(@message_id, message_id),
+      encode_us_element(@command_data_set_type, @no_dataset)
+    ])
+  end
 
   @doc """
   Builds a C-FIND-RQ command as encoded binary (Implicit VR Little Endian).

@@ -3,8 +3,12 @@ defmodule Dcmix.Network do
   DICOM networking operations.
 
   Provides Service Class User (SCU) functionality for DICOM network operations.
-  Currently supports C-FIND for querying remote DICOM servers and C-GET for
-  retrieving instances from them.
+  Currently supports C-ECHO for verifying a connection, C-FIND for querying
+  remote DICOM servers and C-GET for retrieving instances from them.
+
+  ## C-ECHO example
+
+      :ok = Dcmix.Network.echo("localhost:4242", called_ae_title: "PACS_AE")
 
   ## C-FIND example
 
@@ -39,7 +43,16 @@ defmodule Dcmix.Network do
   """
 
   alias Dcmix.DataSet
-  alias Dcmix.Network.{CFind, CGet}
+  alias Dcmix.Network.{CEcho, CFind, CGet}
+
+  @doc """
+  Sends a C-ECHO to a DICOM node, verifying it accepts an association and
+  answers with success.
+
+  See `Dcmix.Network.CEcho.echo/2` for full documentation.
+  """
+  @spec echo(String.t(), keyword()) :: :ok | {:error, term()}
+  defdelegate echo(addr, opts \\ []), to: CEcho
 
   @doc """
   Performs a C-FIND query against a DICOM server.
