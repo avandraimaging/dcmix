@@ -21,7 +21,7 @@ Dcmix (pronounced "DCM-icks") is a pure Elixir implementation for working with D
 - Export to JSON, XML, and image formats (PNG, PPM, PGM)
 - Import from JSON, XML, and image files
 - Human-readable dump output (dcmdump style)
-- DICOM networking: C-ECHO SCU (verify a connection), C-FIND SCU (query remote PACS servers) and C-GET SCU (retrieve from them)
+- DICOM networking: C-ECHO SCU (verify a connection), C-FIND SCU (query remote PACS servers) and C-GET SCU (retrieve from them), and a listener that accepts associations and answers C-ECHO (SCP)
 - Private tag support
 - Mix tasks for CLI usage
 
@@ -102,6 +102,21 @@ end)
 ```elixir
 # C-ECHO: :ok when the server accepts the association and answers with success
 :ok = Dcmix.Network.echo("localhost:4242", calling_ae_title: "MY_SCU", called_ae_title: "PACS_AE")
+```
+
+### Listening for Associations
+
+`Dcmix.Network.Listener` accepts associations on a port, as an SCP, and
+answers C-ECHO. Start it in your own supervision tree; it needs the optional
+`:thousand_island` dependency, so add `{:thousand_island, "~> 1.5"}` to your
+deps.
+
+```elixir
+children = [
+  {Dcmix.Network.Listener, port: 11112, ae_title: "MY_SCP", max_associations: 10}
+]
+
+Supervisor.start_link(children, strategy: :one_for_one)
 ```
 
 ### Retrieving from a PACS Server

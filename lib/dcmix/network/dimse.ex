@@ -7,7 +7,7 @@ defmodule Dcmix.Network.DIMSE do
   Implicit VR Little Endian per the DICOM standard.
 
   Currently supports:
-  - C-ECHO-RQ, C-FIND-RQ, C-GET-RQ, C-CANCEL-RQ and C-STORE-RSP command building
+  - C-ECHO-RQ, C-ECHO-RSP, C-FIND-RQ, C-GET-RQ, C-CANCEL-RQ and C-STORE-RSP command building
   - Response status parsing and general command decoding
   """
 
@@ -78,6 +78,21 @@ defmodule Dcmix.Network.DIMSE do
       encode_us_element(@command_field, CommandField.c_echo_rq()),
       encode_us_element(@message_id, message_id),
       encode_us_element(@command_data_set_type, @no_dataset)
+    ])
+  end
+
+  @doc """
+  Builds a C-ECHO-RSP command (Implicit VR Little Endian) answering the
+  C-ECHO-RQ with `message_id_being_responded_to`. It carries no data set.
+  """
+  @spec build_cecho_rsp(non_neg_integer(), non_neg_integer()) :: binary()
+  def build_cecho_rsp(message_id_being_responded_to, status) do
+    with_group_length([
+      encode_ui_element(@affected_sop_class_uid, SOPClassUID.verification()),
+      encode_us_element(@command_field, CommandField.c_echo_rsp()),
+      encode_us_element(@message_id_being_responded_to, message_id_being_responded_to),
+      encode_us_element(@command_data_set_type, @no_dataset),
+      encode_us_element(@status, status)
     ])
   end
 

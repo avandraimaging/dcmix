@@ -102,6 +102,113 @@ defmodule Dcmix.Network.PDUTest do
     end
   end
 
+  describe "decode_pdu/1 - A-ASSOCIATE-RQ" do
+    test "decodes what encode_associate_rq/4 encodes" do
+      contexts = [
+        %{id: 1, abstract_syntax: @study_root_qr_find, transfer_syntaxes: [@implicit_vr_le]},
+        %{
+          id: 3,
+          abstract_syntax: "1.2.840.10008.1.1",
+          transfer_syntaxes: [@explicit_vr_le, @implicit_vr_le]
+        }
+      ]
+
+      roles = [%{sop_class_uid: "1.2.840.10008.1.1", scu_role: true, scp_role: false}]
+
+      pdu =
+        PDU.encode_associate_rq("SCU", "SCP", contexts,
+          max_pdu_length: 32_768,
+          role_selections: roles
+        )
+
+      assert {:ok, {:associate_rq, rq}, <<>>} = PDU.decode_pdu(pdu)
+
+      assert rq == %{
+               called_ae_title: "SCP",
+               calling_ae_title: "SCU",
+               application_context: ApplicationContext.dicom(),
+               presentation_contexts: contexts,
+               max_pdu_length: 32_768,
+               role_selections: roles,
+               implementation_class_uid: Dcmix.UID.implementation_class_uid(),
+               implementation_version_name: Dcmix.UID.implementation_version_name()
+             }
+    end
+
+    test "trims the null padding of odd-length UIDs" do
+      sub_items = <<0x30, 0x00, 4::16-big, "1.2", 0, 0x40, 0x00, 6::16-big, "1.2.3", 0>>
+      pc = <<0x20, 0x00, byte_size(sub_items) + 4::16-big, 1, 0, 0, 0, sub_items::binary>>
+
+      assert {:ok, {:associate_rq, %{presentation_contexts: [context]}}, _} =
+               PDU.decode_pdu(associate_rq_with(pc))
+
+      assert context == %{id: 1, abstract_syntax: "1.2", transfer_syntaxes: ["1.2.3"]}
+    end
+
+    test "rejects a presentation context without an abstract syntax" do
+      sub_items = <<0x40, 0x00, 5::16-big, "1.2.3">>
+      pc = <<0x20, 0x00, byte_size(sub_items) + 4::16-big, 1, 0, 0, 0, sub_items::binary>>
+
+      assert PDU.decode_pdu(associate_rq_with(pc)) == {:error, :invalid_presentation_context}
+    end
+
+    test "rejects a truncated fixed part" do
+      assert PDU.decode_pdu(<<0x01, 0x00, 4::32-big, 0::32>>) == {:error, :invalid_associate_rq}
+    end
+
+    test "leaves the application context nil when there is none" do
+      assert {:ok, {:associate_rq, rq}, _} = PDU.decode_pdu(associate_rq_with(<<>>))
+      assert rq.application_context == nil
+      assert rq.presentation_contexts == []
+    end
+  end
+
+  describe "encode_associate_ac/3" do
+    test "answers the request with the given contexts, our max PDU length and implementation" do
+      rq = %{called_ae_title: "SCP", calling_ae_title: "SCU"}
+
+      contexts = [
+        %{id: 1, result: 0, transfer_syntax: @explicit_vr_le},
+        %{id: 3, result: 3, transfer_syntax: @implicit_vr_le}
+      ]
+
+      pdu = PDU.encode_associate_ac(rq, contexts, max_pdu_length: 65_536)
+
+      assert {:ok, {:associate_ac, ac}, <<>>} = PDU.decode_pdu(pdu)
+      assert ac.called_ae_title == "SCP"
+      assert ac.calling_ae_title == "SCU"
+      assert ac.presentation_contexts == contexts
+      assert ac.max_pdu_length == 65_536
+
+      class_uid = Dcmix.UID.implementation_class_uid()
+
+      assert :binary.match(pdu, <<0x52, 0x00, byte_size(class_uid)::16-big>> <> class_uid) !=
+               :nomatch
+
+      assert :binary.match(pdu, ApplicationContext.dicom()) != :nomatch
+    end
+
+    test "defaults to a 16 KiB max PDU length" do
+      pdu = PDU.encode_associate_ac(%{called_ae_title: "A", calling_ae_title: "B"}, [])
+      assert {:ok, {:associate_ac, %{max_pdu_length: 16_384}}, _} = PDU.decode_pdu(pdu)
+    end
+  end
+
+  describe "encode_associate_rj/3" do
+    test "encodes the result, source and reason" do
+      assert PDU.encode_associate_rj(2, 3, 2) == <<0x03, 0x00, 4::32-big, 0x00, 2, 3, 2>>
+
+      assert {:ok, {:associate_rj, %{result: 1, reason: 7}}, <<>>} =
+               PDU.decode_pdu(PDU.encode_associate_rj(1, 1, 7))
+    end
+  end
+
+  describe "encode_release_rp/0" do
+    test "encodes an A-RELEASE-RP" do
+      assert {:ok, :release_rp, <<>>} = PDU.decode_pdu(PDU.encode_release_rp())
+    end
+  end
+
   describe "encode_p_data/4" do
     test "encodes command PDV with correct control header bits" do
       pdu = PDU.encode_p_data(1, true, true, <<1, 2, 3>>)
@@ -579,5 +686,13 @@ defmodule Dcmix.Network.PDUTest do
       ])
 
     <<0x02, 0x00, byte_size(payload)::32-big, payload::binary>>
+  end
+
+  defp associate_rq_with(variable_items) do
+    payload =
+      <<1::16-big, 0::16, String.pad_trailing("SCP", 16)::binary,
+        String.pad_trailing("SCU", 16)::binary, 0::256, variable_items::binary>>
+
+    <<0x01, 0x00, byte_size(payload)::32-big, payload::binary>>
   end
 end

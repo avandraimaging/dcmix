@@ -25,6 +25,7 @@ Dcmix aims to bring comprehensive DICOM support to Elixir, inspired by [dcmtk](h
 | **DICOM Networking (C-ECHO SCU)** | Verify a connection to a remote DICOM node via C-ECHO | Complete |
 | **DICOM Networking (C-FIND SCU)** | Query remote PACS servers via C-FIND | Complete |
 | **DICOM Networking (C-GET SCU)** | Retrieve instances from remote PACS servers via C-GET | Complete |
+| **DICOM Networking (C-ECHO SCP)** | Accept associations on a port and answer C-ECHO (`Dcmix.Network.Listener`) | Complete |
 
 ## Planned Features
 
@@ -32,7 +33,7 @@ Dcmix aims to bring comprehensive DICOM support to Elixir, inspired by [dcmtk](h
 |---------|-------------|----------|
 | **Pixel Data Decompression** | Decode JPEG, JPEG2000, RLE compressed images | High |
 | **Transfer Syntax Conversion** | Transcode between transfer syntaxes | High |
-| **DICOM Networking (DIMSE)** | C-STORE, C-MOVE, C-ECHO SCP (C-ECHO SCU, C-FIND and C-GET complete) | High |
+| **DICOM Networking (DIMSE)** | C-STORE, C-MOVE (C-ECHO SCU and SCP, C-FIND and C-GET complete) | High |
 | **Storage SCP/SCU** | Send/receive DICOM files over network | High |
 | **Query/Retrieve** | C-MOVE retrieval from PACS (C-FIND and C-GET complete) | Medium |
 | **Compressed transfer syntaxes over the network** | Accept JPEG / JPEG 2000 / RLE storage contexts in C-GET (pairs with Pixel Data Decompression) | Medium |
@@ -40,6 +41,7 @@ Dcmix aims to bring comprehensive DICOM support to Elixir, inspired by [dcmtk](h
 | **Anonymization** | De-identify patient data | Medium |
 | **C-GET options parity** | Configurable GET-context transfer syntaxes; patient/study-only query model (getscu `-O`) | Low |
 | **Network timeouts and TLS** | Separate association and DIMSE timeouts; DICOM TLS | Low |
+| **Listener access control** | Accept only known calling AE titles; optionally accept any called AE title | Low |
 | **CLI tools for networking** | `mix dcmix.find` / `mix dcmix.get` (findscu / getscu equivalents) | Low |
 | **Validation** | IOD conformance checking | Low |
 | **Structured Reports** | SR document support | Low |
