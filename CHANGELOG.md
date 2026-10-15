@@ -13,10 +13,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   to `Dcmix.Network.CEcho.echo/2`) returns `:ok` when the node answers with
   success, or `{:error, {:cecho_failed, status}}` for any other status.
 - `Dcmix.Network.DIMSE`: `build_cecho_rq/1`.
-- Network protocol constants in one place each: `Dcmix.Network.SOPClassUID`
-  (Verification and Q/R FIND/GET UIDs), and the pattern-safe macro modules
-  `Dcmix.Network.DIMSE.CommandField`, `Dcmix.Network.DIMSE.Status` and
-  `Dcmix.Network.PDU.Type`.
+- `Dcmix.Network.SOPClassUID.verification/0` and the pattern-safe
+  `Dcmix.Network.DIMSE.CommandField` macros `c_echo_rq/0` and `c_echo_rsp/0`.
 - DICOM networking with C-GET SCU support: `Dcmix.Network.get/3` (delegating to
   `Dcmix.Network.CGet.get/3`) returns a `Dcmix.Network.CGet.Result`. Retrieved
   instances are streamed to Part 10 files as they arrive (bit-preserving), or

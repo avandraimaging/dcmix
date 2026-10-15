@@ -15,10 +15,8 @@ defmodule Dcmix.Network.Association do
 
   require Logger
 
-  alias Dcmix.Network.{PDU, SOPClassUID}
+  alias Dcmix.Network.PDU
   alias Dcmix.Parser.TransferSyntax
-
-  require Dcmix.Network.PDU.Type, as: PDUType
 
   @type t :: %__MODULE__{
           socket: :gen_tcp.socket(),
@@ -36,6 +34,9 @@ defmodule Dcmix.Network.Association do
   # PDU header size
   @pdu_header_size 6
 
+  @associate_ac 0x02
+  @p_data_tf 0x04
+
   # Caps for PDUs whose size we don't negotiate. An AC grows with the number of
   # presentation contexts and role items, so it gets more room.
   @max_associate_ac_length 1_048_576
@@ -43,6 +44,9 @@ defmodule Dcmix.Network.Association do
 
   # PDV item overhead: item length (4) + context ID (1) + control header (1)
   @pdv_overhead 6
+
+  # Study Root Q/R Information Model - FIND
+  @study_root_qr_find "1.2.840.10008.5.1.4.1.2.2.1"
 
   @doc """
   Establishes a DICOM association with a remote SCP.
@@ -238,7 +242,7 @@ defmodule Dcmix.Network.Association do
       ])
 
     opts
-    |> Keyword.get(:abstract_syntaxes, [SOPClassUID.study_root_query_retrieve_find()])
+    |> Keyword.get(:abstract_syntaxes, [@study_root_qr_find])
     |> Enum.map(&%{abstract_syntax: &1, transfer_syntaxes: transfer_syntaxes})
   end
 
@@ -286,17 +290,17 @@ defmodule Dcmix.Network.Association do
   # Checked before the payload is read, so a peer can't make us buffer an
   # arbitrary declared length. The P-DATA limit covers the PDU's variable
   # field, i.e. the header's length value.
-  defp check_pdu_length(local_max, PDUType.p_data_tf(), length)
+  defp check_pdu_length(local_max, @p_data_tf, length)
        when local_max > 0 and length > local_max,
        do: {:error, :pdu_too_large}
 
-  defp check_pdu_length(_local_max, PDUType.p_data_tf(), _length), do: :ok
+  defp check_pdu_length(_local_max, @p_data_tf, _length), do: :ok
 
-  defp check_pdu_length(_local_max, PDUType.associate_ac(), length)
+  defp check_pdu_length(_local_max, @associate_ac, length)
        when length > @max_associate_ac_length,
        do: {:error, :pdu_too_large}
 
-  defp check_pdu_length(_local_max, PDUType.associate_ac(), _length), do: :ok
+  defp check_pdu_length(_local_max, @associate_ac, _length), do: :ok
 
   defp check_pdu_length(_local_max, _type, length) when length > @max_control_pdu_length,
     do: {:error, :pdu_too_large}

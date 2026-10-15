@@ -19,7 +19,14 @@ defmodule Dcmix.Network.PDU do
   | 0x07 | A-ABORT        | Both           |
   """
 
-  require Dcmix.Network.PDU.Type, as: PDUType
+  # PDU type codes
+  @associate_rq 0x01
+  @associate_ac 0x02
+  @associate_rj 0x03
+  @p_data_tf 0x04
+  @release_rq 0x05
+  @release_rp 0x06
+  @abort 0x07
 
   # Sub-item type codes
   @application_context_item 0x10
@@ -123,7 +130,7 @@ defmodule Dcmix.Network.PDU do
         encode_user_information(max_pdu_length, role_selections)
       ])
 
-    <<PDUType.associate_rq(), 0x00, byte_size(payload)::32-big, payload::binary>>
+    <<@associate_rq, 0x00, byte_size(payload)::32-big, payload::binary>>
   end
 
   @doc """
@@ -139,7 +146,7 @@ defmodule Dcmix.Network.PDU do
     pdv_item =
       <<pdv_length::32-big, context_id::8, control_header::8, data::binary>>
 
-    <<PDUType.p_data_tf(), 0x00, byte_size(pdv_item)::32-big, pdv_item::binary>>
+    <<@p_data_tf, 0x00, byte_size(pdv_item)::32-big, pdv_item::binary>>
   end
 
   @doc """
@@ -147,7 +154,7 @@ defmodule Dcmix.Network.PDU do
   """
   @spec encode_release_rq() :: binary()
   def encode_release_rq do
-    <<PDUType.release_rq(), 0x00, 4::32-big, 0::32>>
+    <<@release_rq, 0x00, 4::32-big, 0::32>>
   end
 
   @doc """
@@ -155,7 +162,7 @@ defmodule Dcmix.Network.PDU do
   """
   @spec encode_abort(non_neg_integer(), non_neg_integer()) :: binary()
   def encode_abort(source \\ 0, reason \\ 0) do
-    <<PDUType.abort(), 0x00, 4::32-big, 0x00, 0x00, source::8, reason::8>>
+    <<@abort, 0x00, 4::32-big, 0x00, 0x00, source::8, reason::8>>
   end
 
   # ===========================================================================
@@ -188,37 +195,37 @@ defmodule Dcmix.Network.PDU do
     {:error, :invalid_pdu}
   end
 
-  defp decode_pdu_payload(PDUType.associate_ac(), payload, rest) do
+  defp decode_pdu_payload(@associate_ac, payload, rest) do
     case decode_associate_ac_payload(payload) do
       {:ok, result} -> {:ok, {:associate_ac, result}, rest}
       {:error, _} = error -> error
     end
   end
 
-  defp decode_pdu_payload(PDUType.associate_rj(), <<_::8, _::8, result::8, reason::8>>, rest) do
+  defp decode_pdu_payload(@associate_rj, <<_::8, _::8, result::8, reason::8>>, rest) do
     {:ok, {:associate_rj, %{result: result, reason: reason}}, rest}
   end
 
-  defp decode_pdu_payload(PDUType.p_data_tf(), payload, rest) do
+  defp decode_pdu_payload(@p_data_tf, payload, rest) do
     case decode_pdv_items(payload, []) do
       {:ok, pdvs} -> {:ok, {:p_data, pdvs}, rest}
       {:error, _} = error -> error
     end
   end
 
-  defp decode_pdu_payload(PDUType.release_rq(), _payload, rest) do
+  defp decode_pdu_payload(@release_rq, _payload, rest) do
     {:ok, :release_rq, rest}
   end
 
-  defp decode_pdu_payload(PDUType.release_rp(), _payload, rest) do
+  defp decode_pdu_payload(@release_rp, _payload, rest) do
     {:ok, :release_rp, rest}
   end
 
-  defp decode_pdu_payload(PDUType.abort(), <<_::8, _::8, source::8, reason::8>>, rest) do
+  defp decode_pdu_payload(@abort, <<_::8, _::8, source::8, reason::8>>, rest) do
     {:ok, {:abort, %{source: source, reason: reason}}, rest}
   end
 
-  defp decode_pdu_payload(PDUType.abort(), _payload, rest) do
+  defp decode_pdu_payload(@abort, _payload, rest) do
     {:ok, {:abort, %{source: 0, reason: 0}}, rest}
   end
 

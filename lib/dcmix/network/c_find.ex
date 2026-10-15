@@ -15,11 +15,11 @@ defmodule Dcmix.Network.CFind do
   alias Dcmix.DataSet
   alias Dcmix.Network.Association
   alias Dcmix.Network.DIMSE
-  alias Dcmix.Network.SOPClassUID
   alias Dcmix.Parser.{ExplicitVR, ImplicitVR, TransferSyntax}
   alias Dcmix.Writer
 
-  require Dcmix.Network.DIMSE.Status, as: Status
+  # Study Root Query/Retrieve Information Model - FIND
+  @study_root_qr_find "1.2.840.10008.5.1.4.1.2.2.1"
 
   # The PDU stream is out of step after these, so it must not be read again
   @desync_errors [:pdu_too_large, :pdu_read_timeout]
@@ -101,7 +101,7 @@ defmodule Dcmix.Network.CFind do
     Association.request(addr,
       calling_ae_title: calling_ae,
       called_ae_title: called_ae,
-      abstract_syntaxes: [SOPClassUID.study_root_query_retrieve_find()],
+      abstract_syntaxes: [@study_root_qr_find],
       transfer_syntaxes: [
         TransferSyntax.implicit_vr_little_endian(),
         TransferSyntax.explicit_vr_little_endian()
@@ -119,7 +119,7 @@ defmodule Dcmix.Network.CFind do
   end
 
   defp send_cfind_command(assoc, pc) do
-    command_bytes = DIMSE.build_cfind_rq(SOPClassUID.study_root_query_retrieve_find(), 1)
+    command_bytes = DIMSE.build_cfind_rq(@study_root_qr_find, 1)
     Association.send_pdata(assoc, pc.id, true, command_bytes)
   end
 
@@ -165,14 +165,14 @@ defmodule Dcmix.Network.CFind do
   end
 
   defp handle_status(_assoc, _pc, verbose, _timeout, acc, status, _data_pdv)
-       when status == Status.success() do
+       when status == 0x0000 do
     datasets = Enum.reverse(acc)
     log_verbose(verbose, "C-FIND complete: #{length(datasets)} matches")
     {:ok, datasets}
   end
 
   defp handle_status(assoc, pc, verbose, timeout, acc, status, data_pdv)
-       when status in [Status.pending(), Status.pending_optional_keys_not_supported()] do
+       when status in [0xFF00, 0xFF01] do
     # Pending — get the data dataset
     case get_response_data(assoc, pc, data_pdv, timeout) do
       {:ok, dataset} ->
