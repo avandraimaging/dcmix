@@ -19,6 +19,8 @@ defmodule Dcmix.Network.PDU do
   | 0x07 | A-ABORT        | Both           |
   """
 
+  alias Dcmix.UID
+
   require Dcmix.Network.PDU.Type, as: PDUType
 
   # Sub-item type codes
@@ -35,8 +37,6 @@ defmodule Dcmix.Network.PDU do
 
   # Standard UIDs
   @application_context_uid "1.2.840.10008.3.1.1.1"
-  @implementation_class_uid "1.2.826.0.1.3680043.8.1234.1"
-  @implementation_version_name "DCMIX_010"
 
   # Default max PDU length (16KB, conservative for wide compatibility)
   @default_max_pdu_length 16_384
@@ -448,13 +448,13 @@ defmodule Dcmix.Network.PDU do
     max_length_sub =
       <<@max_length_item, 0x00, 4::16-big, max_pdu_length::32-big>>
 
-    impl_class_uid = @implementation_class_uid
+    impl_class_uid = UID.implementation_class_uid()
 
     impl_class_sub =
       <<@implementation_class_uid_item, 0x00, byte_size(impl_class_uid)::16-big,
         impl_class_uid::binary>>
 
-    impl_version = @implementation_version_name
+    impl_version = UID.implementation_version_name()
 
     impl_version_sub =
       <<@implementation_version_name_item, 0x00, byte_size(impl_version)::16-big,

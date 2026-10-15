@@ -17,6 +17,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (Verification and Q/R FIND/GET UIDs), and the pattern-safe macro modules
   `Dcmix.Network.DIMSE.CommandField`, `Dcmix.Network.DIMSE.Status` and
   `Dcmix.Network.PDU.Type`.
+- `Dcmix.UID`: dcmix's root UID, Implementation Class UID and Implementation
+  Version Name, and `generate/0`.
 - DICOM networking with C-GET SCU support: `Dcmix.Network.get/3` (delegating to
   `Dcmix.Network.CGet.get/3`) returns a `Dcmix.Network.CGet.Result`. Retrieved
   instances are streamed to Part 10 files as they arrive (bit-preserving), or
@@ -44,6 +46,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - A stall after a PDU header has been read is reported as
   `{:error, :pdu_read_timeout}` (C-FIND aborts the association;
   C-GET returns it as a timeout), instead of being read as a fresh PDU.
+- dcmix identifies itself with one Implementation Class UID,
+  `1.2.826.0.1.3680043.10.1712.1`, in association requests and written files'
+  meta header, instead of two unregistered ones. The Implementation Version
+  Name is `DCMIX_` plus the library version in both places (was `DCMIX_010`
+  and `DCMIX_001`). Both are in the new `Dcmix.UID`.
+- `Dcmix.Writer.generate_uid/0` generates UIDs under
+  `1.2.826.0.1.3680043.10.1712.1.1`, and the time component no longer has
+  leading zeros, which made UIDs generated before 10:00 UTC invalid.
 
 ## [0.2.0] - 2026-10-02
 

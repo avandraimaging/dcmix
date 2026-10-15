@@ -55,6 +55,18 @@ defmodule Dcmix.Network.PDUTest do
       assert :binary.match(pdu, "1.2.840.10008.3.1.1.1") != :nomatch
     end
 
+    test "identifies dcmix with its implementation class UID and version name" do
+      pdu = PDU.encode_associate_rq("SCU", "SCP", [])
+      class_uid = Dcmix.UID.implementation_class_uid()
+      version = Dcmix.UID.implementation_version_name()
+
+      assert :binary.match(pdu, <<0x52, 0x00, byte_size(class_uid)::16-big>> <> class_uid) !=
+               :nomatch
+
+      assert :binary.match(pdu, <<0x55, 0x00, byte_size(version)::16-big>> <> version) !=
+               :nomatch
+    end
+
     test "includes user information with max PDU length" do
       pdu = PDU.encode_associate_rq("SCU", "SCP", [], max_pdu_length: 32_768)
       # The max PDU length (32768) should appear as a 32-bit big-endian value

@@ -6,14 +6,12 @@ defmodule Dcmix.Writer do
   and configurable transfer syntax.
   """
 
-  alias Dcmix.{Tag, DataSet}
+  alias Dcmix.{DataSet, Tag, UID}
   alias Dcmix.Parser.TransferSyntax
   alias Dcmix.Writer.{ExplicitVR, ImplicitVR}
 
   @preamble_size 128
   @dicm_prefix "DICM"
-  @implementation_class_uid "1.2.826.0.1.3680043.9.7433.1.1"
-  @implementation_version_name "DCMIX_001"
   @source_application_entity_title {0x0002, 0x0016}
 
   @doc """
@@ -39,10 +37,10 @@ defmodule Dcmix.Writer do
       Keyword.get(opts, :transfer_syntax, TransferSyntax.explicit_vr_little_endian())
 
     impl_class_uid =
-      Keyword.get(opts, :implementation_class_uid, @implementation_class_uid)
+      Keyword.get(opts, :implementation_class_uid, UID.implementation_class_uid())
 
     impl_version_name =
-      Keyword.get(opts, :implementation_version_name, @implementation_version_name)
+      Keyword.get(opts, :implementation_version_name, UID.implementation_version_name())
 
     # Split out file meta and data elements
     {existing_file_meta, data_elements} = DataSet.split_file_meta(dataset)
@@ -85,10 +83,10 @@ defmodule Dcmix.Writer do
   @spec file_meta_header(String.t(), String.t(), String.t(), keyword()) :: binary()
   def file_meta_header(sop_class_uid, sop_instance_uid, transfer_syntax_uid, opts \\ []) do
     impl_class_uid =
-      Keyword.get(opts, :implementation_class_uid, @implementation_class_uid)
+      Keyword.get(opts, :implementation_class_uid, UID.implementation_class_uid())
 
     impl_version_name =
-      Keyword.get(opts, :implementation_version_name, @implementation_version_name)
+      Keyword.get(opts, :implementation_version_name, UID.implementation_version_name())
 
     file_meta =
       DataSet.new()
@@ -136,25 +134,8 @@ defmodule Dcmix.Writer do
   end
 
   @doc """
-  Generates a new UID based on the implementation root.
-
-  ## Examples
-
-      iex> Dcmix.Writer.generate_uid()
-      "1.2.826.0.1.3680043.9.7433.1.20240115.123456.12345"
+  Generates a new UID under dcmix's root. See `Dcmix.UID.generate/0`.
   """
   @spec generate_uid() :: String.t()
-  def generate_uid do
-    timestamp = DateTime.utc_now()
-
-    date_part =
-      Calendar.strftime(timestamp, "%Y%m%d")
-
-    time_part =
-      Calendar.strftime(timestamp, "%H%M%S")
-
-    random_part = :rand.uniform(99_999)
-
-    "1.2.826.0.1.3680043.9.7433.1.#{date_part}.#{time_part}.#{random_part}"
-  end
+  defdelegate generate_uid, to: UID, as: :generate
 end
