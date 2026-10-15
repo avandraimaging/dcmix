@@ -107,6 +107,18 @@ defmodule Dcmix.Network.DIMSETest do
     end
   end
 
+  describe "build_cecho_rq/1" do
+    test "encodes a C-ECHO-RQ for the Verification SOP Class with no data set" do
+      binary = DIMSE.build_cecho_rq(7)
+
+      assert {:ok, command} = DIMSE.decode_command(binary)
+      assert command.command_field == 0x0030
+      assert command.affected_sop_class_uid == "1.2.840.10008.1.1"
+      assert command.message_id == 7
+      assert command.command_data_set_type == 0x0101
+    end
+  end
+
   describe "build_cget_rq/3" do
     @patient_root_get "1.2.840.10008.5.1.4.1.2.1.3"
 

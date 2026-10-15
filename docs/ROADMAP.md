@@ -22,6 +22,7 @@ Dcmix aims to bring comprehensive DICOM support to Elixir, inspired by [dcmtk](h
 | **XML Import** | Create DICOM from XML | Complete |
 | **Image Import** | Import pixel data from image files | Complete |
 | **Multi-frame Import** | Create multi-frame DICOM from multiple images | Complete |
+| **DICOM Networking (C-ECHO SCU)** | Verify a connection to a remote DICOM node via C-ECHO | Complete |
 | **DICOM Networking (C-FIND SCU)** | Query remote PACS servers via C-FIND | Complete |
 | **DICOM Networking (C-GET SCU)** | Retrieve instances from remote PACS servers via C-GET | Complete |
 
@@ -31,7 +32,7 @@ Dcmix aims to bring comprehensive DICOM support to Elixir, inspired by [dcmtk](h
 |---------|-------------|----------|
 | **Pixel Data Decompression** | Decode JPEG, JPEG2000, RLE compressed images | High |
 | **Transfer Syntax Conversion** | Transcode between transfer syntaxes | High |
-| **DICOM Networking (DIMSE)** | C-ECHO, C-STORE, C-MOVE (C-FIND and C-GET complete) | High |
+| **DICOM Networking (DIMSE)** | C-STORE, C-MOVE, C-ECHO SCP (C-ECHO SCU, C-FIND and C-GET complete) | High |
 | **Storage SCP/SCU** | Send/receive DICOM files over network | High |
 | **Query/Retrieve** | C-MOVE retrieval from PACS (C-FIND and C-GET complete) | Medium |
 | **Compressed transfer syntaxes over the network** | Accept JPEG / JPEG 2000 / RLE storage contexts in C-GET (pairs with Pixel Data Decompression) | Medium |
