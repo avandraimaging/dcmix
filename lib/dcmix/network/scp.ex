@@ -309,8 +309,10 @@ defmodule Dcmix.Network.SCP do
   # C-STORE
   # ===========================================================================
 
-  # An instance we can't store is still read to its end, then answered with
-  # the failure status
+  # An instance we can't store is still read to its end, its data dropped as
+  # it arrives, then answered with the failure status. The requestor sends the
+  # whole data set without waiting for a reply, so this keeps the association
+  # in step for its next instance, as dcmtk's storescp does.
   defp start_store(state, context_id, command) do
     instance = %{
       sop_class_uid: command.affected_sop_class_uid || "",
