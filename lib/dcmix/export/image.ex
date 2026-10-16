@@ -220,7 +220,7 @@ defmodule Dcmix.Export.Image do
       png = :png.create(config)
 
       # Split pixels into rows and append each row
-      rows = for <<row::binary-size(width) <- pixel_bytes>>, do: row
+      rows = for <<row::binary-size(^width) <- pixel_bytes>>, do: row
       :png.append(png, {:rows, rows})
       :png.close(png)
       :ok
@@ -240,7 +240,7 @@ defmodule Dcmix.Export.Image do
 
       # Split pixels into rows (3 bytes per pixel)
       row_size = width * 3
-      rows = for <<row::binary-size(row_size) <- pixels>>, do: row
+      rows = for <<row::binary-size(^row_size) <- pixels>>, do: row
       :png.append(png, {:rows, rows})
       :png.close(png)
       :ok

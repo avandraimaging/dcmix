@@ -144,7 +144,7 @@ defmodule Dcmix.Parser.ExplicitVR do
   end
 
   defp read_value(tag, vr, length, data, big_endian) when byte_size(data) >= length do
-    <<value_bytes::binary-size(length), rest::binary>> = data
+    <<value_bytes::binary-size(^length), rest::binary>> = data
     value = decode_value(vr, value_bytes, big_endian)
     {:ok, DataElement.new(tag, vr, value, length), rest}
   end
@@ -194,7 +194,7 @@ defmodule Dcmix.Parser.ExplicitVR do
   end
 
   defp parse_item(length, data, big_endian) when byte_size(data) >= length do
-    <<item_data::binary-size(length), rest::binary>> = data
+    <<item_data::binary-size(^length), rest::binary>> = data
     # Recursively parse item contents
     case parse(item_data, big_endian: big_endian) do
       {:ok, ds, _remaining} -> {:ok, ds, rest}
@@ -270,7 +270,7 @@ defmodule Dcmix.Parser.ExplicitVR do
   end
 
   defp extract_fragment(length, rest) when byte_size(rest) >= length do
-    <<fragment::binary-size(length), remaining::binary>> = rest
+    <<fragment::binary-size(^length), remaining::binary>> = rest
     {:ok, fragment, remaining}
   end
 

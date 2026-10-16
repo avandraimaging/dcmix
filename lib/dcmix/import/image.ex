@@ -498,7 +498,7 @@ defmodule Dcmix.Import.Image do
 
   defp process_rows(data, scanline_bytes, row_bytes, acc)
        when byte_size(data) >= scanline_bytes do
-    <<_filter::8, row_data::binary-size(row_bytes), rest::binary>> = data
+    <<_filter::8, row_data::binary-size(^row_bytes), rest::binary>> = data
     # Note: We're ignoring the filter byte here. Full implementation would apply the filter.
     # For filter type 0 (None), this is correct. Other filters would need proper handling.
     process_rows(rest, scanline_bytes, row_bytes, <<acc::binary, row_data::binary>>)
@@ -581,7 +581,7 @@ defmodule Dcmix.Import.Image do
     skip_length = length - 2
 
     case rest do
-      <<_skip::binary-size(skip_length), remaining::binary>> ->
+      <<_skip::binary-size(^skip_length), remaining::binary>> ->
         find_sof_marker(remaining)
 
       _ ->
