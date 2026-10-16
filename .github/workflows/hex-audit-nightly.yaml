@@ -19,8 +19,8 @@ permissions:
   contents: read
 
 env:
-  OTP_VERSION: "27"
-  ELIXIR_VERSION: "1.18"
+  OTP_VERSION: "29"
+  ELIXIR_VERSION: "1.20.4"
 
 jobs:
   hex_audit:
