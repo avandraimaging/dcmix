@@ -12,8 +12,9 @@ defmodule Dcmix.Network.Negotiation do
   - one of its transfer syntaxes must be one we support for that abstract
     syntax, or it is rejected with result 4 (transfer-syntaxes-not-supported).
 
-  An accepted context gets the first of our transfer syntaxes, in our order
-  of preference, that the requestor proposed.
+  An accepted context gets the requestor's most preferred transfer syntax
+  among those we support, so a Storage SCP receives instances in the
+  encoding the requestor chose, without conversion.
 
   ## Example
 
@@ -61,8 +62,8 @@ defmodule Dcmix.Network.Negotiation do
 
   ## Options
   - `:ae_title` - our AE title; the requestor must call it
-  - `:abstract_syntaxes` - map of each supported abstract syntax to its
-    transfer syntaxes, most preferred first
+  - `:abstract_syntaxes` - map of each supported abstract syntax to the
+    transfer syntaxes we support for it
   """
   @spec negotiate(map(), keyword()) :: {:accept, [context()]} | {:reject, rejection()}
   def negotiate(rq, opts) do
@@ -123,7 +124,7 @@ defmodule Dcmix.Network.Negotiation do
   end
 
   defp choose_transfer_syntax(ours, pc) do
-    case Enum.find(ours, &(&1 in pc.transfer_syntaxes)) do
+    case Enum.find(pc.transfer_syntaxes, &(&1 in ours)) do
       nil -> {ContextResult.transfer_syntaxes_not_supported(), first_proposed(pc)}
       transfer_syntax -> {ContextResult.acceptance(), transfer_syntax}
     end

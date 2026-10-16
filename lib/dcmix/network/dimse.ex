@@ -7,7 +7,8 @@ defmodule Dcmix.Network.DIMSE do
   Implicit VR Little Endian per the DICOM standard.
 
   Currently supports:
-  - C-ECHO-RQ, C-ECHO-RSP, C-FIND-RQ, C-GET-RQ, C-CANCEL-RQ and C-STORE-RSP command building
+  - C-ECHO-RQ, C-ECHO-RSP, C-FIND-RQ, C-GET-RQ, C-CANCEL-RQ, C-STORE-RQ and C-STORE-RSP
+    command building
   - Response status parsing and general command decoding
   """
 
@@ -30,6 +31,8 @@ defmodule Dcmix.Network.DIMSE do
   @completed_sub_operations {0x0000, 0x1021}
   @failed_sub_operations {0x0000, 0x1022}
   @warning_sub_operations {0x0000, 0x1023}
+  @move_originator_ae_title {0x0000, 0x1030}
+  @move_originator_message_id {0x0000, 0x1031}
 
   # Priority values
   @priority_medium 0x0000
@@ -48,8 +51,11 @@ defmodule Dcmix.Network.DIMSE do
     @remaining_sub_operations,
     @completed_sub_operations,
     @failed_sub_operations,
-    @warning_sub_operations
+    @warning_sub_operations,
+    @move_originator_message_id
   ]
+
+  @ae_tags [@move_originator_ae_title]
 
   @ui_tags [@affected_sop_class_uid, @affected_sop_instance_uid]
 
@@ -64,7 +70,9 @@ defmodule Dcmix.Network.DIMSE do
           remaining: non_neg_integer() | nil,
           completed: non_neg_integer() | nil,
           failed: non_neg_integer() | nil,
-          warning: non_neg_integer() | nil
+          warning: non_neg_integer() | nil,
+          move_originator_ae_title: String.t() | nil,
+          move_originator_message_id: non_neg_integer() | nil
         }
 
   @doc """
@@ -137,6 +145,44 @@ defmodule Dcmix.Network.DIMSE do
   end
 
   @doc """
+  Builds a C-STORE-RQ command (Implicit VR Little Endian). The instance's
+  data set follows it.
+
+  ## Options
+  - `:priority` - `0x0000` medium (default), `0x0001` high, `0x0002` low
+  - `:move_originator_ae_title` and `:move_originator_message_id` - set
+    when the C-STORE is a sub-operation of a C-MOVE, naming the AE that
+    requested the move and its C-MOVE-RQ's message ID
+  """
+  @spec build_cstore_rq(String.t(), String.t(), non_neg_integer(), keyword()) :: binary()
+  def build_cstore_rq(sop_class_uid, sop_instance_uid, message_id, opts \\ []) do
+    move_originator =
+      case Keyword.fetch(opts, :move_originator_ae_title) do
+        {:ok, ae_title} ->
+          [
+            encode_ae_element(@move_originator_ae_title, ae_title),
+            encode_us_element(
+              @move_originator_message_id,
+              Keyword.fetch!(opts, :move_originator_message_id)
+            )
+          ]
+
+        :error ->
+          []
+      end
+
+    with_group_length([
+      encode_ui_element(@affected_sop_class_uid, sop_class_uid),
+      encode_us_element(@command_field, CommandField.c_store_rq()),
+      encode_us_element(@message_id, message_id),
+      encode_us_element(@priority, Keyword.get(opts, :priority, @priority_medium)),
+      encode_us_element(@command_data_set_type, @dataset_present),
+      encode_ui_element(@affected_sop_instance_uid, sop_instance_uid)
+      | move_originator
+    ])
+  end
+
+  @doc """
   Builds a C-STORE-RSP command (Implicit VR Little Endian) with no data set.
   """
   @spec build_cstore_rsp(String.t(), String.t(), non_neg_integer(), non_neg_integer()) ::
@@ -170,7 +216,8 @@ defmodule Dcmix.Network.DIMSE do
 
   Fields absent from the command are `nil`. The sub-operation counts
   (0000,1020-1023) are returned as `:remaining`, `:completed`, `:failed`
-  and `:warning`.
+  and `:warning`; a C-STORE-RQ that is a C-MOVE sub-operation carries
+  `:move_originator_ae_title` and `:move_originator_message_id`.
   """
   @spec decode_command(binary()) :: {:ok, command()} | {:error, term()}
   def decode_command(command_binary) do
@@ -187,7 +234,9 @@ defmodule Dcmix.Network.DIMSE do
          remaining: values[@remaining_sub_operations],
          completed: values[@completed_sub_operations],
          failed: values[@failed_sub_operations],
-         warning: values[@warning_sub_operations]
+         warning: values[@warning_sub_operations],
+         move_originator_ae_title: values[@move_originator_ae_title],
+         move_originator_message_id: values[@move_originator_message_id]
        }}
     end
   end
@@ -258,6 +307,12 @@ defmodule Dcmix.Network.DIMSE do
     encode_raw_element(tag, padded)
   end
 
+  # AE values are padded with a trailing space to an even length
+  defp encode_ae_element(tag, value) do
+    padded = if rem(byte_size(value), 2) == 1, do: value <> " ", else: value
+    encode_raw_element(tag, padded)
+  end
+
   defp encode_us_element(tag, value) do
     encode_raw_element(tag, <<value::16-little>>)
   end
@@ -325,6 +380,9 @@ defmodule Dcmix.Network.DIMSE do
 
   defp put_command_value(acc, tag, value) when tag in @ui_tags,
     do: Map.put(acc, tag, String.trim_trailing(value, <<0>>))
+
+  defp put_command_value(acc, tag, value) when tag in @ae_tags,
+    do: Map.put(acc, tag, String.trim(value))
 
   defp put_command_value(acc, _tag, _value), do: acc
 end

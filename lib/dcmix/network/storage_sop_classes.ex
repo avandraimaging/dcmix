@@ -1,7 +1,8 @@
 defmodule Dcmix.Network.StorageSOPClasses do
   @moduledoc """
   Storage SOP Class UIDs proposed by default when acting as a Storage SCP
-  inside an SCU association (C-GET sub-operations).
+  inside an SCU association (C-GET sub-operations), and accepted by default
+  by a listener's Storage SCP (`Dcmix.Network.Listener`).
 
   Ported from dcmtk's `dcmLongSCUStorageSOPClassUIDs`
   (`dcmdata/libsrc/dcuid.cc`), the list getscu and movescu propose with one
