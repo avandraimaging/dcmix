@@ -17,8 +17,6 @@ defmodule Dcmix.Network.Association do
   4. `release/1` - Gracefully release the association
   """
 
-  require Logger
-
   alias Dcmix.Network.{PDU, SOPClassUID}
   alias Dcmix.Parser.TransferSyntax
 
@@ -333,7 +331,7 @@ defmodule Dcmix.Network.Association do
     do: [{data, true}]
 
   defp fragments(data, size) do
-    <<fragment::binary-size(size), rest::binary>> = data
+    <<fragment::binary-size(^size), rest::binary>> = data
     [{fragment, false} | fragments(rest, size)]
   end
 

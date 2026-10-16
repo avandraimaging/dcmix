@@ -113,7 +113,6 @@ defmodule Dcmix.Export.JSON do
     end
   end
 
-  defp normalize_value(_vr, nil), do: []
   defp normalize_value(_vr, ""), do: []
 
   defp normalize_value(vr, value) when vr in [:PN] do

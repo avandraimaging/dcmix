@@ -82,13 +82,13 @@ defmodule Dcmix.Export.Image.Decoder do
        %{
          rows: rows,
          columns: columns,
-         samples_per_pixel: info.samples_per_pixel || 1,
+         samples_per_pixel: info.samples_per_pixel,
          bits_allocated: bits_allocated,
          bits_stored: info.bits_stored || bits_allocated,
          high_bit: info.high_bit || bits_allocated - 1,
          pixel_representation: info.pixel_representation || 0,
          photometric_interpretation: String.trim(photometric),
-         number_of_frames: info.number_of_frames || 1,
+         number_of_frames: info.number_of_frames,
          planar_configuration: DataSet.get_value(dataset, {0x0028, 0x0006})
        }}
     end
@@ -217,7 +217,7 @@ defmodule Dcmix.Export.Image.Decoder do
   end
 
   defp chunk_binary(binary, size) do
-    for <<chunk::binary-size(size) <- binary>>, do: chunk
+    for <<chunk::binary-size(^size) <- binary>>, do: chunk
   end
 
   # Decode monochrome pixels directly to binary output
@@ -229,7 +229,7 @@ defmodule Dcmix.Export.Image.Decoder do
        ) do
     %{min_val: min_val, scale: scale, max_out: max_out, invert: invert} = transform
 
-    for <<chunk::binary-size(bps) <- binary>>, into: <<>> do
+    for <<chunk::binary-size(^bps) <- binary>>, into: <<>> do
       value = (decode_raw_value(chunk, params) &&& mask) + half_range
       normalized = (value - min_val) * scale
       clamped = max(0, min(max_out, round(normalized)))
@@ -310,9 +310,9 @@ defmodule Dcmix.Export.Image.Decoder do
     g_plane = binary_part(binary, plane_size, plane_size)
     b_plane = binary_part(binary, plane_size * 2, plane_size)
 
-    r_values = for <<v::binary-size(bytes_per_sample) <- r_plane>>, do: v
-    g_values = for <<v::binary-size(bytes_per_sample) <- g_plane>>, do: v
-    b_values = for <<v::binary-size(bytes_per_sample) <- b_plane>>, do: v
+    r_values = for <<v::binary-size(^bytes_per_sample) <- r_plane>>, do: v
+    g_values = for <<v::binary-size(^bytes_per_sample) <- g_plane>>, do: v
+    b_values = for <<v::binary-size(^bytes_per_sample) <- b_plane>>, do: v
 
     [r_values, g_values, b_values]
     |> Enum.zip()
@@ -332,8 +332,8 @@ defmodule Dcmix.Export.Image.Decoder do
     bytes_per_sample = div(bits_allocated, 8)
 
     pixels =
-      for <<y_bin::binary-size(bytes_per_sample), cb_bin::binary-size(bytes_per_sample),
-            cr_bin::binary-size(bytes_per_sample) <- binary>> do
+      for <<y_bin::binary-size(^bytes_per_sample), cb_bin::binary-size(^bytes_per_sample),
+            cr_bin::binary-size(^bytes_per_sample) <- binary>> do
         y = :binary.decode_unsigned(y_bin, :little)
         cb = :binary.decode_unsigned(cb_bin, :little)
         cr = :binary.decode_unsigned(cr_bin, :little)

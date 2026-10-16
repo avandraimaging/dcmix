@@ -192,8 +192,8 @@ defmodule Dcmix.PixelData do
          cols when is_integer(cols) <- pixel_info.columns,
          bits when is_integer(bits) <- pixel_info.bits_allocated do
       bytes_per_pixel = div(bits, 8)
-      samples = pixel_info.samples_per_pixel || 1
-      frames = pixel_info.number_of_frames || 1
+      samples = pixel_info.samples_per_pixel
+      frames = pixel_info.number_of_frames
 
       rows * cols * samples * bytes_per_pixel * frames
     else
