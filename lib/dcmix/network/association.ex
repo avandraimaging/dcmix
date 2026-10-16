@@ -1,11 +1,15 @@
 defmodule Dcmix.Network.Association do
   @moduledoc """
-  DICOM Association management for SCU (Service Class User) connections.
+  DICOM Association management.
 
   Manages the TCP connection lifecycle and DICOM Upper Layer association
   negotiation. Uses `:gen_tcp` directly with synchronous I/O.
 
-  ## Workflow
+  An SCU opens an association with `request/2`. An SCP (see
+  `Dcmix.Network.SCP`) builds the struct around a socket it accepted, and
+  uses the same `send_pdata/4` and `receive_pdu/2`.
+
+  ## SCU workflow
 
   1. `request/2` - Open TCP connection and negotiate association
   2. `send_pdata/4` - Send P-DATA PDUs (command or data)
@@ -18,6 +22,7 @@ defmodule Dcmix.Network.Association do
   alias Dcmix.Network.{PDU, SOPClassUID}
   alias Dcmix.Parser.TransferSyntax
 
+  require Dcmix.Network.PDU.PresentationContextResult, as: ContextResult
   require Dcmix.Network.PDU.Type, as: PDUType
 
   @type t :: %__MODULE__{
@@ -36,9 +41,9 @@ defmodule Dcmix.Network.Association do
   # PDU header size
   @pdu_header_size 6
 
-  # Caps for PDUs whose size we don't negotiate. An AC grows with the number of
-  # presentation contexts and role items, so it gets more room.
-  @max_associate_ac_length 1_048_576
+  # Caps for PDUs whose size we don't negotiate. An RQ or AC grows with the
+  # number of presentation contexts and role items, so it gets more room.
+  @max_associate_length 1_048_576
   @max_control_pdu_length 65_536
 
   # PDV item overhead: item length (4) + context ID (1) + control header (1)
@@ -98,7 +103,7 @@ defmodule Dcmix.Network.Association do
   """
   @spec accepted_context(t()) :: {:ok, PDU.accepted_context()} | {:error, term()}
   def accepted_context(%__MODULE__{presentation_contexts: contexts}) do
-    case Enum.find(contexts, fn pc -> pc.result == 0 end) do
+    case Enum.find(contexts, &(&1.result == ContextResult.acceptance())) do
       nil -> {:error, :no_accepted_presentation_context}
       pc -> {:ok, pc}
     end
@@ -109,7 +114,7 @@ defmodule Dcmix.Network.Association do
   """
   @spec accepted_context(t(), String.t()) :: {:ok, PDU.accepted_context()} | {:error, term()}
   def accepted_context(%__MODULE__{presentation_contexts: contexts}, abstract_syntax) do
-    case Enum.find(contexts, &(&1.result == 0 and &1[:abstract_syntax] == abstract_syntax)) do
+    case Enum.find(contexts, &accepted?(&1, abstract_syntax)) do
       nil -> {:error, :no_accepted_presentation_context}
       pc -> {:ok, pc}
     end
@@ -144,7 +149,8 @@ defmodule Dcmix.Network.Association do
   boundary is then lost and the association must be aborted.
 
   A P-DATA-TF PDU longer than the maximum length we proposed (PS3.8 9.3.1;
-  0 means unlimited), or any other PDU longer than 64 KiB, returns
+  0 means unlimited), an A-ASSOCIATE-RQ or -AC longer than 1 MiB, or any
+  other PDU longer than 64 KiB, returns
   `{:error, :pdu_too_large}` without reading its payload; the association
   must be aborted.
   """
@@ -195,6 +201,9 @@ defmodule Dcmix.Network.Association do
   # ===========================================================================
   # Private helpers
   # ===========================================================================
+
+  defp accepted?(pc, abstract_syntax),
+    do: pc.result == ContextResult.acceptance() and pc[:abstract_syntax] == abstract_syntax
 
   defp parse_address(addr) do
     case String.split(addr, ":") do
@@ -292,11 +301,14 @@ defmodule Dcmix.Network.Association do
 
   defp check_pdu_length(_local_max, PDUType.p_data_tf(), _length), do: :ok
 
-  defp check_pdu_length(_local_max, PDUType.associate_ac(), length)
-       when length > @max_associate_ac_length,
+  defp check_pdu_length(_local_max, type, length)
+       when type in [PDUType.associate_rq(), PDUType.associate_ac()] and
+              length > @max_associate_length,
        do: {:error, :pdu_too_large}
 
-  defp check_pdu_length(_local_max, PDUType.associate_ac(), _length), do: :ok
+  defp check_pdu_length(_local_max, type, _length)
+       when type in [PDUType.associate_rq(), PDUType.associate_ac()],
+       do: :ok
 
   defp check_pdu_length(_local_max, _type, length) when length > @max_control_pdu_length,
     do: {:error, :pdu_too_large}

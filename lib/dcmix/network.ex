@@ -6,6 +6,8 @@ defmodule Dcmix.Network do
   Currently supports C-ECHO for verifying a connection, C-FIND for querying
   remote DICOM servers and C-GET for retrieving instances from them.
 
+  To accept associations as an SCP, see `Dcmix.Network.Listener`.
+
   ## C-ECHO example
 
       :ok = Dcmix.Network.echo("localhost:4242", called_ae_title: "PACS_AE")

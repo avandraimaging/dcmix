@@ -7,16 +7,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-10-16
+
 ### Added
 
 - DICOM networking with C-ECHO SCU support: `Dcmix.Network.echo/2` (delegating
   to `Dcmix.Network.CEcho.echo/2`) returns `:ok` when the node answers with
   success, or `{:error, {:cecho_failed, status}}` for any other status.
 - `Dcmix.Network.DIMSE`: `build_cecho_rq/1`.
+- A listener for DICOM associations, as an SCP: `Dcmix.Network.Listener` is a
+  child spec for the caller's supervision tree that accepts associations on a
+  port and answers C-ECHO. It rejects a called AE title other than its own,
+  and an association beyond `:max_associations` as rejected-transient,
+  local-limit-exceeded. `Dcmix.Network.SCP` serves each association, and
+  `Dcmix.Network.Negotiation` decides how to answer each A-ASSOCIATE-RQ.
+- An optional dependency on `thousand_island`, needed only to run a listener.
+  Without it, `Dcmix.Network.Listener` raises, saying to add it.
+- `Dcmix.Network.PDU`: decoding of A-ASSOCIATE-RQ, and `encode_associate_ac/3`,
+  `encode_associate_rj/3` and `encode_release_rp/0`; `Dcmix.Network.DIMSE`:
+  `build_cecho_rsp/2`.
 - Network protocol constants in one place each: `Dcmix.Network.SOPClassUID`
   (Verification and Q/R FIND/GET UIDs), `Dcmix.Network.ApplicationContext`,
   and the pattern-safe macro modules `Dcmix.Network.DIMSE.CommandField`,
-  `Dcmix.Network.DIMSE.Status` and `Dcmix.Network.PDU.Type`.
+  `Dcmix.Network.DIMSE.Status`, `Dcmix.Network.PDU.Type`,
+  `Dcmix.Network.PDU.PresentationContextResult` and
+  `Dcmix.Network.PDU.AssociateRJ` (the A-ASSOCIATE-RJ results, sources and
+  reasons, each reason prefixed with its source).
 - `Dcmix.UID`: dcmix's root UID, Implementation Class UID and Implementation
   Version Name, and `generate/0`.
 - DICOM networking with C-GET SCU support: `Dcmix.Network.get/3` (delegating to
@@ -42,7 +58,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Inbound P-DATA-TF PDUs longer than the proposed maximum PDU length are now
   refused with `{:error, :pdu_too_large}` for every network operation,
   including C-FIND, and the association is aborted. Other PDUs are capped at
-  64 KiB (an A-ASSOCIATE-AC at 1 MiB).
+  64 KiB (an A-ASSOCIATE-RQ or -AC at 1 MiB).
 - A stall after a PDU header has been read is reported as
   `{:error, :pdu_read_timeout}` (C-FIND aborts the association;
   C-GET returns it as a timeout), instead of being read as a fresh PDU.
@@ -54,6 +70,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `Dcmix.Writer.generate_uid/0` generates UIDs under
   `1.2.826.0.1.3680043.10.1712.1.1`, and the time component no longer has
   leading zeros, which made UIDs generated before 10:00 UTC invalid.
+
+### Fixed
+
+- An A-ASSOCIATE-RJ's result is read from its own byte. It was read from the
+  source byte, so a transient local-limit rejection came back as
+  `{:association_rejected, 3, 2}` rather than `{:association_rejected, 2, 2}`.
+  The decoded PDU also carries the source.
 
 ## [0.2.0] - 2026-10-02
 
@@ -95,6 +118,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `mix dcmix.from_xml` - Create DICOM from XML
   - `mix dcmix.from_image` - Import pixel data from image
 
-[Unreleased]: https://github.com/avandraimaging/dcmix/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/avandraimaging/dcmix/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/avandraimaging/dcmix/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/avandraimaging/dcmix/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/avandraimaging/dcmix/releases/tag/v0.1.0

@@ -1,7 +1,7 @@
 defmodule Dcmix.MixProject do
   use Mix.Project
 
-  @version "0.2.0"
+  @version "0.3.0"
   @source_url "https://github.com/avandra/dcmix"
 
   def project do
@@ -86,6 +86,8 @@ defmodule Dcmix.MixProject do
     [
       {:jason, "~> 1.4"},
       {:png, "~> 0.2"},
+      # Only needed to run a listener (Dcmix.Network.Listener)
+      {:thousand_island, "~> 1.5", optional: true},
       {:ex_doc, "~> 0.34", only: :dev, runtime: false},
       {:credo, "~> 1.7", only: [:dev, :test], runtime: false},
       {:sobelow, "~> 0.13", only: [:dev, :test], runtime: false}

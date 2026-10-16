@@ -5,6 +5,8 @@ defmodule Dcmix.Network.ConstantsTest do
 
   require Dcmix.Network.DIMSE.CommandField, as: CommandField
   require Dcmix.Network.DIMSE.Status, as: Status
+  require Dcmix.Network.PDU.AssociateRJ, as: AssociateRJ
+  require Dcmix.Network.PDU.PresentationContextResult, as: ContextResult
   require Dcmix.Network.PDU.Type, as: PDUType
 
   test "Application Context Name matches PS3.7 A.2.1" do
@@ -50,8 +52,41 @@ defmodule Dcmix.Network.ConstantsTest do
     assert PDUType.abort() == 0x07
   end
 
+  test "presentation context results match PS3.8 Table 9-18" do
+    assert ContextResult.acceptance() == 0
+    assert ContextResult.user_rejection() == 1
+    assert ContextResult.no_reason() == 2
+    assert ContextResult.abstract_syntax_not_supported() == 3
+    assert ContextResult.transfer_syntaxes_not_supported() == 4
+  end
+
+  test "A-ASSOCIATE-RJ values match PS3.8 Table 9-21" do
+    assert AssociateRJ.rejected_permanent() == 1
+    assert AssociateRJ.rejected_transient() == 2
+
+    assert AssociateRJ.source_service_user() == 1
+    assert AssociateRJ.source_acse() == 2
+    assert AssociateRJ.source_presentation() == 3
+
+    assert AssociateRJ.service_user_no_reason_given() == 1
+    assert AssociateRJ.service_user_application_context_name_not_supported() == 2
+    assert AssociateRJ.service_user_calling_ae_title_not_recognized() == 3
+    assert AssociateRJ.service_user_called_ae_title_not_recognized() == 7
+
+    assert AssociateRJ.acse_no_reason_given() == 1
+    assert AssociateRJ.acse_protocol_version_not_supported() == 2
+
+    assert AssociateRJ.presentation_temporary_congestion() == 1
+    assert AssociateRJ.presentation_local_limit_exceeded() == 2
+  end
+
   test "constants work in patterns" do
     assert match?(%{command_field: CommandField.c_echo_rsp()}, %{command_field: 0x8030})
     assert match?(<<PDUType.p_data_tf(), _::binary>>, <<0x04, 0x00>>)
+
+    assert match?(
+             {:association_rejected, AssociateRJ.rejected_transient(), _},
+             {:association_rejected, 2, 2}
+           )
   end
 end

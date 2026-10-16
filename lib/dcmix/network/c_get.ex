@@ -47,6 +47,7 @@ defmodule Dcmix.Network.CGet do
 
   require Dcmix.Network.DIMSE.CommandField, as: CommandField
   require Dcmix.Network.DIMSE.Status, as: Status
+  require Dcmix.Network.PDU.PresentationContextResult, as: ContextResult
 
   defmodule Result do
     @moduledoc """
@@ -241,7 +242,7 @@ defmodule Dcmix.Network.CGet do
 
   defp storage_contexts(assoc, get_uid) do
     assoc.presentation_contexts
-    |> Enum.filter(&(&1.result == 0 and &1.abstract_syntax != get_uid))
+    |> Enum.filter(&(&1.result == ContextResult.acceptance() and &1.abstract_syntax != get_uid))
     |> Map.new(&{&1.id, &1})
   end
 

@@ -10,12 +10,12 @@ defmodule Dcmix.Network.PDU do
 
   | Code | Type           | Direction      |
   |------|----------------|----------------|
-  | 0x01 | A-ASSOCIATE-RQ | Encode (send)  |
-  | 0x02 | A-ASSOCIATE-AC | Decode (recv)  |
-  | 0x03 | A-ASSOCIATE-RJ | Decode (recv)  |
+  | 0x01 | A-ASSOCIATE-RQ | Both           |
+  | 0x02 | A-ASSOCIATE-AC | Both           |
+  | 0x03 | A-ASSOCIATE-RJ | Both           |
   | 0x04 | P-DATA-TF      | Both           |
-  | 0x05 | A-RELEASE-RQ   | Encode (send)  |
-  | 0x06 | A-RELEASE-RP   | Decode (recv)  |
+  | 0x05 | A-RELEASE-RQ   | Both           |
+  | 0x06 | A-RELEASE-RP   | Both           |
   | 0x07 | A-ABORT        | Both           |
   """
 
@@ -63,6 +63,17 @@ defmodule Dcmix.Network.PDU do
           scp_role: boolean()
         }
 
+  @type associate_rq :: %{
+          called_ae_title: String.t(),
+          calling_ae_title: String.t(),
+          application_context: String.t() | nil,
+          presentation_contexts: [presentation_context()],
+          max_pdu_length: non_neg_integer(),
+          role_selections: [role_selection()],
+          implementation_class_uid: String.t() | nil,
+          implementation_version_name: String.t() | nil
+        }
+
   @type pdv :: %{
           context_id: non_neg_integer(),
           is_command: boolean(),
@@ -71,7 +82,7 @@ defmodule Dcmix.Network.PDU do
         }
 
   @type pdu ::
-          {:associate_rq, map()}
+          {:associate_rq, associate_rq()}
           | {:associate_ac, map()}
           | {:associate_rj, map()}
           | {:p_data, [pdv()]}
@@ -125,6 +136,47 @@ defmodule Dcmix.Network.PDU do
   end
 
   @doc """
+  Encodes an A-ASSOCIATE-AC PDU answering `rq`, a decoded A-ASSOCIATE-RQ.
+
+  The AE titles are returned as the requestor sent them (PS3.8 9.3.3).
+  Each of `presentation_contexts` is a map with `:id`, `:result` and
+  `:transfer_syntax`; a context's transfer syntax is ignored by the
+  requestor unless its result is acceptance (0).
+
+  ## Options
+  - `:max_pdu_length` - Maximum PDU length we accept (default: 16384)
+  """
+  @spec encode_associate_ac(associate_rq(), [accepted_context()], keyword()) :: binary()
+  def encode_associate_ac(rq, presentation_contexts, opts \\ []) do
+    max_pdu_length = Keyword.get(opts, :max_pdu_length, @default_max_pdu_length)
+
+    payload =
+      IO.iodata_to_binary([
+        <<@protocol_version::16-big>>,
+        <<0::16>>,
+        pad_ae_title(rq.called_ae_title),
+        pad_ae_title(rq.calling_ae_title),
+        <<0::256>>,
+        encode_application_context(),
+        Enum.map(presentation_contexts, &encode_presentation_context_ac/1),
+        encode_user_information(max_pdu_length, [])
+      ])
+
+    <<PDUType.associate_ac(), 0x00, byte_size(payload)::32-big, payload::binary>>
+  end
+
+  @doc """
+  Encodes an A-ASSOCIATE-RJ PDU (PS3.8 9.3.4).
+
+  `result` is 1 (rejected-permanent) or 2 (rejected-transient); `source` and
+  `reason` follow PS3.8 Table 9-21.
+  """
+  @spec encode_associate_rj(1..2, 1..3, non_neg_integer()) :: binary()
+  def encode_associate_rj(result, source, reason) do
+    <<PDUType.associate_rj(), 0x00, 4::32-big, 0x00, result::8, source::8, reason::8>>
+  end
+
+  @doc """
   Encodes a P-DATA-TF PDU containing one PDV item.
   """
   @spec encode_p_data(non_neg_integer(), boolean(), boolean(), binary()) :: binary()
@@ -146,6 +198,14 @@ defmodule Dcmix.Network.PDU do
   @spec encode_release_rq() :: binary()
   def encode_release_rq do
     <<PDUType.release_rq(), 0x00, 4::32-big, 0::32>>
+  end
+
+  @doc """
+  Encodes an A-RELEASE-RP PDU.
+  """
+  @spec encode_release_rp() :: binary()
+  def encode_release_rp do
+    <<PDUType.release_rp(), 0x00, 4::32-big, 0::32>>
   end
 
   @doc """
@@ -186,6 +246,13 @@ defmodule Dcmix.Network.PDU do
     {:error, :invalid_pdu}
   end
 
+  defp decode_pdu_payload(PDUType.associate_rq(), payload, rest) do
+    case decode_associate_rq_payload(payload) do
+      {:ok, result} -> {:ok, {:associate_rq, result}, rest}
+      {:error, _} = error -> error
+    end
+  end
+
   defp decode_pdu_payload(PDUType.associate_ac(), payload, rest) do
     case decode_associate_ac_payload(payload) do
       {:ok, result} -> {:ok, {:associate_ac, result}, rest}
@@ -193,8 +260,13 @@ defmodule Dcmix.Network.PDU do
     end
   end
 
-  defp decode_pdu_payload(PDUType.associate_rj(), <<_::8, _::8, result::8, reason::8>>, rest) do
-    {:ok, {:associate_rj, %{result: result, reason: reason}}, rest}
+  # Reserved, then result, source and reason (PS3.8 9.3.4)
+  defp decode_pdu_payload(
+         PDUType.associate_rj(),
+         <<_reserved::8, result::8, source::8, reason::8>>,
+         rest
+       ) do
+    {:ok, {:associate_rj, %{result: result, source: source, reason: reason}}, rest}
   end
 
   defp decode_pdu_payload(PDUType.p_data_tf(), payload, rest) do
@@ -225,18 +297,44 @@ defmodule Dcmix.Network.PDU do
   end
 
   # ===========================================================================
-  # A-ASSOCIATE-AC Decoding
+  # A-ASSOCIATE-RQ / AC Decoding
   # ===========================================================================
+
+  @empty_variable_items %{
+    application_context: nil,
+    presentation_contexts: [],
+    max_pdu_length: @default_max_pdu_length,
+    role_selections: [],
+    implementation_class_uid: nil,
+    implementation_version_name: nil
+  }
+
+  defp decode_associate_rq_payload(
+         <<_protocol_version::16-big, _reserved::16, called_ae::binary-size(16),
+           calling_ae::binary-size(16), _reserved2::binary-size(32), variable_items::binary>>
+       ) do
+    with {:ok, items} <- decode_variable_items(variable_items, @empty_variable_items) do
+      {:ok,
+       %{
+         called_ae_title: String.trim(called_ae),
+         calling_ae_title: String.trim(calling_ae),
+         application_context: items.application_context,
+         presentation_contexts: items.presentation_contexts,
+         max_pdu_length: items.max_pdu_length,
+         role_selections: Enum.reverse(items.role_selections),
+         implementation_class_uid: items.implementation_class_uid,
+         implementation_version_name: items.implementation_version_name
+       }}
+    end
+  end
+
+  defp decode_associate_rq_payload(_), do: {:error, :invalid_associate_rq}
 
   defp decode_associate_ac_payload(
          <<_protocol_version::16-big, _reserved::16, called_ae::binary-size(16),
            calling_ae::binary-size(16), _reserved2::binary-size(32), variable_items::binary>>
        ) do
-    case decode_variable_items(variable_items, %{
-           presentation_contexts: [],
-           max_pdu_length: @default_max_pdu_length,
-           role_selections: []
-         }) do
+    case decode_variable_items(variable_items, @empty_variable_items) do
       {:ok, items} ->
         {:ok,
          %{
@@ -255,6 +353,32 @@ defmodule Dcmix.Network.PDU do
   defp decode_associate_ac_payload(_), do: {:error, :invalid_associate_ac}
 
   defp decode_variable_items(<<>>, acc), do: {:ok, acc}
+
+  defp decode_variable_items(
+         <<@application_context_item, _reserved::8, length::16-big, rest::binary>>,
+         acc
+       )
+       when byte_size(rest) >= length do
+    <<name::binary-size(length), remaining::binary>> = rest
+    decode_variable_items(remaining, %{acc | application_context: trim_uid(name)})
+  end
+
+  defp decode_variable_items(
+         <<@presentation_context_rq_item, _reserved::8, length::16-big, rest::binary>>,
+         acc
+       )
+       when byte_size(rest) >= length do
+    <<item_data::binary-size(length), remaining::binary>> = rest
+
+    case decode_presentation_context_rq(item_data) do
+      {:ok, pc} ->
+        updated = %{acc | presentation_contexts: acc.presentation_contexts ++ [pc]}
+        decode_variable_items(remaining, updated)
+
+      {:error, _} = error ->
+        error
+    end
+  end
 
   defp decode_variable_items(
          <<@presentation_context_ac_item, _reserved::8, length::16-big, rest::binary>>,
@@ -313,6 +437,23 @@ defmodule Dcmix.Network.PDU do
 
   defp decode_presentation_context_ac(_), do: {:error, :invalid_presentation_context}
 
+  defp decode_presentation_context_rq(<<pc_id::8, _reserved::24, sub_items::binary>>) do
+    case extract_sub_item_uid(@abstract_syntax_item, sub_items) do
+      nil ->
+        {:error, :invalid_presentation_context}
+
+      abstract_syntax ->
+        {:ok,
+         %{
+           id: pc_id,
+           abstract_syntax: abstract_syntax,
+           transfer_syntaxes: extract_sub_item_uids(@transfer_syntax_item, sub_items)
+         }}
+    end
+  end
+
+  defp decode_presentation_context_rq(_), do: {:error, :invalid_presentation_context}
+
   defp decode_user_information(<<>>, acc), do: {:ok, acc}
 
   defp decode_user_information(
@@ -329,6 +470,24 @@ defmodule Dcmix.Network.PDU do
        when byte_size(rest) >= length do
     <<item::binary-size(length), remaining::binary>> = rest
     decode_user_information(remaining, add_role_selection(item, acc))
+  end
+
+  defp decode_user_information(
+         <<@implementation_class_uid_item, _reserved::8, length::16-big, rest::binary>>,
+         acc
+       )
+       when byte_size(rest) >= length do
+    <<uid::binary-size(length), remaining::binary>> = rest
+    decode_user_information(remaining, %{acc | implementation_class_uid: trim_uid(uid)})
+  end
+
+  defp decode_user_information(
+         <<@implementation_version_name_item, _reserved::8, length::16-big, rest::binary>>,
+         acc
+       )
+       when byte_size(rest) >= length do
+    <<name::binary-size(length), remaining::binary>> = rest
+    decode_user_information(remaining, %{acc | implementation_version_name: String.trim(name)})
   end
 
   defp decode_user_information(
@@ -442,6 +601,14 @@ defmodule Dcmix.Network.PDU do
     <<@presentation_context_rq_item, 0x00, byte_size(pc_data)::16-big, pc_data::binary>>
   end
 
+  defp encode_presentation_context_ac(%{id: id, result: result, transfer_syntax: ts}) do
+    content =
+      <<id::8, 0x00, result::8, 0x00, @transfer_syntax_item, 0x00, byte_size(ts)::16-big,
+        ts::binary>>
+
+    <<@presentation_context_ac_item, 0x00, byte_size(content)::16-big, content::binary>>
+  end
+
   defp encode_user_information(max_pdu_length, role_selections) do
     max_length_sub =
       <<@max_length_item, 0x00, 4::16-big, max_pdu_length::32-big>>
@@ -479,6 +646,24 @@ defmodule Dcmix.Network.PDU do
 
   defp role_byte(true), do: 1
   defp role_byte(false), do: 0
+
+  defp extract_sub_item_uids(type, sub_items, acc \\ [])
+
+  defp extract_sub_item_uids(type, <<type::8, _::8, length::16-big, rest::binary>>, acc)
+       when byte_size(rest) >= length do
+    <<uid::binary-size(length), remaining::binary>> = rest
+    extract_sub_item_uids(type, remaining, [trim_uid(uid) | acc])
+  end
+
+  defp extract_sub_item_uids(type, <<_other::8, _::8, length::16-big, rest::binary>>, acc)
+       when byte_size(rest) >= length do
+    <<_::binary-size(length), remaining::binary>> = rest
+    extract_sub_item_uids(type, remaining, acc)
+  end
+
+  defp extract_sub_item_uids(_type, _sub_items, acc), do: Enum.reverse(acc)
+
+  defp trim_uid(uid), do: String.trim_trailing(uid, <<0>>)
 
   defp extract_sub_item_uid(_type, <<>>), do: nil
 
