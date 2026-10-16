@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-10-16
+
 ### Added
 
 - DICOM networking with C-ECHO SCU support: `Dcmix.Network.echo/2` (delegating
@@ -56,7 +58,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Inbound P-DATA-TF PDUs longer than the proposed maximum PDU length are now
   refused with `{:error, :pdu_too_large}` for every network operation,
   including C-FIND, and the association is aborted. Other PDUs are capped at
-  64 KiB (an A-ASSOCIATE-AC at 1 MiB).
+  64 KiB (an A-ASSOCIATE-RQ or -AC at 1 MiB).
 - A stall after a PDU header has been read is reported as
   `{:error, :pdu_read_timeout}` (C-FIND aborts the association;
   C-GET returns it as a timeout), instead of being read as a fresh PDU.
@@ -116,6 +118,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `mix dcmix.from_xml` - Create DICOM from XML
   - `mix dcmix.from_image` - Import pixel data from image
 
-[Unreleased]: https://github.com/avandraimaging/dcmix/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/avandraimaging/dcmix/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/avandraimaging/dcmix/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/avandraimaging/dcmix/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/avandraimaging/dcmix/releases/tag/v0.1.0
