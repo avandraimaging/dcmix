@@ -27,7 +27,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Network protocol constants in one place each: `Dcmix.Network.SOPClassUID`
   (Verification and Q/R FIND/GET UIDs), `Dcmix.Network.ApplicationContext`,
   and the pattern-safe macro modules `Dcmix.Network.DIMSE.CommandField`,
-  `Dcmix.Network.DIMSE.Status` and `Dcmix.Network.PDU.Type`.
+  `Dcmix.Network.DIMSE.Status`, `Dcmix.Network.PDU.Type`,
+  `Dcmix.Network.PDU.PresentationContextResult` and
+  `Dcmix.Network.PDU.AssociateRJ` (the A-ASSOCIATE-RJ results, sources and
+  reasons, each reason prefixed with its source).
 - `Dcmix.UID`: dcmix's root UID, Implementation Class UID and Implementation
   Version Name, and `generate/0`.
 - DICOM networking with C-GET SCU support: `Dcmix.Network.get/3` (delegating to

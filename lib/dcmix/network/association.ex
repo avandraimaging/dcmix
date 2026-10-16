@@ -22,6 +22,7 @@ defmodule Dcmix.Network.Association do
   alias Dcmix.Network.{PDU, SOPClassUID}
   alias Dcmix.Parser.TransferSyntax
 
+  require Dcmix.Network.PDU.PresentationContextResult, as: ContextResult
   require Dcmix.Network.PDU.Type, as: PDUType
 
   @type t :: %__MODULE__{
@@ -102,7 +103,7 @@ defmodule Dcmix.Network.Association do
   """
   @spec accepted_context(t()) :: {:ok, PDU.accepted_context()} | {:error, term()}
   def accepted_context(%__MODULE__{presentation_contexts: contexts}) do
-    case Enum.find(contexts, fn pc -> pc.result == 0 end) do
+    case Enum.find(contexts, &(&1.result == ContextResult.acceptance())) do
       nil -> {:error, :no_accepted_presentation_context}
       pc -> {:ok, pc}
     end
@@ -113,7 +114,7 @@ defmodule Dcmix.Network.Association do
   """
   @spec accepted_context(t(), String.t()) :: {:ok, PDU.accepted_context()} | {:error, term()}
   def accepted_context(%__MODULE__{presentation_contexts: contexts}, abstract_syntax) do
-    case Enum.find(contexts, &(&1.result == 0 and &1[:abstract_syntax] == abstract_syntax)) do
+    case Enum.find(contexts, &accepted?(&1, abstract_syntax)) do
       nil -> {:error, :no_accepted_presentation_context}
       pc -> {:ok, pc}
     end
@@ -200,6 +201,9 @@ defmodule Dcmix.Network.Association do
   # ===========================================================================
   # Private helpers
   # ===========================================================================
+
+  defp accepted?(pc, abstract_syntax),
+    do: pc.result == ContextResult.acceptance() and pc[:abstract_syntax] == abstract_syntax
 
   defp parse_address(addr) do
     case String.split(addr, ":") do

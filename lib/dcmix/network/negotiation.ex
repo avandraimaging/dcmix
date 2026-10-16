@@ -44,19 +44,8 @@ defmodule Dcmix.Network.Negotiation do
 
   alias Dcmix.Network.ApplicationContext
 
-  # A-ASSOCIATE-RJ result, source and reason values (PS3.8 Table 9-21)
-  @rejected_permanent 1
-  @rejected_transient 2
-  @source_service_user 1
-  @source_service_provider_presentation 3
-  @reason_application_context_name_not_supported 2
-  @reason_called_ae_title_not_recognized 7
-  @reason_local_limit_exceeded 2
-
-  # Presentation context results (PS3.8 Table 9-18)
-  @acceptance 0
-  @abstract_syntax_not_supported 3
-  @transfer_syntaxes_not_supported 4
+  require Dcmix.Network.PDU.AssociateRJ, as: AssociateRJ
+  require Dcmix.Network.PDU.PresentationContextResult, as: ContextResult
 
   @type rejection :: %{result: 1..2, source: 1..3, reason: non_neg_integer()}
 
@@ -81,17 +70,17 @@ defmodule Dcmix.Network.Negotiation do
       rq.application_context != ApplicationContext.dicom() ->
         {:reject,
          rejection(
-           @rejected_permanent,
-           @source_service_user,
-           @reason_application_context_name_not_supported
+           AssociateRJ.rejected_permanent(),
+           AssociateRJ.source_service_user(),
+           AssociateRJ.service_user_application_context_name_not_supported()
          )}
 
       rq.called_ae_title != String.trim(Keyword.fetch!(opts, :ae_title)) ->
         {:reject,
          rejection(
-           @rejected_permanent,
-           @source_service_user,
-           @reason_called_ae_title_not_recognized
+           AssociateRJ.rejected_permanent(),
+           AssociateRJ.source_service_user(),
+           AssociateRJ.service_user_called_ae_title_not_recognized()
          )}
 
       true ->
@@ -110,9 +99,9 @@ defmodule Dcmix.Network.Negotiation do
   @spec local_limit_exceeded() :: rejection()
   def local_limit_exceeded do
     rejection(
-      @rejected_transient,
-      @source_service_provider_presentation,
-      @reason_local_limit_exceeded
+      AssociateRJ.rejected_transient(),
+      AssociateRJ.source_presentation(),
+      AssociateRJ.presentation_local_limit_exceeded()
     )
   end
 
@@ -121,7 +110,7 @@ defmodule Dcmix.Network.Negotiation do
   defp negotiate_context(pc, supported) do
     {result, transfer_syntax} =
       case Map.fetch(supported, pc.abstract_syntax) do
-        :error -> {@abstract_syntax_not_supported, first_proposed(pc)}
+        :error -> {ContextResult.abstract_syntax_not_supported(), first_proposed(pc)}
         {:ok, ours} -> choose_transfer_syntax(ours, pc)
       end
 
@@ -135,8 +124,8 @@ defmodule Dcmix.Network.Negotiation do
 
   defp choose_transfer_syntax(ours, pc) do
     case Enum.find(ours, &(&1 in pc.transfer_syntaxes)) do
-      nil -> {@transfer_syntaxes_not_supported, first_proposed(pc)}
-      transfer_syntax -> {@acceptance, transfer_syntax}
+      nil -> {ContextResult.transfer_syntaxes_not_supported(), first_proposed(pc)}
+      transfer_syntax -> {ContextResult.acceptance(), transfer_syntax}
     end
   end
 

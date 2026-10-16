@@ -18,6 +18,7 @@ defmodule Dcmix.Network.SCP do
 
   require Dcmix.Network.DIMSE.CommandField, as: CommandField
   require Dcmix.Network.DIMSE.Status, as: Status
+  require Dcmix.Network.PDU.PresentationContextResult, as: ContextResult
 
   @default_max_pdu_length 16_384
   @default_timeout 60_000
@@ -112,7 +113,7 @@ defmodule Dcmix.Network.SCP do
       socket: socket,
       max_pdu_length: rq.max_pdu_length,
       local_max_pdu_length: max_pdu_length,
-      presentation_contexts: Enum.filter(contexts, &(&1.result == 0))
+      presentation_contexts: Enum.filter(contexts, &(&1.result == ContextResult.acceptance()))
     }
 
     case :gen_tcp.send(socket, pdu) do
