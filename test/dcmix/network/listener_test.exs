@@ -2,13 +2,14 @@ defmodule Dcmix.Network.ListenerTest do
   use ExUnit.Case, async: true
 
   alias Dcmix.Network
-  alias Dcmix.Network.{Association, DIMSE, Listener, PDU}
+  alias Dcmix.Network.{Association, DIMSE, Listener, PDU, SOPClassUID}
+  alias Dcmix.Parser.TransferSyntax
+
+  require Dcmix.Network.DIMSE.Status, as: Status
+  require Dcmix.Network.PDU.AssociateRJ, as: AssociateRJ
+  require Dcmix.Network.PDU.PresentationContextResult, as: ContextResult
 
   @moduletag capture_log: true
-
-  @verification "1.2.840.10008.1.1"
-  @study_root_qr_find "1.2.840.10008.5.1.4.1.2.2.1"
-  @implicit_vr_le "1.2.840.10008.1.2"
 
   defp start_listener(opts \\ []) do
     listener = start_supervised!({Listener, Keyword.merge([port: 0, ae_title: "SCP"], opts)})
@@ -16,11 +17,11 @@ defmodule Dcmix.Network.ListenerTest do
     "localhost:#{port}"
   end
 
-  defp open(addr, abstract_syntax \\ @verification) do
+  defp open(addr, abstract_syntax \\ SOPClassUID.verification()) do
     Association.request(addr,
       called_ae_title: "SCP",
       abstract_syntaxes: [abstract_syntax],
-      transfer_syntaxes: [@implicit_vr_le],
+      transfer_syntaxes: [TransferSyntax.implicit_vr_little_endian()],
       timeout: 5_000
     )
   end
@@ -38,7 +39,7 @@ defmodule Dcmix.Network.ListenerTest do
         :ok = Association.send_pdata(assoc, pc.id, true, DIMSE.build_cecho_rq(message_id))
         assert {:ok, command} = receive_command(assoc)
         assert command.message_id_being_responded_to == message_id
-        assert command.status == 0x0000
+        assert command.status == Status.success()
       end
 
       Association.release(assoc)
@@ -52,7 +53,9 @@ defmodule Dcmix.Network.ListenerTest do
       send_raw(assoc, PDU.encode_p_data(pc.id, true, false, first))
       send_raw(assoc, PDU.encode_p_data(pc.id, true, true, rest))
 
-      assert {:ok, %{message_id_being_responded_to: 9, status: 0x0000}} = receive_command(assoc)
+      assert {:ok, %{message_id_being_responded_to: 9, status: Status.success()}} =
+               receive_command(assoc)
+
       Association.release(assoc)
     end
 
@@ -70,14 +73,19 @@ defmodule Dcmix.Network.ListenerTest do
 
   describe "negotiation" do
     test "rejects a called AE title other than ours" do
-      assert Network.echo(start_listener(), called_ae_title: "OTHER") ==
-               {:error, {:association_rejected, 1, 7}}
+      assert {:error, {:association_rejected, result, reason}} =
+               Network.echo(start_listener(), called_ae_title: "OTHER")
+
+      assert result == AssociateRJ.rejected_permanent()
+      assert reason == AssociateRJ.service_user_called_ae_title_not_recognized()
     end
 
     test "accepts the association but not a context for an unsupported SOP Class" do
-      {:ok, assoc} = open(start_listener(), @study_root_qr_find)
+      {:ok, assoc} = open(start_listener(), SOPClassUID.study_root_query_retrieve_find())
 
-      assert [%{result: 3}] = assoc.presentation_contexts
+      assert [%{result: ContextResult.abstract_syntax_not_supported()}] =
+               assoc.presentation_contexts
+
       assert Association.accepted_context(assoc) == {:error, :no_accepted_presentation_context}
       Association.release(assoc)
     end
@@ -103,7 +111,11 @@ defmodule Dcmix.Network.ListenerTest do
       addr = start_listener(max_associations: 1)
       {:ok, held} = open(addr)
 
-      assert Network.echo(addr, called_ae_title: "SCP") == {:error, {:association_rejected, 2, 2}}
+      assert {:error, {:association_rejected, result, reason}} =
+               Network.echo(addr, called_ae_title: "SCP")
+
+      assert result == AssociateRJ.rejected_transient()
+      assert reason == AssociateRJ.presentation_local_limit_exceeded()
 
       Association.release(held)
       assert eventually(fn -> Network.echo(addr, called_ae_title: "SCP") == :ok end)
@@ -138,7 +150,14 @@ defmodule Dcmix.Network.ListenerTest do
       {:ok, assoc} = open(start_listener())
       {:ok, pc} = Association.accepted_context(assoc)
 
-      :ok = Association.send_pdata(assoc, pc.id, true, DIMSE.build_cfind_rq(@verification, 1))
+      :ok =
+        Association.send_pdata(
+          assoc,
+          pc.id,
+          true,
+          DIMSE.build_cfind_rq(SOPClassUID.verification(), 1)
+        )
+
       assert {:ok, {:abort, _}} = Association.receive_pdu(assoc, 5_000)
     end
 
@@ -210,7 +229,11 @@ defmodule Dcmix.Network.ListenerTest do
   end
 
   defp verification_context,
-    do: %{id: 1, abstract_syntax: @verification, transfer_syntaxes: [@implicit_vr_le]}
+    do: %{
+      id: 1,
+      abstract_syntax: SOPClassUID.verification(),
+      transfer_syntaxes: [TransferSyntax.implicit_vr_little_endian()]
+    }
 
   defp connect(addr) do
     [host, port] = String.split(addr, ":")
