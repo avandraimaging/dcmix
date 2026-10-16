@@ -21,7 +21,7 @@ Dcmix (pronounced "DCM-icks") is a pure Elixir implementation for working with D
 - Export to JSON, XML, and image formats (PNG, PPM, PGM)
 - Import from JSON, XML, and image files
 - Human-readable dump output (dcmdump style)
-- DICOM networking: C-ECHO SCU (verify a connection), C-FIND SCU (query remote PACS servers) and C-GET SCU (retrieve from them), and a listener that accepts associations and answers C-ECHO (SCP)
+- DICOM networking: C-ECHO SCU (verify a connection), C-FIND SCU (query remote PACS servers) and C-GET SCU (retrieve from them), and a listener that accepts associations, answers C-ECHO and stores instances sent with C-STORE (SCP)
 - Private tag support
 - Mix tasks for CLI usage
 
@@ -107,13 +107,31 @@ end)
 ### Listening for Associations
 
 `Dcmix.Network.Listener` accepts associations on a port, as an SCP, and
-answers C-ECHO. Start it in your own supervision tree; it needs the optional
+answers C-ECHO. Given a handler (`Dcmix.Network.SCP.Handler`), it is also a
+Storage SCP: each instance sent with C-STORE is written to a file in the
+storage directory as it arrives, then handed to the handler, whose status is
+sent back. Start it in your own supervision tree; it needs the optional
 `:thousand_island` dependency, so add `{:thousand_island, "~> 1.5"}` to your
 deps.
 
 ```elixir
+defmodule MyApp.StoreHandler do
+  @behaviour Dcmix.Network.SCP.Handler
+
+  @impl true
+  def handle_store(instance, state) do
+    IO.puts("Stored #{instance.sop_instance_uid} at #{instance.path}")
+    {:reply, 0x0000, state}
+  end
+end
+
 children = [
-  {Dcmix.Network.Listener, port: 11112, ae_title: "MY_SCP", max_associations: 10}
+  {Dcmix.Network.Listener,
+   port: 11112,
+   ae_title: "MY_SCP",
+   max_associations: 10,
+   handler: MyApp.StoreHandler,
+   storage_directory: "incoming"}
 ]
 
 Supervisor.start_link(children, strategy: :one_for_one)

@@ -4,11 +4,17 @@ if Code.ensure_loaded?(ThousandIsland) do
     Listens for DICOM associations on a TCP port, as an SCP.
 
     Each accepted connection is served in its own process by
-    `Dcmix.Network.SCP`, which answers C-ECHO. The listener is a child spec
-    for your own supervision tree; dcmix starts nothing on its own.
+    `Dcmix.Network.SCP`, which answers C-ECHO and, given a handler, stores
+    instances sent with C-STORE (see `Dcmix.Network.SCP.Handler`). The
+    listener is a child spec for your own supervision tree; dcmix starts
+    nothing on its own.
 
         children = [
-          {Dcmix.Network.Listener, port: 11112, ae_title: "MY_SCP"}
+          {Dcmix.Network.Listener,
+           port: 11112,
+           ae_title: "MY_SCP",
+           handler: {MyApp.StoreHandler, []},
+           storage_directory: "/var/lib/my_app/incoming"}
         ]
 
         Supervisor.start_link(children, strategy: :one_for_one)
@@ -29,9 +35,22 @@ if Code.ensure_loaded?(ThousandIsland) do
     - `:max_pdu_length` - the largest PDU we accept (default: 16384)
     - `:timeout` - how long to wait for a requestor's next PDU, in ms,
       before aborting (default: 60000)
+    - `:handler` - a module implementing `Dcmix.Network.SCP.Handler`, or
+      `{module, arg}`; with it, the Storage SOP Classes are accepted as well
+      as Verification
+    - `:storage_directory` - where instances are written, created if missing
+      (required with `:handler`)
+    - `:storage_sop_classes` - Storage SOP Classes accepted (default:
+      `Dcmix.Network.StorageSOPClasses.uids/0`)
+    - `:storage_transfer_syntaxes` - transfer syntaxes accepted for them,
+      compressed ones included, taken as sent (default: every transfer
+      syntax in `Dcmix.Parser.TransferSyntax.all/0`)
+
+    `start_link/1` returns `{:error, {:storage_directory, reason}}` when the
+    storage directory can't be created.
     """
 
-    alias Dcmix.Network.Listener.Handler
+    alias Dcmix.Network.Listener.Connection
 
     @default_max_associations 10
 
@@ -54,14 +73,20 @@ if Code.ensure_loaded?(ThousandIsland) do
           :ae_title,
           :max_pdu_length,
           :timeout,
+          :handler,
+          :storage_directory,
+          :storage_sop_classes,
+          :storage_transfer_syntaxes,
           max_associations: @default_max_associations
         ])
 
-      ThousandIsland.start_link(
-        port: Keyword.fetch!(opts, :port),
-        handler_module: Handler,
-        handler_options: handler_options(opts)
-      )
+      with :ok <- prepare_storage(opts) do
+        ThousandIsland.start_link(
+          port: Keyword.fetch!(opts, :port),
+          handler_module: Connection,
+          handler_options: handler_options(opts)
+        )
+      end
     end
 
     @doc """
@@ -74,10 +99,30 @@ if Code.ensure_loaded?(ThousandIsland) do
       end
     end
 
+    defp prepare_storage(opts) do
+      case Keyword.fetch(opts, :handler) do
+        {:ok, _handler} -> create_storage_directory(Keyword.fetch!(opts, :storage_directory))
+        :error -> :ok
+      end
+    end
+
+    defp create_storage_directory(directory) do
+      case File.mkdir_p(directory) do
+        :ok -> :ok
+        {:error, reason} -> {:error, {:storage_directory, reason}}
+      end
+    end
+
     defp handler_options(opts) do
       scp_opts =
         [ae_title: Keyword.fetch!(opts, :ae_title)] ++
-          Keyword.take(opts, [:max_pdu_length, :timeout])
+          Keyword.take(opts, [
+            :max_pdu_length,
+            :timeout,
+            :storage_directory,
+            :storage_sop_classes,
+            :storage_transfer_syntaxes
+          ]) ++ scp_handler(opts)
 
       %{
         scp_opts: scp_opts,
@@ -85,9 +130,17 @@ if Code.ensure_loaded?(ThousandIsland) do
         associations: :counters.new(1, [:atomics])
       }
     end
+
+    defp scp_handler(opts) do
+      case Keyword.fetch(opts, :handler) do
+        {:ok, {module, arg}} -> [handler: {module, arg}]
+        {:ok, module} when is_atom(module) -> [handler: {module, nil}]
+        :error -> []
+      end
+    end
   end
 
-  defmodule Dcmix.Network.Listener.Handler do
+  defmodule Dcmix.Network.Listener.Connection do
     @moduledoc false
 
     # One process per connection. The association is served synchronously

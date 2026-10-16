@@ -12,6 +12,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `Dcmix.Network.InstanceFile` writes an instance received over the network
   to a Part 10 file as it arrives, as C-GET's bit-preserving storage did; C-GET
   now uses it.
+- A Storage SCP: given `:handler` (a `Dcmix.Network.SCP.Handler`) and
+  `:storage_directory`, `Dcmix.Network.Listener` accepts the Storage SOP
+  Classes, writes each instance sent with C-STORE to a file as it arrives,
+  and calls the handler's `handle_store/2` with its path, UIDs, transfer
+  syntax, calling AE title and Move Originator; the status it returns is sent
+  in the C-STORE-RSP. `:storage_sop_classes` and `:storage_transfer_syntaxes`
+  narrow what is accepted; compressed transfer syntaxes are taken as sent.
+- `Dcmix.Network.DIMSE`: `build_cstore_rq/4`, and `decode_command/1` returns
+  the Move Originator AE Title and Message ID.
+
+### Changed
+
+- `Dcmix.Network.Negotiation` accepts each presentation context with the
+  requestor's most preferred transfer syntax among those supported, rather
+  than ours.
 
 ## [0.3.0] - 2026-10-16
 

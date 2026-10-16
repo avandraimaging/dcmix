@@ -4,8 +4,13 @@ defmodule Dcmix.Network.SCP do
 
   `serve/2` reads the A-ASSOCIATE-RQ, answers it with an A-ASSOCIATE-AC or
   -RJ (see `Dcmix.Network.Negotiation`), then answers DIMSE requests until
-  the requestor releases or aborts the association. It supports the
-  Verification SOP Class: each C-ECHO-RQ is answered with success.
+  the requestor releases or aborts the association:
+
+  - C-ECHO, on the Verification SOP Class, is always answered with success.
+  - C-STORE, on the Storage SOP Classes, when given a handler (see
+    `Dcmix.Network.SCP.Handler`): each instance is written to a file in the
+    storage directory as it arrives, then handed to the handler, whose status
+    is sent in the C-STORE-RSP.
 
   It runs in the calling process and uses the socket in passive mode.
   `Dcmix.Network.Listener` calls it for each connection it accepts.
@@ -13,7 +18,16 @@ defmodule Dcmix.Network.SCP do
 
   require Logger
 
-  alias Dcmix.Network.{Association, DIMSE, Negotiation, PDU, SOPClassUID}
+  alias Dcmix.Network.{
+    Association,
+    DIMSE,
+    InstanceFile,
+    Negotiation,
+    PDU,
+    SOPClassUID,
+    StorageSOPClasses
+  }
+
   alias Dcmix.Parser.TransferSyntax
 
   require Dcmix.Network.DIMSE.CommandField, as: CommandField
@@ -35,6 +49,15 @@ defmodule Dcmix.Network.SCP do
   - `:max_pdu_length` - the largest PDU we accept (default: 16384)
   - `:timeout` - how long to wait for the requestor's next PDU, in ms,
     before aborting (default: 60000)
+  - `:handler` - `{module, arg}` implementing `Dcmix.Network.SCP.Handler`;
+    with it, the Storage SOP Classes are accepted as well as Verification
+  - `:storage_directory` - where instances are written (required with
+    `:handler`)
+  - `:storage_sop_classes` - Storage SOP Classes accepted (default:
+    `Dcmix.Network.StorageSOPClasses.uids/0`)
+  - `:storage_transfer_syntaxes` - transfer syntaxes accepted for them,
+    compressed ones included, taken as sent (default: every transfer syntax
+    in `Dcmix.Parser.TransferSyntax.all/0`)
 
   ## Returns
   - `:ok` when the requestor releases the association
@@ -50,9 +73,9 @@ defmodule Dcmix.Network.SCP do
       rq
       |> Negotiation.negotiate(
         ae_title: Keyword.fetch!(opts, :ae_title),
-        abstract_syntaxes: abstract_syntaxes()
+        abstract_syntaxes: abstract_syntaxes(opts)
       )
-      |> answer(socket, rq, max_pdu_length, timeout)
+      |> answer(socket, rq, max_pdu_length, timeout, opts)
     end
   end
 
@@ -73,15 +96,31 @@ defmodule Dcmix.Network.SCP do
     end
   end
 
-  # Abstract syntaxes we accept, each with its transfer syntaxes in our order
-  # of preference
-  defp abstract_syntaxes do
-    %{
+  # Abstract syntaxes we accept, each with the transfer syntaxes we accept for
+  # it. Verification is always accepted; the Storage SOP Classes only when
+  # there is a handler for what they store.
+  defp abstract_syntaxes(opts) do
+    verification = %{
       SOPClassUID.verification() => [
         TransferSyntax.explicit_vr_little_endian(),
         TransferSyntax.implicit_vr_little_endian()
       ]
     }
+
+    if Keyword.has_key?(opts, :handler),
+      do: Map.merge(storage_abstract_syntaxes(opts), verification),
+      else: verification
+  end
+
+  defp storage_abstract_syntaxes(opts) do
+    transfer_syntaxes =
+      Keyword.get_lazy(opts, :storage_transfer_syntaxes, fn ->
+        Enum.map(TransferSyntax.all(), & &1.uid)
+      end)
+
+    opts
+    |> Keyword.get(:storage_sop_classes, StorageSOPClasses.uids())
+    |> Map.new(&{&1, transfer_syntaxes})
   end
 
   # ===========================================================================
@@ -94,7 +133,7 @@ defmodule Dcmix.Network.SCP do
         {:ok, rq}
 
       {:ok, other} ->
-        abort(%Association{socket: socket})
+        Association.abort(%Association{socket: socket})
         {:error, {:unexpected_pdu, other}}
 
       {:error, reason} = error ->
@@ -103,10 +142,10 @@ defmodule Dcmix.Network.SCP do
     end
   end
 
-  defp answer({:reject, rejection}, socket, rq, _max_pdu_length, _timeout),
+  defp answer({:reject, rejection}, socket, rq, _max_pdu_length, _timeout, _opts),
     do: reject(socket, rq, rejection)
 
-  defp answer({:accept, contexts}, socket, rq, max_pdu_length, timeout) do
+  defp answer({:accept, contexts}, socket, rq, max_pdu_length, timeout, opts) do
     pdu = PDU.encode_associate_ac(rq, contexts, max_pdu_length: max_pdu_length)
 
     assoc = %Association{
@@ -117,7 +156,7 @@ defmodule Dcmix.Network.SCP do
     }
 
     case :gen_tcp.send(socket, pdu) do
-      :ok -> serve_dimse(assoc, timeout, [])
+      :ok -> serve_dimse(new_state(assoc, rq, timeout, opts))
       {:error, reason} -> {:error, {:send_failed, reason}}
     end
   end
@@ -137,78 +176,252 @@ defmodule Dcmix.Network.SCP do
   # DIMSE
   # ===========================================================================
 
-  # `fragments` collects the PDVs of a command that spans several of them
-  defp serve_dimse(assoc, timeout, fragments) do
-    case Association.receive_pdu(assoc, timeout) do
-      {:ok, {:p_data, pdvs}} ->
-        handle_pdvs(assoc, timeout, fragments, pdvs)
+  # `command` collects the PDVs of a command that spans several of them;
+  # `incoming` is the C-STORE whose data set is arriving
+  defp new_state(assoc, rq, timeout, opts) do
+    %{
+      assoc: assoc,
+      timeout: timeout,
+      calling_ae_title: rq.calling_ae_title,
+      storage_directory: Keyword.get(opts, :storage_directory),
+      handler: init_handler(Keyword.get(opts, :handler), assoc, rq),
+      command: [],
+      incoming: nil
+    }
+  end
 
-      {:ok, :release_rq} ->
-        _ = :gen_tcp.send(assoc.socket, PDU.encode_release_rp())
-        :gen_tcp.close(assoc.socket)
+  defp init_handler(nil, _assoc, _rq), do: nil
+
+  defp init_handler({module, arg}, assoc, rq) do
+    association = %{
+      calling_ae_title: rq.calling_ae_title,
+      called_ae_title: rq.called_ae_title,
+      peer: peer(assoc.socket)
+    }
+
+    Code.ensure_loaded(module)
+
+    if function_exported?(module, :init, 2) do
+      {:ok, handler_state} = module.init(association, arg)
+      {module, handler_state}
+    else
+      {module, arg}
+    end
+  end
+
+  defp peer(socket) do
+    case :inet.peername(socket) do
+      {:ok, peer} -> peer
+      {:error, _reason} -> nil
+    end
+  end
+
+  defp serve_dimse(state) do
+    case Association.receive_pdu(state.assoc, state.timeout) do
+      {:ok, {:p_data, pdvs}} ->
+        handle_pdvs(state, pdvs)
+
+      {:ok, :release_rq} when state.incoming == nil ->
+        _ = :gen_tcp.send(state.assoc.socket, PDU.encode_release_rp())
+        :gen_tcp.close(state.assoc.socket)
         :ok
 
       {:ok, {:abort, _}} ->
-        :gen_tcp.close(assoc.socket)
+        discard_incoming(state)
+        :gen_tcp.close(state.assoc.socket)
         {:error, :association_aborted}
 
       {:ok, other} ->
-        abort(assoc)
-        {:error, {:unexpected_pdu, other}}
+        abort(state, {:unexpected_pdu, other})
 
       {:error, reason} = error ->
-        close_after_error(assoc, reason)
+        discard_incoming(state)
+        close_after_error(state.assoc, reason)
         error
     end
   end
 
-  defp handle_pdvs(assoc, timeout, fragments, []), do: serve_dimse(assoc, timeout, fragments)
+  defp handle_pdvs(state, []), do: serve_dimse(state)
 
-  defp handle_pdvs(assoc, timeout, fragments, [pdv | rest]) do
-    cond do
-      not accepted_context?(assoc, pdv.context_id) ->
-        abort(assoc)
-        {:error, {:unknown_presentation_context, pdv.context_id}}
-
-      not pdv.is_command ->
-        abort(assoc)
-        {:error, :unexpected_data_set}
-
-      not pdv.is_last ->
-        handle_pdvs(assoc, timeout, [fragments, pdv.data], rest)
-
-      true ->
-        with {:ok, command} <- decode_command([fragments, pdv.data]),
-             :ok <- handle_command(assoc, pdv.context_id, command) do
-          handle_pdvs(assoc, timeout, [], rest)
-        else
-          {:error, _} = error ->
-            abort(assoc)
-            error
-        end
+  defp handle_pdvs(state, [pdv | rest]) do
+    case handle_pdv(state, pdv) do
+      {:ok, state} -> handle_pdvs(state, rest)
+      {:error, reason} -> abort(state, reason)
     end
   end
 
-  defp decode_command(fragments), do: DIMSE.decode_command(IO.iodata_to_binary(fragments))
+  defp handle_pdv(state, pdv) do
+    cond do
+      not accepted_context?(state.assoc, pdv.context_id) ->
+        {:error, {:unknown_presentation_context, pdv.context_id}}
 
-  defp handle_command(assoc, context_id, %{command_field: CommandField.c_echo_rq()} = command) do
-    rsp = DIMSE.build_cecho_rsp(command.message_id, Status.success())
-    Association.send_pdata(assoc, context_id, true, rsp)
+      pdv.is_command and state.incoming != nil ->
+        {:error, :unexpected_command}
+
+      pdv.is_command ->
+        handle_command_fragment(state, pdv)
+
+      state.incoming == nil ->
+        {:error, :unexpected_data_set}
+
+      pdv.context_id != state.incoming.context_id ->
+        {:error, {:unexpected_data_context, pdv.context_id}}
+
+      true ->
+        handle_data_fragment(state, pdv)
+    end
   end
 
-  defp handle_command(_assoc, _context_id, command),
+  defp handle_command_fragment(state, %{is_last: false} = pdv),
+    do: {:ok, %{state | command: [state.command, pdv.data]}}
+
+  defp handle_command_fragment(state, pdv) do
+    with {:ok, command} <- DIMSE.decode_command(IO.iodata_to_binary([state.command, pdv.data])) do
+      handle_command(%{state | command: []}, pdv.context_id, command)
+    end
+  end
+
+  defp handle_command(state, context_id, %{command_field: CommandField.c_echo_rq()} = command) do
+    rsp = DIMSE.build_cecho_rsp(command.message_id, Status.success())
+
+    with :ok <- Association.send_pdata(state.assoc, context_id, true, rsp),
+         do: {:ok, state}
+  end
+
+  defp handle_command(state, context_id, %{command_field: CommandField.c_store_rq()} = command) do
+    cond do
+      not storage_context?(state, context_id) ->
+        {:error, {:unsupported_command, command.command_field}}
+
+      DIMSE.dataset_present?(command.command_data_set_type) ->
+        {:ok, %{state | incoming: start_store(state, context_id, command)}}
+
+      true ->
+        # Nothing will follow, so answer now rather than wait for a data set
+        send_cstore_rsp(state, context_id, command, Status.cannot_understand())
+    end
+  end
+
+  defp handle_command(_state, _context_id, command),
     do: {:error, {:unsupported_command, command.command_field}}
+
+  # ===========================================================================
+  # C-STORE
+  # ===========================================================================
+
+  # An instance we can't store is still read to its end, then answered with
+  # the failure status
+  defp start_store(state, context_id, command) do
+    instance = %{
+      sop_class_uid: command.affected_sop_class_uid || "",
+      sop_instance_uid: command.affected_sop_instance_uid,
+      transfer_syntax: transfer_syntax(state.assoc, context_id)
+    }
+
+    store = %{context_id: context_id, command: command, instance: instance}
+    opts = [source_ae_title: state.calling_ae_title]
+
+    case InstanceFile.open(state.storage_directory, instance, opts) do
+      {:ok, file} -> Map.merge(store, %{file: file, status: nil})
+      {:error, status} -> Map.merge(store, %{file: nil, status: status})
+    end
+  end
+
+  defp handle_data_fragment(state, pdv) do
+    incoming = write_fragment(state.incoming, pdv.data)
+    state = %{state | incoming: incoming}
+
+    if pdv.is_last, do: complete_store(state), else: {:ok, state}
+  end
+
+  defp write_fragment(%{file: nil} = store, _data), do: store
+
+  defp write_fragment(store, data) do
+    case InstanceFile.write(store.file, data) do
+      :ok -> store
+      {:error, status} -> %{store | file: nil, status: status}
+    end
+  end
+
+  defp complete_store(%{incoming: store} = state) do
+    {status, state} = finish_store(%{state | incoming: nil}, store)
+    send_cstore_rsp(state, store.context_id, store.command, status)
+  end
+
+  defp finish_store(state, %{file: nil, status: status}), do: {status, state}
+
+  defp finish_store(state, store) do
+    case InstanceFile.close(store.file) do
+      {:ok, path} -> handle_store(state, store, path)
+      {:error, status} -> {status, state}
+    end
+  end
+
+  defp handle_store(%{handler: {module, handler_state}} = state, store, path) do
+    instance =
+      Map.merge(store.instance, %{
+        path: path,
+        calling_ae_title: state.calling_ae_title,
+        move_originator_ae_title: store.command.move_originator_ae_title,
+        move_originator_message_id: store.command.move_originator_message_id
+      })
+
+    {:reply, status, handler_state} = module.handle_store(instance, handler_state)
+    {status, %{state | handler: {module, handler_state}}}
+  end
+
+  defp send_cstore_rsp(state, context_id, command, status) do
+    rsp =
+      DIMSE.build_cstore_rsp(
+        command.affected_sop_class_uid || "",
+        command.affected_sop_instance_uid || "",
+        command.message_id || 0,
+        status
+      )
+
+    with :ok <- Association.send_pdata(state.assoc, context_id, true, rsp),
+         do: {:ok, state}
+  end
+
+  defp discard_incoming(%{incoming: %{file: %InstanceFile{} = file}}),
+    do: InstanceFile.discard(file)
+
+  defp discard_incoming(_state), do: :ok
+
+  # ===========================================================================
+  # Contexts
+  # ===========================================================================
 
   defp accepted_context?(assoc, context_id),
     do: Enum.any?(assoc.presentation_contexts, &(&1.id == context_id))
+
+  defp storage_context?(%{handler: nil}, _context_id), do: false
+
+  defp storage_context?(state, context_id) do
+    case find_context(state.assoc, context_id) do
+      %{abstract_syntax: abstract_syntax} -> abstract_syntax != SOPClassUID.verification()
+      nil -> false
+    end
+  end
+
+  defp transfer_syntax(assoc, context_id), do: find_context(assoc, context_id).transfer_syntax
+
+  defp find_context(assoc, context_id),
+    do: Enum.find(assoc.presentation_contexts, &(&1.id == context_id))
 
   # ===========================================================================
   # Closing
   # ===========================================================================
 
-  defp close_after_error(assoc, reason) when reason in @desync_errors, do: abort(assoc)
-  defp close_after_error(assoc, {:recv_failed, :timeout}), do: abort(assoc)
-  defp close_after_error(assoc, _reason), do: :gen_tcp.close(assoc.socket)
+  defp abort(state, reason) do
+    discard_incoming(state)
+    Association.abort(state.assoc)
+    {:error, reason}
+  end
 
-  defp abort(assoc), do: Association.abort(assoc)
+  defp close_after_error(assoc, reason) when reason in @desync_errors,
+    do: Association.abort(assoc)
+
+  defp close_after_error(assoc, {:recv_failed, :timeout}), do: Association.abort(assoc)
+  defp close_after_error(assoc, _reason), do: :gen_tcp.close(assoc.socket)
 end
