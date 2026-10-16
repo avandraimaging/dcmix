@@ -111,7 +111,7 @@ answers C-ECHO. Given a handler (`Dcmix.Network.SCP.Handler`), it is also a
 Storage SCP: each instance sent with C-STORE is written to a file in the
 storage directory as it arrives, then handed to the handler, whose status is
 sent back. Start it in your own supervision tree; it needs the optional
-`:thousand_island` dependency, so add `{:thousand_island, "~> 1.5"}` to your
+`:thousand_island` dependency, so add `{:thousand_island, "~> 1.6"}` to your
 deps.
 
 ```elixir

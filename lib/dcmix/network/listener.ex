@@ -22,7 +22,7 @@ if Code.ensure_loaded?(ThousandIsland) do
     Requires the optional `:thousand_island` dependency, which accepts and
     supervises the connections. Add it to your own deps:
 
-        {:thousand_island, "~> 1.5"}
+        {:thousand_island, "~> 1.6"}
 
     ## Options
     - `:port` - TCP port to listen on; 0 picks a free one, which `port/1`
@@ -173,11 +173,11 @@ else
     This needs the optional `:thousand_island` dependency. Add it to your
     deps to use the listener:
 
-        {:thousand_island, "~> 1.5"}
+        {:thousand_island, "~> 1.6"}
     """
 
     @message "Dcmix.Network.Listener needs the :thousand_island dependency; " <>
-               "add {:thousand_island, \"~> 1.5\"} to your deps"
+               "add {:thousand_island, \"~> 1.6\"} to your deps"
 
     @doc false
     def child_spec(_opts), do: raise(@message)

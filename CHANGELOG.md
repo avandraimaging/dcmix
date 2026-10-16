@@ -27,6 +27,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `Dcmix.Network.Negotiation` accepts each presentation context with the
   requestor's most preferred transfer syntax among those supported, rather
   than ours.
+- The optional `thousand_island` dependency, needed to run a listener, is
+  now `~> 1.6`.
 
 ## [0.3.0] - 2026-10-16
 
