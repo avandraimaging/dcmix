@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Mix tasks matching dcmtk's network SCU tools: `mix dcmix.echoscu`,
+  `mix dcmix.findscu`, `mix dcmix.getscu` and `mix dcmix.movescu`. They take
+  dcmtk's long option names, translate its short flags (`-aet`, `-aec`,
+  `-aem`, `-k`, `-od`, `-to`, `-td`, ...), and read `-k` keys as
+  `Keyword=value` or `(gggg,eeee)=value`, so a dcmtk command line runs with
+  the tool name swapped.
+
 ## [0.4.0] - 2026-10-19
 
 ### Added
