@@ -24,4 +24,10 @@ defmodule Dcmix.Network.DIMSE.Status do
 
   @doc "Error: Cannot understand."
   defmacro cannot_understand, do: 0xC000
+
+  @doc "C-MOVE refused: Move Destination unknown (PS3.4 C.4.2.1.5)."
+  defmacro move_destination_unknown, do: 0xA801
+
+  @doc "Warning: sub-operations complete, one or more failures or warnings (PS3.4 C.4.2.1.5)."
+  defmacro sub_operations_complete_with_failures, do: 0xB000
 end

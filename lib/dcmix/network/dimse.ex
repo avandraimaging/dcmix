@@ -7,8 +7,8 @@ defmodule Dcmix.Network.DIMSE do
   Implicit VR Little Endian per the DICOM standard.
 
   Currently supports:
-  - C-ECHO-RQ, C-ECHO-RSP, C-FIND-RQ, C-GET-RQ, C-CANCEL-RQ, C-STORE-RQ and C-STORE-RSP
-    command building
+  - C-ECHO-RQ, C-ECHO-RSP, C-FIND-RQ, C-GET-RQ, C-MOVE-RQ, C-CANCEL-RQ, C-STORE-RQ and
+    C-STORE-RSP command building
   - Response status parsing and general command decoding
   """
 
@@ -23,6 +23,7 @@ defmodule Dcmix.Network.DIMSE do
   @command_field {0x0000, 0x0100}
   @message_id {0x0000, 0x0110}
   @message_id_being_responded_to {0x0000, 0x0120}
+  @move_destination {0x0000, 0x0600}
   @priority {0x0000, 0x0700}
   @command_data_set_type {0x0000, 0x0800}
   @status {0x0000, 0x0900}
@@ -139,6 +140,28 @@ defmodule Dcmix.Network.DIMSE do
       encode_ui_element(@affected_sop_class_uid, sop_class_uid),
       encode_us_element(@command_field, CommandField.c_get_rq()),
       encode_us_element(@message_id, message_id),
+      encode_us_element(@priority, priority),
+      encode_us_element(@command_data_set_type, @dataset_present)
+    ])
+  end
+
+  @doc """
+  Builds a C-MOVE-RQ command (Implicit VR Little Endian), asking the SCP to
+  send the matching instances to the AE titled `move_destination`.
+
+  ## Parameters
+  - `sop_class_uid` - The Q/R MOVE SOP Class (Patient or Study Root)
+  - `message_id` - Message ID
+  - `move_destination` - AE title of the Storage SCP to send to
+  - `priority` - `0x0000` medium (default), `0x0001` high, `0x0002` low
+  """
+  @spec build_cmove_rq(String.t(), non_neg_integer(), String.t(), non_neg_integer()) :: binary()
+  def build_cmove_rq(sop_class_uid, message_id, move_destination, priority \\ @priority_medium) do
+    with_group_length([
+      encode_ui_element(@affected_sop_class_uid, sop_class_uid),
+      encode_us_element(@command_field, CommandField.c_move_rq()),
+      encode_us_element(@message_id, message_id),
+      encode_ae_element(@move_destination, move_destination),
       encode_us_element(@priority, priority),
       encode_us_element(@command_data_set_type, @dataset_present)
     ])

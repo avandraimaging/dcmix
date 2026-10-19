@@ -9,6 +9,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- DICOM networking with C-MOVE SCU support: `Dcmix.Network.move/3`
+  (delegating to `Dcmix.Network.CMove.move/3`) asks the SCP to send the
+  instances matching an identifier, at any Query/Retrieve Level, to
+  `:destination_ae_title`, and returns a `Dcmix.Network.CMove.Result` with
+  the final status, sub-operation counts and Failed SOP Instance UID List.
+  Each C-MOVE-RSP is given to the `:on_response` callback, which can cancel
+  the move. `:message_id`, `:priority` and both query models are supported.
+- `Dcmix.Network.DataSetCodec` encodes and decodes a DIMSE message's data set
+  in its context's transfer syntax; C-FIND and C-GET now use it.
+- `Dcmix.Network.DIMSE.build_cmove_rq/4`; the C-MOVE command fields, the
+  Q/R MOVE SOP Class UIDs, and the Move Destination Unknown and
+  sub-operations-complete-with-failures statuses as constants.
+
 - `Dcmix.Network.InstanceFile` writes an instance received over the network
   to a Part 10 file as it arrives, as C-GET's bit-preserving storage did; C-GET
   now uses it.
@@ -29,6 +42,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   than ours.
 - The optional `thousand_island` dependency, needed to run a listener, is
   now `~> 1.6`.
+- CI tests against Elixir 1.20 / OTP 29, and dcmix compiles there without
+  warnings; Elixir `~> 1.18` is still supported.
 
 ## [0.3.0] - 2026-10-16
 

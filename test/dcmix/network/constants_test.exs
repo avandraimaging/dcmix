@@ -15,8 +15,10 @@ defmodule Dcmix.Network.ConstantsTest do
 
   test "SOP Class UIDs match PS3.4" do
     assert SOPClassUID.verification() == "1.2.840.10008.1.1"
+    assert SOPClassUID.patient_root_query_retrieve_move() == "1.2.840.10008.5.1.4.1.2.1.2"
     assert SOPClassUID.patient_root_query_retrieve_get() == "1.2.840.10008.5.1.4.1.2.1.3"
     assert SOPClassUID.study_root_query_retrieve_find() == "1.2.840.10008.5.1.4.1.2.2.1"
+    assert SOPClassUID.study_root_query_retrieve_move() == "1.2.840.10008.5.1.4.1.2.2.2"
     assert SOPClassUID.study_root_query_retrieve_get() == "1.2.840.10008.5.1.4.1.2.2.3"
   end
 
@@ -27,6 +29,8 @@ defmodule Dcmix.Network.ConstantsTest do
     assert CommandField.c_get_rsp() == 0x8010
     assert CommandField.c_find_rq() == 0x0020
     assert CommandField.c_find_rsp() == 0x8020
+    assert CommandField.c_move_rq() == 0x0021
+    assert CommandField.c_move_rsp() == 0x8021
     assert CommandField.c_echo_rq() == 0x0030
     assert CommandField.c_echo_rsp() == 0x8030
     assert CommandField.c_cancel_rq() == 0x0FFF
@@ -40,6 +44,8 @@ defmodule Dcmix.Network.ConstantsTest do
     assert Status.sop_class_not_supported() == 0x0122
     assert Status.out_of_resources() == 0xA700
     assert Status.cannot_understand() == 0xC000
+    assert Status.move_destination_unknown() == 0xA801
+    assert Status.sub_operations_complete_with_failures() == 0xB000
   end
 
   test "PDU types match PS3.8 9.3" do
