@@ -528,7 +528,41 @@ defmodule Dcmix.Network.CMoveTest do
     end
 
     test "requires a destination" do
-      assert_raise KeyError, fn -> CMove.move("localhost:1", instance_identifier()) end
+      assert CMove.move("localhost:1", instance_identifier()) ==
+               {:error, {:missing_option, :destination_ae_title}}
+    end
+
+    test "refuses a destination that isn't a valid AE title, before connecting" do
+      for title <- ["", "   ", String.duplicate("A", 17), "BAD\\AE", "TAB\tAE", :atom] do
+        assert CMove.move("localhost:1", instance_identifier(), destination_ae_title: title) ==
+                 {:error, {:invalid_destination_ae_title, title}},
+               "expected #{inspect(title)} to be refused"
+      end
+    end
+
+    test "accepts a 16-character destination, and pads or spaces don't count against it" do
+      {addr, scp} = start_scp(&answer_success/1)
+
+      assert {:ok, _result} =
+               CMove.move(addr, instance_identifier(), destination_ae_title: " SIXTEEN_CHARS_AE ")
+
+      wait_for(scp)
+    end
+
+    test "refuses a message ID or priority that doesn't fit the command" do
+      for message_id <- [-1, 65_536, 1.5] do
+        assert CMove.move("localhost:1", instance_identifier(),
+                 destination_ae_title: "MY_SCP",
+                 message_id: message_id
+               ) == {:error, {:invalid_message_id, message_id}}
+      end
+
+      for priority <- [3, -1, :high] do
+        assert CMove.move("localhost:1", instance_identifier(),
+                 destination_ae_title: "MY_SCP",
+                 priority: priority
+               ) == {:error, {:invalid_priority, priority}}
+      end
     end
   end
 

@@ -108,14 +108,16 @@ defmodule Dcmix.Network.CMove do
     the unique keys of what to move
   - `opts` - Options:
     - `:destination_ae_title` - AE title of the Storage SCP the instances
-      are sent to; the SCP must know it (required)
+      are sent to; the SCP must know it (required: 1 to 16 characters, no
+      backslash; surrounding spaces are dropped)
     - `:calling_ae_title` - Calling AE Title (default: `"DCMIX"`)
     - `:called_ae_title` - Called AE Title (default: `"ANY-SCP"`)
     - `:query_model` - `:study_root` (default) or `:patient_root`. Under
       Patient Root, moving a study, series or instance also needs the
       Patient ID in the identifier.
-    - `:message_id` - Message ID of the C-MOVE-RQ (default: 1). The SCP
-      sends it back as the Move Originator Message ID of each C-STORE.
+    - `:message_id` - Message ID of the C-MOVE-RQ, 0 to 65535 (default: 1).
+      The SCP sends it back as the Move Originator Message ID of each
+      C-STORE.
     - `:priority` - `0x0000` medium (default), `0x0001` high, `0x0002` low
     - `:on_response` - a function called with each
       `Dcmix.Network.CMove.Response`, returning `:cont` or `:cancel`
@@ -131,7 +133,11 @@ defmodule Dcmix.Network.CMove do
   - `{:error, {:timeout, %Dcmix.Network.CMove.Result{}}}` when a read timed
     out once the request was sent and the SCP then cancelled, didn't answer
     the cancel, or stalled partway through a PDU (see the module docs)
-  - `{:error, reason}` on connection, association or protocol failure
+  - `{:error, reason}` on connection, association or protocol failure, and
+    before connecting for a missing or invalid option, e.g.
+    `{:missing_option, :destination_ae_title}`,
+    `{:invalid_destination_ae_title, title}`, `{:invalid_message_id, id}`,
+    `{:invalid_priority, priority}` or `{:invalid_query_model, model}`
 
   ## Examples
 
@@ -154,19 +160,8 @@ defmodule Dcmix.Network.CMove do
   """
   @spec move(String.t(), DataSet.t(), keyword()) :: {:ok, Result.t()} | {:error, term()}
   def move(addr, %DataSet{} = identifier, opts \\ []) do
-    config = %{
-      destination: Keyword.fetch!(opts, :destination_ae_title),
-      calling_ae: Keyword.get(opts, :calling_ae_title, "DCMIX"),
-      called_ae: Keyword.get(opts, :called_ae_title, "ANY-SCP"),
-      message_id: Keyword.get(opts, :message_id, 1),
-      priority: Keyword.get(opts, :priority, 0x0000),
-      on_response: Keyword.get(opts, :on_response),
-      timeout: Keyword.get(opts, :timeout, 30_000),
-      max_pdu_length: Keyword.get(opts, :max_pdu_length, 16_384),
-      verbose: Keyword.get(opts, :verbose, false)
-    }
-
-    with {:ok, move_uid} <- query_model_uid(Keyword.get(opts, :query_model, :study_root)),
+    with {:ok, config} <- config(opts),
+         {:ok, move_uid} <- query_model_uid(Keyword.get(opts, :query_model, :study_root)),
          {:ok, assoc} <- Association.request(addr, association_opts(move_uid, config)) do
       log_verbose(config, "Association established")
       run_cmove(assoc, move_uid, identifier, config)
@@ -176,6 +171,56 @@ defmodule Dcmix.Network.CMove do
   # ===========================================================================
   # Setup
   # ===========================================================================
+
+  # Checked before connecting, so a bad option is reported plainly rather than
+  # as whatever the SCP makes of it
+  defp config(opts) do
+    message_id = Keyword.get(opts, :message_id, 1)
+    priority = Keyword.get(opts, :priority, 0x0000)
+
+    with {:ok, destination} <- destination(opts),
+         :ok <- check(message_id in 0..0xFFFF//1, {:invalid_message_id, message_id}),
+         :ok <- check(priority in 0..2//1, {:invalid_priority, priority}) do
+      {:ok,
+       %{
+         destination: destination,
+         calling_ae: Keyword.get(opts, :calling_ae_title, "DCMIX"),
+         called_ae: Keyword.get(opts, :called_ae_title, "ANY-SCP"),
+         message_id: message_id,
+         priority: priority,
+         on_response: Keyword.get(opts, :on_response),
+         timeout: Keyword.get(opts, :timeout, 30_000),
+         max_pdu_length: Keyword.get(opts, :max_pdu_length, 16_384),
+         verbose: Keyword.get(opts, :verbose, false)
+       }}
+    end
+  end
+
+  # An AE title is 1 to 16 characters of printable ASCII other than "\\";
+  # surrounding spaces aren't significant, so they are dropped (PS3.5 6.2)
+  defp destination(opts) do
+    case Keyword.fetch(opts, :destination_ae_title) do
+      {:ok, title} when is_binary(title) ->
+        trimmed = String.trim(title, " ")
+        valid = trimmed != "" and byte_size(trimmed) <= 16 and ae_title_chars?(trimmed)
+        if valid, do: {:ok, trimmed}, else: {:error, {:invalid_destination_ae_title, title}}
+
+      {:ok, title} ->
+        {:error, {:invalid_destination_ae_title, title}}
+
+      :error ->
+        {:error, {:missing_option, :destination_ae_title}}
+    end
+  end
+
+  defp ae_title_chars?(title),
+    do: title |> :binary.bin_to_list() |> Enum.all?(&ae_title_char?/1)
+
+  defp ae_title_char?(?\\), do: false
+  defp ae_title_char?(c), do: c in 0x20..0x7E
+
+  defp check(true, _error), do: :ok
+  defp check(false, error), do: {:error, error}
 
   defp query_model_uid(:patient_root), do: {:ok, SOPClassUID.patient_root_query_retrieve_move()}
   defp query_model_uid(:study_root), do: {:ok, SOPClassUID.study_root_query_retrieve_move()}
