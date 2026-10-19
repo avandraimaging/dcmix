@@ -112,13 +112,22 @@ defmodule Dcmix.Network.CMoveIntegrationTest do
       |> DataSet.put_element({0x0020, 0x000D}, :UI, "")
       |> DataSet.put_element({0x0020, 0x1208}, :IS, "")
 
-    assert {:ok, [_ | _] = studies} = Network.query(addr, find, opts)
+    assert {:ok, studies} = Network.query(addr, find, opts)
+    with_instances = Enum.filter(studies, &((instance_count(&1) || 0) > 0))
+    assert with_instances != [], "Orthanc has no study with instances"
 
-    studies
-    |> Enum.min_by(fn ds ->
-      ds |> DataSet.get_string({0x0020, 0x1208}) |> to_string() |> Integer.parse() |> elem(0)
-    end)
+    with_instances
+    |> Enum.min_by(&instance_count/1)
     |> DataSet.get_string({0x0020, 0x000D})
+  end
+
+  # Number of Study Related Instances, or nil when the SCP left it out or it
+  # isn't a number
+  defp instance_count(study) do
+    case Integer.parse(to_string(DataSet.get_string(study, {0x0020, 0x1208}))) do
+      {count, _rest} -> count
+      :error -> nil
+    end
   end
 
   @uid_tags [

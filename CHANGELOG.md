@@ -23,7 +23,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `Dcmix.Network.DIMSE.build_cmove_rq/4`; the C-MOVE command fields, the
   Q/R MOVE SOP Class UIDs, and the Move Destination Unknown and
   sub-operations-complete-with-failures statuses as constants.
-
 - `Dcmix.Network.InstanceFile` writes an instance received over the network
   to a Part 10 file as it arrives, as C-GET's bit-preserving storage did; C-GET
   now uses it.
@@ -44,13 +43,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   than ours.
 - The optional `thousand_island` dependency, needed to run a listener, is
   now `~> 1.6`.
-- `Dcmix.Network.get/3` defaults to the Study Root query model, as
-  `Dcmix.Network.move/3` does, instead of Patient Root. Study Root needs only
-  the Study, Series and SOP Instance UIDs to retrieve below the patient
+- **Breaking:** `Dcmix.Network.get/3` defaults to the Study Root query model,
+  as `Dcmix.Network.move/3` does, instead of Patient Root. Study Root needs
+  only the Study, Series and SOP Instance UIDs to retrieve below the patient
   level, matches C-FIND's Study Root queries, and is the model PACS most
   commonly support. Pass `query_model: :patient_root` for the old behaviour.
+- After a C-GET's timeout sends a C-CANCEL, only a final Cancel status is
+  returned as `{:error, {:timeout, result}}`. Any other final status is
+  returned as `{:ok, result}`: a slow SCP may have completed the retrieve,
+  and reporting it as a timeout invited retrieving it all again.
 - CI tests against Elixir 1.20 / OTP 29, and dcmix compiles there without
   warnings; Elixir `~> 1.18` is still supported.
+
+### Fixed
+
+- A C-GET-RSP without a Status is a protocol error
+  (`{:error, {:unexpected_response, command}}`), rather than a final
+  response with status `nil`.
+- A C-GET whose request fails partway through sending aborts the
+  association instead of releasing it, since the stream is left
+  mid-message.
 
 ## [0.3.0] - 2026-10-16
 
