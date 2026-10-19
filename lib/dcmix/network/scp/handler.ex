@@ -13,9 +13,9 @@ defmodule Dcmix.Network.SCP.Handler do
 
   dcmix writes each instance to a Part 10 file in the storage directory as it
   arrives (see `Dcmix.Network.InstanceFile`), then calls `c:handle_store/2`
-  with the file's path. The file is the handler's from then on: move it,
-  queue it for processing or delete it. The status the handler returns is
-  sent to the requestor in the C-STORE-RSP.
+  with the file's path and the instance's UIDs. The file is the handler's
+  from then on: move it, queue it for processing or delete it. The status the
+  handler returns is sent to the requestor in the C-STORE-RSP.
 
   When dcmix can't store an instance (the disk is full, or its SOP Instance
   UID can't name a file), it answers Out of Resources or Cannot Understand
@@ -64,14 +64,24 @@ defmodule Dcmix.Network.SCP.Handler do
         }
 
   @typedoc """
-  An instance stored to `path`. The Move Originator fields are set when it
-  was sent as a sub-operation of a C-MOVE, naming the AE that asked for the
-  move and the message ID of its C-MOVE-RQ.
+  An instance stored to `path`.
+
+  The SOP Class and Instance UIDs come from the C-STORE-RQ. The Study and
+  Series Instance UIDs are read back from the stored file's header, so a
+  handler can match the instance to whatever was asked for, at any level, by
+  its UIDs; they are `nil` when the header can't be read or lacks them.
+
+  The Move Originator fields are set when the instance was sent as a
+  sub-operation of a C-MOVE, naming the AE that asked for the move and the
+  message ID of its C-MOVE-RQ. Older SCPs don't always set them, so the UIDs
+  are the dependable way to match an instance to its move.
   """
   @type instance :: %{
           path: Path.t(),
           sop_class_uid: String.t(),
           sop_instance_uid: String.t(),
+          study_instance_uid: String.t() | nil,
+          series_instance_uid: String.t() | nil,
           transfer_syntax: String.t(),
           calling_ae_title: String.t(),
           move_originator_ae_title: String.t() | nil,
