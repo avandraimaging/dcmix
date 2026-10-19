@@ -25,6 +25,7 @@ Dcmix aims to bring comprehensive DICOM support to Elixir, inspired by [dcmtk](h
 | **DICOM Networking (C-ECHO SCU)** | Verify a connection to a remote DICOM node via C-ECHO | Complete |
 | **DICOM Networking (C-FIND SCU)** | Query remote PACS servers via C-FIND | Complete |
 | **DICOM Networking (C-GET SCU)** | Retrieve instances from remote PACS servers via C-GET | Complete |
+| **DICOM Networking (C-MOVE SCU)** | Have remote PACS servers send instances to a Storage SCP via C-MOVE, with each response given to a callback that can cancel | Complete |
 | **DICOM Networking (C-ECHO SCP)** | Accept associations on a port and answer C-ECHO (`Dcmix.Network.Listener`) | Complete |
 | **DICOM Networking (Storage SCP)** | Receive instances sent with C-STORE, to files, handed to a caller's handler (`Dcmix.Network.SCP.Handler`) | Complete |
 
@@ -34,15 +35,15 @@ Dcmix aims to bring comprehensive DICOM support to Elixir, inspired by [dcmtk](h
 |---------|-------------|----------|
 | **Pixel Data Decompression** | Decode JPEG, JPEG2000, RLE compressed images | High |
 | **Transfer Syntax Conversion** | Transcode between transfer syntaxes | High |
-| **DICOM Networking (DIMSE)** | C-STORE SCU, C-MOVE (C-ECHO SCU and SCP, C-FIND, C-GET and the Storage SCP complete) | High |
+| **DICOM Networking (DIMSE)** | C-STORE SCU (C-ECHO SCU and SCP, C-FIND, C-GET, C-MOVE and the Storage SCP complete) | High |
 | **Storage SCU** | Send DICOM files over the network (the Storage SCP is complete) | High |
-| **Query/Retrieve** | C-MOVE retrieval from PACS (C-FIND and C-GET complete) | Medium |
 | **Compressed transfer syntaxes over the network** | Accept JPEG / JPEG 2000 / RLE storage contexts in C-GET (pairs with Pixel Data Decompression) | Medium |
 | **DICOMDIR** | Create/read media directory files | Medium |
 | **Anonymization** | De-identify patient data | Medium |
 | **C-GET options parity** | Configurable GET-context transfer syntaxes; patient/study-only query model (getscu `-O`) | Low |
 | **Network timeouts and TLS** | Separate association and DIMSE timeouts; DICOM TLS | Low |
 | **Listener access control** | Accept only known calling AE titles; optionally accept any called AE title | Low |
+| **C-MOVE responses as a stream** | `move_stream/3` returning a Stream of C-MOVE-RSPs, an alternative to the `:on_response` callback | Low |
 | **Streaming Storage SCP handler** | Optional handler callbacks that receive each data set fragment, for callers that want to stream instances somewhere other than a file | Low |
 | **CLI tools for networking** | `mix dcmix.find` / `mix dcmix.get` (findscu / getscu equivalents) | Low |
 | **Validation** | IOD conformance checking | Low |

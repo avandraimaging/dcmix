@@ -4,7 +4,8 @@ defmodule Dcmix.Network do
 
   Provides Service Class User (SCU) functionality for DICOM network operations.
   Currently supports C-ECHO for verifying a connection, C-FIND for querying
-  remote DICOM servers and C-GET for retrieving instances from them.
+  remote DICOM servers, C-GET for retrieving instances from them, and C-MOVE
+  for having them send instances to a Storage SCP.
 
   To accept associations as an SCP, answering C-ECHO and storing instances
   sent with C-STORE, see `Dcmix.Network.Listener`.
@@ -40,13 +41,25 @@ defmodule Dcmix.Network do
       {:ok, %Dcmix.Network.CGet.Result{files: files}} =
         Dcmix.Network.get("localhost:4242", identifier,
           called_ae_title: "PACS_AE",
-          query_model: :study_root,
           output_directory: "retrieved"
+        )
+
+  ## C-MOVE example
+
+      identifier =
+        Dcmix.DataSet.new()
+        |> Dcmix.DataSet.put_element({0x0008, 0x0052}, :CS, "STUDY")
+        |> Dcmix.DataSet.put_element({0x0020, 0x000D}, :UI, "1.2.3.4")
+
+      {:ok, %Dcmix.Network.CMove.Result{completed: completed}} =
+        Dcmix.Network.move("localhost:4242", identifier,
+          called_ae_title: "PACS_AE",
+          destination_ae_title: "MY_SCP"
         )
   """
 
   alias Dcmix.DataSet
-  alias Dcmix.Network.{CEcho, CFind, CGet}
+  alias Dcmix.Network.{CEcho, CFind, CGet, CMove}
 
   @doc """
   Sends a C-ECHO to a DICOM node, verifying it accepts an association and
@@ -75,4 +88,14 @@ defmodule Dcmix.Network do
   @spec get(String.t(), DataSet.t(), keyword()) ::
           {:ok, CGet.Result.t()} | {:error, term()}
   defdelegate get(addr, query_dataset, opts \\ []), to: CGet
+
+  @doc """
+  Performs a C-MOVE against a DICOM server, which sends the matching
+  instances to the Storage SCP titled `:destination_ae_title`.
+
+  See `Dcmix.Network.CMove.move/3` for full documentation.
+  """
+  @spec move(String.t(), DataSet.t(), keyword()) ::
+          {:ok, CMove.Result.t()} | {:error, term()}
+  defdelegate move(addr, identifier, opts \\ []), to: CMove
 end

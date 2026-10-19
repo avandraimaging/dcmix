@@ -40,12 +40,11 @@ defmodule Dcmix.Network.CGetIntegrationTest do
       |> DataSet.put_element({0x0020, 0x000D}, :UI, "")
       |> DataSet.put_element({0x0020, 0x1208}, :IS, "")
 
-    assert {:ok, [_ | _] = studies} = Network.query(addr, find, opts)
+    assert {:ok, studies} = Network.query(addr, find, opts)
+    with_instances = Enum.filter(studies, &((instance_count(&1) || 0) > 0))
+    assert with_instances != [], "Orthanc has no study with instances"
 
-    study =
-      Enum.min_by(studies, fn ds ->
-        ds |> DataSet.get_string({0x0020, 0x1208}) |> to_string() |> Integer.parse() |> elem(0)
-      end)
+    study = Enum.min_by(with_instances, &instance_count/1)
 
     study_uid = DataSet.get_string(study, {0x0020, 0x000D})
 
@@ -67,6 +66,15 @@ defmodule Dcmix.Network.CGetIntegrationTest do
     for path <- result.files do
       assert {:ok, ds} = Parser.parse_file(path)
       assert DataSet.get_string(ds, {0x0020, 0x000D}) == study_uid
+    end
+  end
+
+  # Number of Study Related Instances, or nil when the SCP left it out or it
+  # isn't a number
+  defp instance_count(study) do
+    case Integer.parse(to_string(DataSet.get_string(study, {0x0020, 0x1208}))) do
+      {count, _rest} -> count
+      :error -> nil
     end
   end
 end

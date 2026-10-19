@@ -12,6 +12,8 @@ defmodule Dcmix.Network.DIMSE.CommandField do
   defmacro c_get_rsp, do: 0x8010
   defmacro c_find_rq, do: 0x0020
   defmacro c_find_rsp, do: 0x8020
+  defmacro c_move_rq, do: 0x0021
+  defmacro c_move_rsp, do: 0x8021
   defmacro c_echo_rq, do: 0x0030
   defmacro c_echo_rsp, do: 0x8030
   defmacro c_cancel_rq, do: 0x0FFF

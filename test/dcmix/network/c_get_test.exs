@@ -85,7 +85,7 @@ defmodule Dcmix.Network.CGetTest do
 
       assert_received {:get_rq, 1, get_rq, identifier}
       assert get_rq.command_field == 0x0010
-      assert get_rq.affected_sop_class_uid == @patient_root_get
+      assert get_rq.affected_sop_class_uid == @study_root_get
       assert get_rq.message_id == 1
       assert {:ok, parsed_identifier, _} = Parser.ExplicitVR.parse(identifier)
       assert DataSet.get_string(parsed_identifier, {0x0020, 0x000D}) == "1.2.3"
@@ -112,7 +112,7 @@ defmodule Dcmix.Network.CGetTest do
       assert DataSet.get_string(stored_mr, {0x0008, 0x0018}) == mr_uid
 
       assert_received {:associate_rq, proposed}
-      assert hd(proposed.contexts).abstract_syntax == @patient_root_get
+      assert hd(proposed.contexts).abstract_syntax == @study_root_get
 
       assert Enum.sort(proposed.roles) == [
                {@ct_storage, 0, 1},
@@ -494,26 +494,34 @@ defmodule Dcmix.Network.CGetTest do
   end
 
   describe "get/3 - query model" do
-    test "uses the Study Root GET SOP class for :study_root", %{dir: dir} do
-      {port, pid} =
-        start_scp(fn socket, _ctx ->
-          {get_ctx, get_rq} = recv_command(socket)
-          _ = recv_dataset(socket)
-          send_parent({:get_rq, get_rq})
-          send_command(socket, get_ctx, cget_rsp(0x0000, completed: 0))
-          handle_release(socket)
-        end)
+    test "uses the Study Root GET SOP class by default", %{dir: dir} do
+      {port, pid} = start_scp(&answer_get/2)
 
       assert {:ok, %Result{status: 0}} =
                CGet.get("127.0.0.1:#{port}", study_identifier("1.2.3"),
                  output_directory: dir,
-                 query_model: :study_root,
                  storage_sop_classes: [@ct_storage]
                )
 
       assert_received {:associate_rq, proposed}
       assert hd(proposed.contexts).abstract_syntax == @study_root_get
       assert_received {:get_rq, %{affected_sop_class_uid: @study_root_get}}
+      wait_for_server(pid)
+    end
+
+    test "uses the Patient Root GET SOP class for :patient_root", %{dir: dir} do
+      {port, pid} = start_scp(&answer_get/2)
+
+      assert {:ok, %Result{status: 0}} =
+               CGet.get("127.0.0.1:#{port}", study_identifier("1.2.3"),
+                 output_directory: dir,
+                 query_model: :patient_root,
+                 storage_sop_classes: [@ct_storage]
+               )
+
+      assert_received {:associate_rq, proposed}
+      assert hd(proposed.contexts).abstract_syntax == @patient_root_get
+      assert_received {:get_rq, %{affected_sop_class_uid: @patient_root_get}}
       wait_for_server(pid)
     end
 
@@ -537,6 +545,28 @@ defmodule Dcmix.Network.CGetTest do
   end
 
   describe "get/3 - failures" do
+    test "a C-GET-RSP without a Status is a protocol error", %{dir: dir} do
+      {port, pid} =
+        start_scp(fn socket, _ctx ->
+          {get_ctx, _} = recv_command(socket)
+          _ = recv_dataset(socket)
+
+          no_status =
+            command([{0x0002, @study_root_get}, {0x0100, 0x8010}, {0x0120, 1}, {0x0800, 0x0101}])
+
+          send_command(socket, get_ctx, no_status)
+          send_parent({:closed, :gen_tcp.recv(socket, 0, 5_000)})
+        end)
+
+      assert {:error, {:unexpected_response, %{status: nil}}} =
+               CGet.get("127.0.0.1:#{port}", study_identifier("1.2.3"),
+                 output_directory: dir,
+                 storage_sop_classes: [@ct_storage]
+               )
+
+      wait_for_server(pid)
+    end
+
     test "returns association_aborted and removes the partial file", %{dir: dir} do
       {port, pid} =
         start_scp(fn socket, ctx ->
@@ -579,6 +609,29 @@ defmodule Dcmix.Network.CGetTest do
       assert_received {:cancel, {1, cancel}}
       assert cancel.command_field == 0x0FFF
       assert cancel.message_id_being_responded_to == 1
+      wait_for_server(pid)
+    end
+
+    test "returns a final status other than Cancel after a timeout's cancel as the outcome",
+         %{dir: dir} do
+      {port, pid} =
+        start_scp(fn socket, _ctx ->
+          {get_ctx, _} = recv_command(socket)
+          _ = recv_dataset(socket)
+
+          # The SCP was slow, not stuck: its sub-operations completed anyway
+          _cancel = recv_command(socket)
+          send_command(socket, get_ctx, cget_rsp(0x0000, completed: 1, failed: 0))
+          handle_release(socket)
+        end)
+
+      assert {:ok, %Result{status: 0x0000, completed: 1}} =
+               CGet.get("127.0.0.1:#{port}", study_identifier("1.2.3"),
+                 output_directory: dir,
+                 storage_sop_classes: [@ct_storage],
+                 timeout: 300
+               )
+
       wait_for_server(pid)
     end
 
@@ -1062,6 +1115,15 @@ defmodule Dcmix.Network.CGetTest do
   end
 
   defp send_parent(message), do: send(Process.get(:parent), message)
+
+  # Reports the C-GET-RQ and answers it with success and no sub-operations
+  defp answer_get(socket, _ctx) do
+    {get_ctx, get_rq} = recv_command(socket)
+    _ = recv_dataset(socket)
+    send_parent({:get_rq, get_rq})
+    send_command(socket, get_ctx, cget_rsp(0x0000, completed: 0))
+    handle_release(socket)
+  end
 
   defp wait_for_server(pid) do
     receive do

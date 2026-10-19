@@ -21,7 +21,7 @@ Dcmix (pronounced "DCM-icks") is a pure Elixir implementation for working with D
 - Export to JSON, XML, and image formats (PNG, PPM, PGM)
 - Import from JSON, XML, and image files
 - Human-readable dump output (dcmdump style)
-- DICOM networking: C-ECHO SCU (verify a connection), C-FIND SCU (query remote PACS servers) and C-GET SCU (retrieve from them), and a listener that accepts associations, answers C-ECHO and stores instances sent with C-STORE (SCP)
+- DICOM networking: C-ECHO SCU (verify a connection), C-FIND SCU (query remote PACS servers), C-GET SCU (retrieve from them) and C-MOVE SCU (have them send to a Storage SCP), and a listener that accepts associations, answers C-ECHO and stores instances sent with C-STORE (SCP)
 - Private tag support
 - Mix tasks for CLI usage
 
@@ -150,8 +150,31 @@ identifier =
   Dcmix.Network.get("localhost:4242", identifier,
     calling_ae_title: "MY_SCU",
     called_ae_title: "PACS_AE",
-    query_model: :study_root,
     output_directory: "retrieved"
+  )
+```
+
+### Moving Instances to a Storage SCP
+
+```elixir
+# C-MOVE: the server sends the instance to MY_SCP over its own association,
+# e.g. to a Dcmix.Network.Listener with a handler
+identifier =
+  Dcmix.DataSet.new()
+  |> Dcmix.DataSet.put_element({0x0008, 0x0052}, :CS, "IMAGE")
+  |> Dcmix.DataSet.put_element({0x0020, 0x000D}, :UI, "1.2.3")
+  |> Dcmix.DataSet.put_element({0x0020, 0x000E}, :UI, "1.2.3.4")
+  |> Dcmix.DataSet.put_element({0x0008, 0x0018}, :UI, "1.2.3.4.5")
+
+{:ok, %Dcmix.Network.CMove.Result{status: 0x0000, completed: 1}} =
+  Dcmix.Network.move("localhost:4242", identifier,
+    calling_ae_title: "MY_SCU",
+    called_ae_title: "PACS_AE",
+    destination_ae_title: "MY_SCP",
+    on_response: fn response ->
+      IO.puts("#{response.remaining || 0} remaining")
+      :cont
+    end
   )
 ```
 

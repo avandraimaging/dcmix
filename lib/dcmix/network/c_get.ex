@@ -28,18 +28,30 @@ defmodule Dcmix.Network.CGet do
   are still stored, as dcmtk does. If the SCP stalls partway through a PDU,
   the PDU boundary is lost, so no cancel is attempted.
 
-  Every timeout returns `{:error, {:timeout, result}}`, where `result` holds
-  the files completed so far and, if the SCP answered the cancel, its final
-  status. An instance still being received is discarded. The association is
-  released when the SCP answered the cancel and aborted otherwise.
+  A timeout returns `{:error, {:timeout, result}}`, where `result` holds the
+  files completed so far and, if the SCP answered the cancel, its final
+  status: when the SCP answers the cancel with Cancel status, or doesn't
+  answer by the deadline, or stalls partway through a PDU. Any other final
+  status is the SCP's answer and is returned as usual, since a slow SCP may
+  still have completed the retrieve. An instance still being received is
+  discarded. The association is released when the SCP answered the cancel
+  and aborted otherwise.
   """
 
   require Logger
 
   alias Dcmix.DataSet
-  alias Dcmix.Network.{Association, DIMSE, InstanceFile, SOPClassUID, StorageSOPClasses}
+
+  alias Dcmix.Network.{
+    Association,
+    DataSetCodec,
+    DIMSE,
+    InstanceFile,
+    SOPClassUID,
+    StorageSOPClasses
+  }
+
   alias Dcmix.Parser.TransferSyntax
-  alias Dcmix.Writer
 
   require Dcmix.Network.DIMSE.CommandField, as: CommandField
   require Dcmix.Network.DIMSE.Status, as: Status
@@ -82,7 +94,7 @@ defmodule Dcmix.Network.CGet do
     - `:called_ae_title` - Called AE Title (default: `"ANY-SCP"`)
     - `:timeout` - TCP timeout in ms (default: 30000)
     - `:verbose` - Enable verbose logging (default: `false`)
-    - `:query_model` - `:patient_root` (default) or `:study_root`
+    - `:query_model` - `:study_root` (default) or `:patient_root`
     - `:output_directory` - Where files are written (default: `"."`,
       created if missing)
     - `:storage_mode` - `:bit_preserving` (default) or `:ignore`
@@ -97,10 +109,11 @@ defmodule Dcmix.Network.CGet do
   ## Returns
 
   - `{:ok, %Dcmix.Network.CGet.Result{}}` when the SCP sent a final
-    C-GET-RSP, whatever its status (success, warning, failure or cancel)
-  - `{:error, {:timeout, %Dcmix.Network.CGet.Result{}}}` on any read
-    timeout once the request was sent, including after a cancel and partway
-    through a PDU (see the module docs)
+    C-GET-RSP, whatever its status (success, warning, failure or cancel),
+    other than a Cancel answering a cancel we sent on timeout
+  - `{:error, {:timeout, %Dcmix.Network.CGet.Result{}}}` when a read timed
+    out once the request was sent and the SCP then cancelled, didn't answer
+    the cancel, or stalled partway through a PDU (see the module docs)
   - `{:error, reason}` on connection, association or protocol failure; no
     Result is returned for these
 
@@ -114,7 +127,6 @@ defmodule Dcmix.Network.CGet do
       {:ok, result} =
         Dcmix.Network.CGet.get("localhost:4242", query,
           called_ae_title: "PACS_AE",
-          query_model: :study_root,
           output_directory: "retrieved"
         )
   """
@@ -138,7 +150,7 @@ defmodule Dcmix.Network.CGet do
       max_pdu_length: Keyword.get(opts, :max_pdu_length, 16_384)
     }
 
-    with {:ok, get_uid} <- query_model_uid(Keyword.get(opts, :query_model, :patient_root)),
+    with {:ok, get_uid} <- query_model_uid(Keyword.get(opts, :query_model, :study_root)),
          :ok <- check_storage_mode(config.storage_mode),
          :ok <- check_context_count(config.storage_sop_classes),
          :ok <- prepare_output_directory(config),
@@ -230,8 +242,13 @@ defmodule Dcmix.Network.CGet do
       |> receive_loop()
       |> finish()
     else
-      error ->
+      {:error, :no_accepted_presentation_context} = error ->
         Association.release(assoc)
+        error
+
+      # A send that failed partway leaves the stream mid-message
+      error ->
+        Association.abort(assoc)
         error
     end
   end
@@ -260,19 +277,21 @@ defmodule Dcmix.Network.CGet do
         assoc,
         pc.id,
         false,
-        encode_dataset(query_dataset, pc.transfer_syntax)
+        DataSetCodec.encode(query_dataset, pc.transfer_syntax)
       )
     end
   end
 
-  defp finish({:done, %{cancel_deadline: nil} = state}) do
-    Association.release(state.assoc)
-    {:ok, final_result(state)}
-  end
-
+  # After a cancel sent on timeout, only a Cancel status ends as a timeout.
+  # Any other final status is the SCP's answer: a slow SCP may have completed
+  # every sub-operation, and reporting that as a failure would invite the
+  # caller to retrieve it all again.
   defp finish({:done, state}) do
     Association.release(state.assoc)
-    {:error, {:timeout, final_result(state)}}
+
+    if state.cancel_deadline != nil and state.result.status == Status.cancel(),
+      do: {:error, {:timeout, final_result(state)}},
+      else: {:ok, final_result(state)}
   end
 
   defp finish({:timed_out, state}) do
@@ -379,6 +398,13 @@ defmodule Dcmix.Network.CGet do
     state = %{state | incoming: write_fragment(state.incoming, pdv.data)}
     if pdv.is_last, do: complete_incoming(state), else: {:cont, state}
   end
+
+  defp handle_command(
+         %{command_field: CommandField.c_get_rsp(), status: nil} = command,
+         _id,
+         state
+       ),
+       do: {:error, {:unexpected_response, command}, state}
 
   defp handle_command(%{command_field: CommandField.c_get_rsp()} = command, context_id, state) do
     final = not DIMSE.status_pending?(command.status)
@@ -516,16 +542,6 @@ defmodule Dcmix.Network.CGet do
   # ===========================================================================
   # Helpers
   # ===========================================================================
-
-  defp encode_dataset(dataset, transfer_syntax_uid) do
-    {:ok, ts} = TransferSyntax.lookup(transfer_syntax_uid)
-
-    if ts.explicit_vr do
-      Writer.ExplicitVR.encode(dataset, big_endian: ts.big_endian)
-    else
-      Writer.ImplicitVR.encode(dataset)
-    end
-  end
 
   defp hex(nil), do: "????"
   defp hex(value), do: value |> Integer.to_string(16) |> String.pad_leading(4, "0")
