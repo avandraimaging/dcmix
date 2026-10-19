@@ -27,8 +27,10 @@ defmodule Dcmix.Network.CMove do
   while we wait for its next response, a C-CANCEL-RQ is sent and the final
   C-MOVE-RSP awaited until a deadline of five seconds (or `:timeout`, if
   shorter) after the cancel. A cancel the callback asked for shares that
-  deadline. Every timeout returns `{:error, {:timeout, result}}`, with the
-  counts reported so far.
+  deadline. The move returns `{:error, {:timeout, result}}`, with the counts
+  reported so far, when the SCP answers that cancel with Cancel status or
+  doesn't answer by the deadline. Any other final status is the SCP's answer
+  and is returned as usual: a slow SCP may still have completed the move.
   """
 
   require Logger
@@ -38,6 +40,7 @@ defmodule Dcmix.Network.CMove do
   alias Dcmix.Parser.TransferSyntax
 
   require Dcmix.Network.DIMSE.CommandField, as: CommandField
+  require Dcmix.Network.DIMSE.Status, as: Status
 
   defmodule Response do
     @moduledoc """
@@ -123,9 +126,11 @@ defmodule Dcmix.Network.CMove do
   ## Returns
 
   - `{:ok, %Dcmix.Network.CMove.Result{}}` when the SCP sent a final
-    C-MOVE-RSP, whatever its status (success, warning, failure or cancel)
-  - `{:error, {:timeout, %Dcmix.Network.CMove.Result{}}}` on any read
-    timeout once the request was sent (see the module docs)
+    C-MOVE-RSP, whatever its status (success, warning, failure or cancel),
+    other than a Cancel answering a cancel we sent on timeout
+  - `{:error, {:timeout, %Dcmix.Network.CMove.Result{}}}` when a read timed
+    out once the request was sent and the SCP then cancelled, didn't answer
+    the cancel, or stalled partway through a PDU (see the module docs)
   - `{:error, reason}` on connection, association or protocol failure
 
   ## Examples
@@ -199,7 +204,7 @@ defmodule Dcmix.Network.CMove do
          :ok <- send_request(assoc, pc, move_uid, identifier, config) do
       log_verbose(config, "C-MOVE request sent to move to #{config.destination}")
 
-      %{
+      state = %{
         assoc: assoc,
         config: config,
         context: pc,
@@ -209,11 +214,23 @@ defmodule Dcmix.Network.CMove do
         data: [],
         result: %Result{}
       }
-      |> receive_loop()
-      |> finish()
+
+      try do
+        state |> receive_loop() |> finish()
+      rescue
+        # e.g. from the :on_response callback; the SCP must not carry on
+        exception ->
+          Association.abort(assoc)
+          reraise exception, __STACKTRACE__
+      end
     else
-      error ->
+      {:error, :no_accepted_presentation_context} = error ->
         Association.release(assoc)
+        error
+
+      # A send that failed partway leaves the stream mid-message
+      error ->
+        Association.abort(assoc)
         error
     end
   end
@@ -232,16 +249,12 @@ defmodule Dcmix.Network.CMove do
     end
   end
 
-  # A cancel we sent because the SCP went quiet ends as a timeout; one the
-  # callback asked for ends with the SCP's final response
-  defp finish({:done, %{cancel: {:timeout, _deadline}} = state}) do
-    Association.release(state.assoc)
-    {:error, {:timeout, state.result}}
-  end
-
   defp finish({:done, state}) do
     Association.release(state.assoc)
-    {:ok, state.result}
+
+    if cancelled_after_timeout?(state),
+      do: {:error, {:timeout, state.result}},
+      else: {:ok, state.result}
   end
 
   defp finish({:timed_out, state}) do
@@ -331,9 +344,14 @@ defmodule Dcmix.Network.CMove do
   end
 
   defp check_response(
-         %{command_field: CommandField.c_move_rsp(), message_id_being_responded_to: id},
+         %{
+           command_field: CommandField.c_move_rsp(),
+           message_id_being_responded_to: id,
+           status: status
+         },
          %{message_id: id}
-       ),
+       )
+       when is_integer(status),
        do: :ok
 
   defp check_response(command, _config), do: {:error, {:unexpected_response, command}}
@@ -409,6 +427,15 @@ defmodule Dcmix.Network.CMove do
         []
     end
   end
+
+  # A cancel we sent because the SCP went quiet ends as a timeout only if the
+  # SCP did cancel. Any other final status is its answer: a slow SCP may have
+  # finished every sub-operation, and reporting that as a failure would invite
+  # the caller to move it all again.
+  defp cancelled_after_timeout?(%{cancel: {:timeout, _deadline}, result: result}),
+    do: result.status == Status.cancel()
+
+  defp cancelled_after_timeout?(_state), do: false
 
   # A read timeout before any cancel sends one; after a cancel, reads are
   # bounded by its deadline, so a timeout then means it has passed

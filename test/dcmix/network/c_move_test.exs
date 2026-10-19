@@ -247,7 +247,7 @@ defmodule Dcmix.Network.CMoveTest do
         start_scp(fn assoc ->
           {pc_id, command, _identifier} = receive_request(assoc)
           send_rsp(assoc, pc_id, command.message_id, Status.pending(), remaining: 1)
-          Process.sleep(1_000)
+          report({:after_raise, Association.receive_pdu(assoc, 5_000)})
         end)
 
       assert_raise ArgumentError, ~r/must return :cont or :cancel/, fn ->
@@ -256,6 +256,27 @@ defmodule Dcmix.Network.CMoveTest do
           on_response: fn _response -> :ok end
         )
       end
+
+      # The association is aborted rather than left open
+      assert_receive {:after_raise, {:ok, {:abort, _}}}
+    end
+
+    test "aborts the association when :on_response raises, and re-raises" do
+      {addr, _scp} =
+        start_scp(fn assoc ->
+          {pc_id, command, _identifier} = receive_request(assoc)
+          send_rsp(assoc, pc_id, command.message_id, Status.pending(), remaining: 1)
+          report({:after_raise, Association.receive_pdu(assoc, 5_000)})
+        end)
+
+      assert_raise RuntimeError, "callback failed", fn ->
+        CMove.move(addr, instance_identifier(),
+          destination_ae_title: "MY_SCP",
+          on_response: fn _response -> raise "callback failed" end
+        )
+      end
+
+      assert_receive {:after_raise, {:ok, {:abort, _}}}
     end
   end
 
@@ -333,6 +354,25 @@ defmodule Dcmix.Network.CMoveTest do
                )
     end
 
+    test "returns a final status other than Cancel after a timeout's cancel as the outcome" do
+      {addr, scp} =
+        start_scp(fn assoc ->
+          {pc_id, command, _identifier} = receive_request(assoc)
+
+          # The SCP was slow, not stuck: its sub-operations completed anyway
+          _cancel = receive_command(assoc)
+          send_rsp(assoc, pc_id, command.message_id, Status.success(), completed: 2)
+        end)
+
+      assert {:ok, %Result{status: Status.success(), completed: 2}} =
+               CMove.move(addr, instance_identifier(),
+                 destination_ae_title: "MY_SCP",
+                 timeout: 200
+               )
+
+      wait_for(scp)
+    end
+
     test "gives up when the SCP doesn't answer the cancel either" do
       {addr, _scp} =
         start_scp(fn assoc ->
@@ -359,6 +399,18 @@ defmodule Dcmix.Network.CMoveTest do
         end)
 
       assert {:error, {:unexpected_response, %{message_id_being_responded_to: 99}}} =
+               CMove.move(addr, instance_identifier(), destination_ae_title: "MY_SCP")
+    end
+
+    test "a response without a Status" do
+      {addr, _scp} =
+        start_scp(fn assoc ->
+          {pc_id, command, _identifier} = receive_request(assoc)
+          :ok = Association.send_pdata(assoc, pc_id, true, cmove_rsp(command.message_id, nil, []))
+          Process.sleep(500)
+        end)
+
+      assert {:error, {:unexpected_response, %{status: nil}}} =
                CMove.move(addr, instance_identifier(), destination_ae_title: "MY_SCP")
     end
 
@@ -601,9 +653,8 @@ defmodule Dcmix.Network.CMoveTest do
         {0x0002, pad(@study_root_move)},
         {0x0100, <<CommandField.c_move_rsp()::16-little>>},
         {0x0120, <<message_id::16-little>>},
-        {0x0800, <<data_set_type::16-little>>},
-        {0x0900, <<status::16-little>>}
-      ] ++ counts
+        {0x0800, <<data_set_type::16-little>>}
+      ] ++ status_element(status) ++ counts
 
     body =
       for {element, value} <- Enum.sort(elements), into: <<>> do
@@ -612,6 +663,9 @@ defmodule Dcmix.Network.CMoveTest do
 
     <<0::16, 0::16, 4::32-little, byte_size(body)::32-little, body::binary>>
   end
+
+  defp status_element(nil), do: []
+  defp status_element(status), do: [{0x0900, <<status::16-little>>}]
 
   defp pad(uid) when rem(byte_size(uid), 2) == 1, do: uid <> <<0>>
   defp pad(uid), do: uid

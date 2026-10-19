@@ -545,6 +545,28 @@ defmodule Dcmix.Network.CGetTest do
   end
 
   describe "get/3 - failures" do
+    test "a C-GET-RSP without a Status is a protocol error", %{dir: dir} do
+      {port, pid} =
+        start_scp(fn socket, _ctx ->
+          {get_ctx, _} = recv_command(socket)
+          _ = recv_dataset(socket)
+
+          no_status =
+            command([{0x0002, @study_root_get}, {0x0100, 0x8010}, {0x0120, 1}, {0x0800, 0x0101}])
+
+          send_command(socket, get_ctx, no_status)
+          send_parent({:closed, :gen_tcp.recv(socket, 0, 5_000)})
+        end)
+
+      assert {:error, {:unexpected_response, %{status: nil}}} =
+               CGet.get("127.0.0.1:#{port}", study_identifier("1.2.3"),
+                 output_directory: dir,
+                 storage_sop_classes: [@ct_storage]
+               )
+
+      wait_for_server(pid)
+    end
+
     test "returns association_aborted and removes the partial file", %{dir: dir} do
       {port, pid} =
         start_scp(fn socket, ctx ->
@@ -587,6 +609,29 @@ defmodule Dcmix.Network.CGetTest do
       assert_received {:cancel, {1, cancel}}
       assert cancel.command_field == 0x0FFF
       assert cancel.message_id_being_responded_to == 1
+      wait_for_server(pid)
+    end
+
+    test "returns a final status other than Cancel after a timeout's cancel as the outcome",
+         %{dir: dir} do
+      {port, pid} =
+        start_scp(fn socket, _ctx ->
+          {get_ctx, _} = recv_command(socket)
+          _ = recv_dataset(socket)
+
+          # The SCP was slow, not stuck: its sub-operations completed anyway
+          _cancel = recv_command(socket)
+          send_command(socket, get_ctx, cget_rsp(0x0000, completed: 1, failed: 0))
+          handle_release(socket)
+        end)
+
+      assert {:ok, %Result{status: 0x0000, completed: 1}} =
+               CGet.get("127.0.0.1:#{port}", study_identifier("1.2.3"),
+                 output_directory: dir,
+                 storage_sop_classes: [@ct_storage],
+                 timeout: 300
+               )
+
       wait_for_server(pid)
     end
 
