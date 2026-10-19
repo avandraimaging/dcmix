@@ -229,7 +229,7 @@ defmodule Dcmix.Network.PDU do
   @spec decode_pdu(binary()) :: {:ok, pdu(), binary()} | {:error, term()}
   def decode_pdu(<<type::8, _reserved::8, length::32-big, rest::binary>>)
       when byte_size(rest) >= length do
-    <<payload::binary-size(length), remaining::binary>> = rest
+    <<payload::binary-size(^length), remaining::binary>> = rest
     decode_pdu_payload(type, payload, remaining)
   end
 
@@ -359,7 +359,7 @@ defmodule Dcmix.Network.PDU do
          acc
        )
        when byte_size(rest) >= length do
-    <<name::binary-size(length), remaining::binary>> = rest
+    <<name::binary-size(^length), remaining::binary>> = rest
     decode_variable_items(remaining, %{acc | application_context: trim_uid(name)})
   end
 
@@ -368,7 +368,7 @@ defmodule Dcmix.Network.PDU do
          acc
        )
        when byte_size(rest) >= length do
-    <<item_data::binary-size(length), remaining::binary>> = rest
+    <<item_data::binary-size(^length), remaining::binary>> = rest
 
     case decode_presentation_context_rq(item_data) do
       {:ok, pc} ->
@@ -385,7 +385,7 @@ defmodule Dcmix.Network.PDU do
          acc
        )
        when byte_size(rest) >= length do
-    <<item_data::binary-size(length), remaining::binary>> = rest
+    <<item_data::binary-size(^length), remaining::binary>> = rest
 
     case decode_presentation_context_ac(item_data) do
       {:ok, pc} ->
@@ -402,7 +402,7 @@ defmodule Dcmix.Network.PDU do
          acc
        )
        when byte_size(rest) >= length do
-    <<item_data::binary-size(length), remaining::binary>> = rest
+    <<item_data::binary-size(^length), remaining::binary>> = rest
 
     case decode_user_information(item_data, acc) do
       {:ok, updated} -> decode_variable_items(remaining, updated)
@@ -416,7 +416,7 @@ defmodule Dcmix.Network.PDU do
        )
        when byte_size(rest) >= length do
     # Skip unknown items
-    <<_item_data::binary-size(length), remaining::binary>> = rest
+    <<_item_data::binary-size(^length), remaining::binary>> = rest
     decode_variable_items(remaining, acc)
   end
 
@@ -468,7 +468,7 @@ defmodule Dcmix.Network.PDU do
          acc
        )
        when byte_size(rest) >= length do
-    <<item::binary-size(length), remaining::binary>> = rest
+    <<item::binary-size(^length), remaining::binary>> = rest
     decode_user_information(remaining, add_role_selection(item, acc))
   end
 
@@ -477,7 +477,7 @@ defmodule Dcmix.Network.PDU do
          acc
        )
        when byte_size(rest) >= length do
-    <<uid::binary-size(length), remaining::binary>> = rest
+    <<uid::binary-size(^length), remaining::binary>> = rest
     decode_user_information(remaining, %{acc | implementation_class_uid: trim_uid(uid)})
   end
 
@@ -486,7 +486,7 @@ defmodule Dcmix.Network.PDU do
          acc
        )
        when byte_size(rest) >= length do
-    <<name::binary-size(length), remaining::binary>> = rest
+    <<name::binary-size(^length), remaining::binary>> = rest
     decode_user_information(remaining, %{acc | implementation_version_name: String.trim(name)})
   end
 
@@ -495,7 +495,7 @@ defmodule Dcmix.Network.PDU do
          acc
        )
        when byte_size(rest) >= length do
-    <<_item::binary-size(length), remaining::binary>> = rest
+    <<_item::binary-size(^length), remaining::binary>> = rest
     decode_user_information(remaining, acc)
   end
 
@@ -525,7 +525,7 @@ defmodule Dcmix.Network.PDU do
 
   defp decode_pdv_items(<<pdv_length::32-big, rest::binary>>, acc)
        when byte_size(rest) >= pdv_length do
-    <<pdv_data::binary-size(pdv_length), remaining::binary>> = rest
+    <<pdv_data::binary-size(^pdv_length), remaining::binary>> = rest
 
     case decode_single_pdv(pdv_data) do
       {:ok, pdv} -> decode_pdv_items(remaining, [pdv | acc])
@@ -651,13 +651,13 @@ defmodule Dcmix.Network.PDU do
 
   defp extract_sub_item_uids(type, <<type::8, _::8, length::16-big, rest::binary>>, acc)
        when byte_size(rest) >= length do
-    <<uid::binary-size(length), remaining::binary>> = rest
+    <<uid::binary-size(^length), remaining::binary>> = rest
     extract_sub_item_uids(type, remaining, [trim_uid(uid) | acc])
   end
 
   defp extract_sub_item_uids(type, <<_other::8, _::8, length::16-big, rest::binary>>, acc)
        when byte_size(rest) >= length do
-    <<_::binary-size(length), remaining::binary>> = rest
+    <<_::binary-size(^length), remaining::binary>> = rest
     extract_sub_item_uids(type, remaining, acc)
   end
 
@@ -669,13 +669,13 @@ defmodule Dcmix.Network.PDU do
 
   defp extract_sub_item_uid(type, <<type::8, _::8, length::16-big, rest::binary>>)
        when byte_size(rest) >= length do
-    <<uid::binary-size(length), _::binary>> = rest
+    <<uid::binary-size(^length), _::binary>> = rest
     String.trim_trailing(uid, <<0>>)
   end
 
   defp extract_sub_item_uid(type, <<_other::8, _::8, length::16-big, rest::binary>>)
        when byte_size(rest) >= length do
-    <<_::binary-size(length), remaining::binary>> = rest
+    <<_::binary-size(^length), remaining::binary>> = rest
     extract_sub_item_uid(type, remaining)
   end
 

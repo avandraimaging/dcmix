@@ -342,7 +342,7 @@ defmodule Dcmix.Network.DIMSE do
       extract_us_value(rest, length)
     else
       if byte_size(rest) >= length do
-        <<_value::binary-size(length), remaining::binary>> = rest
+        <<_value::binary-size(^length), remaining::binary>> = rest
         find_tag_value(remaining, target_tag)
       else
         {:error, :unexpected_eof}
@@ -369,7 +369,7 @@ defmodule Dcmix.Network.DIMSE do
          acc
        )
        when byte_size(rest) >= length do
-    <<value::binary-size(length), remaining::binary>> = rest
+    <<value::binary-size(^length), remaining::binary>> = rest
     decode_elements(remaining, put_command_value(acc, {group, element}, value))
   end
 

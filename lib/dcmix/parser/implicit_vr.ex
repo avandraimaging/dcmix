@@ -83,7 +83,7 @@ defmodule Dcmix.Parser.ImplicitVR do
   end
 
   defp read_value(tag, vr, length, data) when byte_size(data) >= length do
-    <<value_bytes::binary-size(length), rest::binary>> = data
+    <<value_bytes::binary-size(^length), rest::binary>> = data
 
     # Check if this might be a sequence with defined length
     if vr == :SQ and length > 0 do
@@ -167,7 +167,7 @@ defmodule Dcmix.Parser.ImplicitVR do
   end
 
   defp parse_item(length, data) when byte_size(data) >= length do
-    <<item_data::binary-size(length), rest::binary>> = data
+    <<item_data::binary-size(^length), rest::binary>> = data
 
     case parse(item_data) do
       {:ok, ds, _remaining} -> {:ok, ds, rest}
