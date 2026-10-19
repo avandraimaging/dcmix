@@ -87,7 +87,11 @@ defmodule Dcmix.Network.StorageSCPTest do
   end
 
   defp data_set(patient_id, transfer_syntax) do
-    ds = DataSet.put_element(DataSet.new(), {0x0010, 0x0020}, :LO, patient_id)
+    ds =
+      DataSet.new()
+      |> DataSet.put_element({0x0010, 0x0020}, :LO, patient_id)
+      |> DataSet.put_element({0x0020, 0x000D}, :UI, "1.2.3")
+      |> DataSet.put_element({0x0020, 0x000E}, :UI, "1.2.3.9")
 
     if transfer_syntax == TransferSyntax.implicit_vr_little_endian(),
       do: ImplicitVR.encode(ds),
@@ -127,6 +131,8 @@ defmodule Dcmix.Network.StorageSCPTest do
                path: Path.join(dir, "1.2.3.4"),
                sop_class_uid: @ct_image_storage,
                sop_instance_uid: "1.2.3.4",
+               study_instance_uid: "1.2.3",
+               series_instance_uid: "1.2.3.9",
                transfer_syntax: TransferSyntax.implicit_vr_little_endian(),
                calling_ae_title: "DCMIX",
                move_originator_ae_title: nil,
@@ -137,6 +143,32 @@ defmodule Dcmix.Network.StorageSCPTest do
       assert DataSet.get_string(ds, {0x0010, 0x0020}) == "PID-1"
       assert DataSet.get_value(ds, Tag.media_storage_sop_instance_uid()) == "1.2.3.4"
       assert DataSet.get_string(ds, {0x0002, 0x0016}) == "DCMIX"
+
+      Association.release(assoc)
+    end
+
+    test "leaves the Study and Series UIDs nil when the data set lacks them", %{dir: dir} do
+      {assoc, pc} = open_ct(start_listener(dir))
+      bare = ImplicitVR.encode(DataSet.put_element(DataSet.new(), {0x0010, 0x0020}, :LO, "PID-1"))
+
+      assert store(assoc, pc, "1.2.3.4", data: bare).status == Status.success()
+      assert_received {:stored, %{study_instance_uid: nil, series_instance_uid: nil}, 1}
+      Association.release(assoc)
+    end
+
+    test "still hands over an instance whose header can't be read", %{dir: dir} do
+      {assoc, pc} = open_ct(start_listener(dir))
+      # An element whose length runs past the end of the data
+      truncated = <<0x10, 0x00, 0x20, 0x00, 100::32-little, "PID">>
+
+      assert store(assoc, pc, "1.2.3.4", data: truncated).status == Status.success()
+
+      assert_received {:stored,
+                       %{
+                         sop_instance_uid: "1.2.3.4",
+                         study_instance_uid: nil,
+                         series_instance_uid: nil
+                       }, 1}
 
       Association.release(assoc)
     end
