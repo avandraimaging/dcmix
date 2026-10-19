@@ -13,8 +13,9 @@ defmodule Dcmix.Network.NegotiationTest do
   @unsupported_sop_class "1.2.3"
 
   describe "negotiate/2" do
-    test "accepts a context with our most preferred transfer syntax the requestor proposed" do
+    test "accepts a context with the requestor's most preferred transfer syntax we support" do
       proposed = [
+        TransferSyntax.explicit_vr_big_endian(),
         TransferSyntax.implicit_vr_little_endian(),
         TransferSyntax.explicit_vr_little_endian()
       ]
@@ -25,7 +26,7 @@ defmodule Dcmix.Network.NegotiationTest do
                id: 1,
                result: ContextResult.acceptance(),
                abstract_syntax: SOPClassUID.verification(),
-               transfer_syntax: TransferSyntax.explicit_vr_little_endian()
+               transfer_syntax: TransferSyntax.implicit_vr_little_endian()
              }
     end
 
@@ -103,7 +104,7 @@ defmodule Dcmix.Network.NegotiationTest do
   end
 
   # Negotiates as an SCP called "SCP" that supports Verification with
-  # Explicit, then Implicit VR Little Endian
+  # Explicit and Implicit VR Little Endian
   defp negotiate(rq, opts \\ []) do
     Negotiation.negotiate(
       rq,

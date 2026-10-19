@@ -162,6 +162,41 @@ defmodule Dcmix.Network.DIMSETest do
     end
   end
 
+  describe "build_cstore_rq/4" do
+    test "encodes a C-STORE-RQ announcing a data set, with medium priority by default" do
+      binary = DIMSE.build_cstore_rq("1.2.840.10008.5.1.4.1.1.2", "1.2.3.4", 5)
+
+      assert {:ok, command} = DIMSE.decode_command(binary)
+      assert command.command_field == 0x0001
+      assert command.affected_sop_class_uid == "1.2.840.10008.5.1.4.1.1.2"
+      assert command.affected_sop_instance_uid == "1.2.3.4"
+      assert command.message_id == 5
+      assert DIMSE.dataset_present?(command.command_data_set_type)
+      assert command.move_originator_ae_title == nil
+      assert command.move_originator_message_id == nil
+      assert :binary.match(binary, <<0x00, 0x00, 0x00, 0x07, 2::32-little, 0::16>>) != :nomatch
+    end
+
+    test "carries the priority and the Move Originator when given" do
+      binary =
+        DIMSE.build_cstore_rq("1.2.840.10008.5.1.4.1.1.2", "1.2.3.4", 5,
+          priority: 0x0001,
+          move_originator_ae_title: "MOVER",
+          move_originator_message_id: 9
+        )
+
+      assert {:ok, command} = DIMSE.decode_command(binary)
+      assert command.move_originator_ae_title == "MOVER"
+      assert command.move_originator_message_id == 9
+
+      assert :binary.match(binary, <<0x00, 0x00, 0x00, 0x07, 2::32-little, 1::16-little>>) !=
+               :nomatch
+
+      # An odd-length AE title is padded with a space to an even length
+      assert :binary.match(binary, <<0x00, 0x00, 0x30, 0x10, 6::32-little, "MOVER ">>) != :nomatch
+    end
+  end
+
   describe "build_cstore_rsp/4" do
     test "encodes a C-STORE-RSP with no data set" do
       binary = DIMSE.build_cstore_rsp("1.2.840.10008.5.1.4.1.1.2", "1.2.3.4", 9, 0xA700)

@@ -6,7 +6,8 @@ defmodule Dcmix.Network do
   Currently supports C-ECHO for verifying a connection, C-FIND for querying
   remote DICOM servers and C-GET for retrieving instances from them.
 
-  To accept associations as an SCP, see `Dcmix.Network.Listener`.
+  To accept associations as an SCP, answering C-ECHO and storing instances
+  sent with C-STORE, see `Dcmix.Network.Listener`.
 
   ## C-ECHO example
 
