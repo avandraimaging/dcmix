@@ -150,7 +150,6 @@ identifier =
   Dcmix.Network.get("localhost:4242", identifier,
     calling_ae_title: "MY_SCU",
     called_ae_title: "PACS_AE",
-    query_model: :study_root,
     output_directory: "retrieved"
   )
 ```
@@ -172,7 +171,6 @@ identifier =
     calling_ae_title: "MY_SCU",
     called_ae_title: "PACS_AE",
     destination_ae_title: "MY_SCP",
-    query_model: :study_root,
     on_response: fn response ->
       IO.puts("#{response.remaining || 0} remaining")
       :cont

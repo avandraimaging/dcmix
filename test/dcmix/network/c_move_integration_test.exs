@@ -54,7 +54,6 @@ defmodule Dcmix.Network.CMoveIntegrationTest do
       calling_ae_title: calling_ae,
       called_ae_title: System.get_env("DCMIX_ORTHANC_AE", "ORTHANC"),
       destination_ae_title: calling_ae,
-      query_model: :study_root,
       timeout: 60_000
     ]
 

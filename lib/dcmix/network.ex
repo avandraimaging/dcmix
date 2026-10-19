@@ -41,7 +41,6 @@ defmodule Dcmix.Network do
       {:ok, %Dcmix.Network.CGet.Result{files: files}} =
         Dcmix.Network.get("localhost:4242", identifier,
           called_ae_title: "PACS_AE",
-          query_model: :study_root,
           output_directory: "retrieved"
         )
 
@@ -55,8 +54,7 @@ defmodule Dcmix.Network do
       {:ok, %Dcmix.Network.CMove.Result{completed: completed}} =
         Dcmix.Network.move("localhost:4242", identifier,
           called_ae_title: "PACS_AE",
-          destination_ae_title: "MY_SCP",
-          query_model: :study_root
+          destination_ae_title: "MY_SCP"
         )
   """
 

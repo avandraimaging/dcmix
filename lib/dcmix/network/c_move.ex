@@ -11,7 +11,7 @@ defmodule Dcmix.Network.CMove do
   The identifier's Query/Retrieve Level (0008,0052) sets what is moved:
   `"PATIENT"`, `"STUDY"`, `"SERIES"` or `"IMAGE"`, with the unique keys for
   that level and those above it (e.g. Study, Series and SOP Instance UIDs to
-  move one instance with the Study Root model).
+  move one instance with the Study Root model, the default).
 
   ## Responses
 
@@ -108,7 +108,9 @@ defmodule Dcmix.Network.CMove do
       are sent to; the SCP must know it (required)
     - `:calling_ae_title` - Calling AE Title (default: `"DCMIX"`)
     - `:called_ae_title` - Called AE Title (default: `"ANY-SCP"`)
-    - `:query_model` - `:patient_root` (default) or `:study_root`
+    - `:query_model` - `:study_root` (default) or `:patient_root`. Under
+      Patient Root, moving a study, series or instance also needs the
+      Patient ID in the identifier.
     - `:message_id` - Message ID of the C-MOVE-RQ (default: 1). The SCP
       sends it back as the Move Originator Message ID of each C-STORE.
     - `:priority` - `0x0000` medium (default), `0x0001` high, `0x0002` low
@@ -139,7 +141,6 @@ defmodule Dcmix.Network.CMove do
         Dcmix.Network.CMove.move("pacs:4242", identifier,
           called_ae_title: "PACS_AE",
           destination_ae_title: "MY_SCP",
-          query_model: :study_root,
           on_response: fn response ->
             IO.puts("\#{response.remaining} remaining")
             :cont
@@ -160,7 +161,7 @@ defmodule Dcmix.Network.CMove do
       verbose: Keyword.get(opts, :verbose, false)
     }
 
-    with {:ok, move_uid} <- query_model_uid(Keyword.get(opts, :query_model, :patient_root)),
+    with {:ok, move_uid} <- query_model_uid(Keyword.get(opts, :query_model, :study_root)),
          {:ok, assoc} <- Association.request(addr, association_opts(move_uid, config)) do
       log_verbose(config, "Association established")
       run_cmove(assoc, move_uid, identifier, config)

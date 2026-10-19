@@ -90,7 +90,7 @@ defmodule Dcmix.Network.CGet do
     - `:called_ae_title` - Called AE Title (default: `"ANY-SCP"`)
     - `:timeout` - TCP timeout in ms (default: 30000)
     - `:verbose` - Enable verbose logging (default: `false`)
-    - `:query_model` - `:patient_root` (default) or `:study_root`
+    - `:query_model` - `:study_root` (default) or `:patient_root`
     - `:output_directory` - Where files are written (default: `"."`,
       created if missing)
     - `:storage_mode` - `:bit_preserving` (default) or `:ignore`
@@ -122,7 +122,6 @@ defmodule Dcmix.Network.CGet do
       {:ok, result} =
         Dcmix.Network.CGet.get("localhost:4242", query,
           called_ae_title: "PACS_AE",
-          query_model: :study_root,
           output_directory: "retrieved"
         )
   """
@@ -146,7 +145,7 @@ defmodule Dcmix.Network.CGet do
       max_pdu_length: Keyword.get(opts, :max_pdu_length, 16_384)
     }
 
-    with {:ok, get_uid} <- query_model_uid(Keyword.get(opts, :query_model, :patient_root)),
+    with {:ok, get_uid} <- query_model_uid(Keyword.get(opts, :query_model, :study_root)),
          :ok <- check_storage_mode(config.storage_mode),
          :ok <- check_context_count(config.storage_sop_classes),
          :ok <- prepare_output_directory(config),

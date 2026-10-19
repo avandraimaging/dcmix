@@ -27,7 +27,6 @@ defmodule Dcmix.Network.CMoveTest do
       assert {:ok, %Result{status: Status.success(), completed: 3}} =
                CMove.move(addr, instance_identifier(),
                  destination_ae_title: "MY_SCP",
-                 query_model: :study_root,
                  message_id: 42,
                  priority: 0x0001
                )
@@ -54,11 +53,24 @@ defmodule Dcmix.Network.CMoveTest do
                :nomatch
     end
 
-    test "uses the Patient Root model by default" do
+    test "uses the Study Root model by default, Patient Root when asked" do
       {addr, scp} = start_scp(&answer_success/1)
 
       assert {:ok, _result} =
                CMove.move(addr, instance_identifier(), destination_ae_title: "MY_SCP")
+
+      assert_receive {:associate_rq,
+                      %{presentation_contexts: [%{abstract_syntax: @study_root_move}]}}
+
+      wait_for(scp)
+
+      {addr, scp} = start_scp(&answer_success/1)
+
+      assert {:ok, _result} =
+               CMove.move(addr, instance_identifier(),
+                 destination_ae_title: "MY_SCP",
+                 query_model: :patient_root
+               )
 
       assert_receive {:associate_rq,
                       %{presentation_contexts: [%{abstract_syntax: @patient_root_move}]}}

@@ -42,6 +42,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   than ours.
 - The optional `thousand_island` dependency, needed to run a listener, is
   now `~> 1.6`.
+- `Dcmix.Network.get/3` defaults to the Study Root query model, as
+  `Dcmix.Network.move/3` does, instead of Patient Root. Study Root needs only
+  the Study, Series and SOP Instance UIDs to retrieve below the patient
+  level, matches C-FIND's Study Root queries, and is the model PACS most
+  commonly support. Pass `query_model: :patient_root` for the old behaviour.
 - CI tests against Elixir 1.20 / OTP 29, and dcmix compiles there without
   warnings; Elixir `~> 1.18` is still supported.
 
