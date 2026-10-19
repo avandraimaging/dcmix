@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.1] - 2026-10-19
+
 ### Added
 
 - A Storage SCP handler's instance carries the Study and Series Instance
@@ -192,7 +194,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `mix dcmix.from_xml` - Create DICOM from XML
   - `mix dcmix.from_image` - Import pixel data from image
 
-[Unreleased]: https://github.com/avandraimaging/dcmix/compare/v0.4.0...HEAD
+[Unreleased]: https://github.com/avandraimaging/dcmix/compare/v0.4.1...HEAD
+[0.4.1]: https://github.com/avandraimaging/dcmix/compare/v0.4.0...v0.4.1
 [0.4.0]: https://github.com/avandraimaging/dcmix/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/avandraimaging/dcmix/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/avandraimaging/dcmix/compare/v0.1.0...v0.2.0
