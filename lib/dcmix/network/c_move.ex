@@ -95,6 +95,19 @@ defmodule Dcmix.Network.CMove do
     defstruct status: nil, completed: 0, failed: 0, warning: 0, failed_sop_instance_uids: []
   end
 
+  @default_calling_ae "DCMIX"
+  @default_called_ae "ANY-SCP"
+  @default_query_model :study_root
+  @default_message_id 1
+  @default_priority 0x0000
+  @default_timeout 30_000
+  @default_max_pdu_length 16_384
+
+  @message_ids 0..0xFFFF//1
+  # Medium, high, low
+  @priorities 0..2//1
+  @max_ae_title_length 16
+
   @cancel_wait 5_000
   @failed_sop_instance_uid_list {0x0008, 0x0058}
 
@@ -161,7 +174,7 @@ defmodule Dcmix.Network.CMove do
   @spec move(String.t(), DataSet.t(), keyword()) :: {:ok, Result.t()} | {:error, term()}
   def move(addr, %DataSet{} = identifier, opts \\ []) do
     with {:ok, config} <- config(opts),
-         {:ok, move_uid} <- query_model_uid(Keyword.get(opts, :query_model, :study_root)),
+         {:ok, move_uid} <- query_model_uid(Keyword.get(opts, :query_model, @default_query_model)),
          {:ok, assoc} <- Association.request(addr, association_opts(move_uid, config)) do
       log_verbose(config, "Association established")
       run_cmove(assoc, move_uid, identifier, config)
@@ -175,22 +188,22 @@ defmodule Dcmix.Network.CMove do
   # Checked before connecting, so a bad option is reported plainly rather than
   # as whatever the SCP makes of it
   defp config(opts) do
-    message_id = Keyword.get(opts, :message_id, 1)
-    priority = Keyword.get(opts, :priority, 0x0000)
+    message_id = Keyword.get(opts, :message_id, @default_message_id)
+    priority = Keyword.get(opts, :priority, @default_priority)
 
     with {:ok, destination} <- destination(opts),
-         :ok <- check(message_id in 0..0xFFFF//1, {:invalid_message_id, message_id}),
-         :ok <- check(priority in 0..2//1, {:invalid_priority, priority}) do
+         :ok <- check(message_id in @message_ids, {:invalid_message_id, message_id}),
+         :ok <- check(priority in @priorities, {:invalid_priority, priority}) do
       {:ok,
        %{
          destination: destination,
-         calling_ae: Keyword.get(opts, :calling_ae_title, "DCMIX"),
-         called_ae: Keyword.get(opts, :called_ae_title, "ANY-SCP"),
+         calling_ae: Keyword.get(opts, :calling_ae_title, @default_calling_ae),
+         called_ae: Keyword.get(opts, :called_ae_title, @default_called_ae),
          message_id: message_id,
          priority: priority,
          on_response: Keyword.get(opts, :on_response),
-         timeout: Keyword.get(opts, :timeout, 30_000),
-         max_pdu_length: Keyword.get(opts, :max_pdu_length, 16_384),
+         timeout: Keyword.get(opts, :timeout, @default_timeout),
+         max_pdu_length: Keyword.get(opts, :max_pdu_length, @default_max_pdu_length),
          verbose: Keyword.get(opts, :verbose, false)
        }}
     end
@@ -202,7 +215,11 @@ defmodule Dcmix.Network.CMove do
     case Keyword.fetch(opts, :destination_ae_title) do
       {:ok, title} when is_binary(title) ->
         trimmed = String.trim(title, " ")
-        valid = trimmed != "" and byte_size(trimmed) <= 16 and ae_title_chars?(trimmed)
+
+        valid =
+          trimmed != "" and byte_size(trimmed) <= @max_ae_title_length and
+            ae_title_chars?(trimmed)
+
         if valid, do: {:ok, trimmed}, else: {:error, {:invalid_destination_ae_title, title}}
 
       {:ok, title} ->
