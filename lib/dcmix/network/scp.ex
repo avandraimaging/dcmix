@@ -18,6 +18,8 @@ defmodule Dcmix.Network.SCP do
 
   require Logger
 
+  alias Dcmix.{DataSet, Tag}
+
   alias Dcmix.Network.{
     Association,
     DIMSE,
@@ -361,15 +363,33 @@ defmodule Dcmix.Network.SCP do
 
   defp handle_store(%{handler: {module, handler_state}} = state, store, path) do
     instance =
-      Map.merge(store.instance, %{
+      store.instance
+      |> Map.merge(%{
         path: path,
         calling_ae_title: state.calling_ae_title,
         move_originator_ae_title: store.command.move_originator_ae_title,
         move_originator_message_id: store.command.move_originator_message_id
       })
+      |> Map.merge(study_and_series_uids(path))
 
     {:reply, status, handler_state} = module.handle_store(instance, handler_state)
     {status, %{state | handler: {module, handler_state}}}
+  end
+
+  # Read back from the file's header, stopping before the pixel data, so a
+  # handler can match an instance to a study or series move. A header that
+  # can't be read leaves them nil; the instance still reaches the handler.
+  defp study_and_series_uids(path) do
+    case Dcmix.read_file(path, stop_before_pixels: true) do
+      {:ok, header} ->
+        %{
+          study_instance_uid: DataSet.get_string(header, Tag.study_instance_uid()),
+          series_instance_uid: DataSet.get_string(header, Tag.series_instance_uid())
+        }
+
+      {:error, _reason} ->
+        %{study_instance_uid: nil, series_instance_uid: nil}
+    end
   end
 
   defp send_cstore_rsp(state, context_id, command, status) do

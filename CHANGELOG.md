@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- A Storage SCP handler's instance carries the Study and Series Instance
+  UIDs, read back from the stored file's header (`nil` when it can't be read),
+  so a handler can match instances to a move at any level by their UIDs.
+
 ## [0.4.0] - 2026-10-19
 
 ### Added
