@@ -45,7 +45,7 @@ Dcmix aims to bring comprehensive DICOM support to Elixir, inspired by [dcmtk](h
 | **Listener access control** | Accept only known calling AE titles; optionally accept any called AE title | Low |
 | **C-MOVE responses as a stream** | `move_stream/3` returning a Stream of C-MOVE-RSPs, an alternative to the `:on_response` callback | Low |
 | **Streaming Storage SCP handler** | Optional handler callbacks that receive each data set fragment, for callers that want to stream instances somewhere other than a file | Low |
-| **CLI tools for networking** | `mix dcmix.find` / `mix dcmix.get` (findscu / getscu equivalents) | Low |
+| **CLI tools for networking** | `mix dcmix.storescp`, and `mix dcmix.storescu` once there is a C-STORE SCU (echoscu, findscu, getscu and movescu are complete) | Low |
 | **Validation** | IOD conformance checking | Low |
 | **Structured Reports** | SR document support | Low |
 | **Presentation States** | GSPS support | Low |

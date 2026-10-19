@@ -187,6 +187,17 @@ mix dcmix.to_xml patient.dcm output.xml
 mix dcmix.to_image --window auto patient.dcm output.png
 ```
 
+Network tools named after dcmtk's take its long option names, and its
+short flags (`-aet`, `-aec`, `-aem`, `-k`, `-od`, `-to`, `-td`, ...) work
+too, so a dcmtk command line runs with the tool name swapped:
+
+```bash
+mix dcmix.echoscu -aet DCMIX -aec ORTHANC localhost 4242
+mix dcmix.findscu -S -k QueryRetrieveLevel=STUDY -k PatientID=12345 -k StudyInstanceUID= -aec ORTHANC localhost 4242
+mix dcmix.getscu -k QueryRetrieveLevel=STUDY -k StudyInstanceUID=1.2.3 -aec ORTHANC -od retrieved localhost 4242
+mix dcmix.movescu -k QueryRetrieveLevel=STUDY -k StudyInstanceUID=1.2.3 -aec ORTHANC -aem MY_SCP localhost 4242
+```
+
 ## Documentation
 
 - [Detailed Usage Guide](docs/USAGE.md) - Pixel data, private tags, import operations
