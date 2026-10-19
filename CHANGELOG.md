@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- `Dcmix.Network.InstanceFile` writes an instance received over the network
+  to a Part 10 file as it arrives, as C-GET's bit-preserving storage did; C-GET
+  now uses it.
+
 ## [0.3.0] - 2026-10-16
 
 ### Added

@@ -12,13 +12,9 @@ defmodule Dcmix.Network.CGet do
   ## Storage
 
   In `:bit_preserving` mode (the default) each instance is written to
-  `:output_directory` as a Part 10 file exactly as received: the File Meta
-  Information is generated from the C-STORE-RQ and the accepted transfer
-  syntax, and data set fragments are appended to the file as they arrive, so
-  an instance is never held in memory whole. Files are named by the sanitized
-  Affected SOP Instance UID, with no extension, as dcmtk does. Each instance is
-  written to a temporary `<name>.part` file and renamed once complete, so an
-  existing file of the same name is replaced only by a whole instance.
+  `:output_directory` as a Part 10 file exactly as received, as it arrives,
+  by `Dcmix.Network.InstanceFile`; see it for how files are named and
+  replaced.
 
   In `:ignore` mode instances are received and discarded, and each
   sub-operation is still answered with success.
@@ -41,7 +37,7 @@ defmodule Dcmix.Network.CGet do
   require Logger
 
   alias Dcmix.DataSet
-  alias Dcmix.Network.{Association, DIMSE, SOPClassUID, StorageSOPClasses}
+  alias Dcmix.Network.{Association, DIMSE, InstanceFile, SOPClassUID, StorageSOPClasses}
   alias Dcmix.Parser.TransferSyntax
   alias Dcmix.Writer
 
@@ -454,36 +450,22 @@ defmodule Dcmix.Network.CGet do
   end
 
   defp open_store_file(store, pc, config) do
-    with {:ok, name} <- storage_filename(store.command.affected_sop_instance_uid),
-         path = Path.join(config.output_directory, name),
-         part_path = path <> ".part",
-         {:ok, io} <- File.open(part_path, [:write, :binary, :raw]) do
-      store
-      |> Map.merge(%{kind: :file, io: io, path: path, part_path: part_path})
-      |> write_fragment(file_meta_header(store.command, pc, config))
-    else
-      {:error, :invalid_filename} -> %{store | status: Status.cannot_understand()}
-      {:error, _reason} -> %{store | status: Status.out_of_resources()}
+    instance = %{
+      sop_class_uid: store.command.affected_sop_class_uid || "",
+      sop_instance_uid: store.command.affected_sop_instance_uid,
+      transfer_syntax: pc.transfer_syntax
+    }
+
+    case InstanceFile.open(config.output_directory, instance, source_ae_title: config.calling_ae) do
+      {:ok, file} -> Map.merge(store, %{kind: :file, file: file})
+      {:error, status} -> %{store | status: status}
     end
   end
 
-  defp file_meta_header(command, pc, config) do
-    Writer.file_meta_header(
-      command.affected_sop_class_uid || "",
-      command.affected_sop_instance_uid || "",
-      pc.transfer_syntax,
-      source_ae_title: config.calling_ae
-    )
-  end
-
   defp write_fragment(%{kind: :file} = store, data) do
-    case :file.write(store.io, data) do
-      :ok ->
-        store
-
-      {:error, _reason} ->
-        close_and_delete(store.io, store.part_path)
-        %{store | kind: :discard, status: Status.out_of_resources()}
+    case InstanceFile.write(store.file, data) do
+      :ok -> store
+      {:error, status} -> %{store | kind: :discard, status: status}
     end
   end
 
@@ -514,16 +496,10 @@ defmodule Dcmix.Network.CGet do
     end
   end
 
-  # Only a complete .part file replaces the final name, so a failed repeat of
-  # an instance never destroys a good earlier copy
   defp close_store(%{kind: :file} = store, state) do
-    with :ok <- File.close(store.io),
-         :ok <- File.rename(store.part_path, store.path) do
-      {Status.success(), %{state | result: add_file(state.result, store.path)}}
-    else
-      {:error, _reason} ->
-        _ = File.rm(store.part_path)
-        {Status.out_of_resources(), state}
+    case InstanceFile.close(store.file) do
+      {:ok, path} -> {Status.success(), %{state | result: add_file(state.result, path)}}
+      {:error, status} -> {status, state}
     end
   end
 
@@ -534,59 +510,8 @@ defmodule Dcmix.Network.CGet do
     if path in result.files, do: result, else: %{result | files: [path | result.files]}
   end
 
-  defp discard_partial(%{incoming: %{kind: :file} = store}),
-    do: close_and_delete(store.io, store.part_path)
-
+  defp discard_partial(%{incoming: %{kind: :file} = store}), do: InstanceFile.discard(store.file)
   defp discard_partial(_state), do: :ok
-
-  defp close_and_delete(io, path) do
-    _ = File.close(io)
-    _ = File.rm(path)
-    :ok
-  end
-
-  # Mirrors DcmSCU's bit-preserving path (dcmnet/libsrc/scu.cc,
-  # handleCGETSession): the file is named by the Affected SOP Instance UID
-  # passed through OFStandard::sanitizeFilename(), with no modality prefix or
-  # extension (those come from createStorageFilename(), used only when dcmtk
-  # stores in memory first).
-  #
-  # Deliberately stricter than sanitizeFilename() for Windows hosts: ":" (NTFS
-  # alternate data streams) and space are replaced, and names that are empty
-  # or end in "." (which Windows strips; covers "." and "..") are refused, as
-  # are reserved device names.
-  # Valid UIDs are only [0-9.] and never end in ".", so names still match
-  # dcmtk's for them.
-  defp storage_filename(uid) when is_binary(uid) do
-    name =
-      uid
-      |> String.trim_trailing(<<0>>)
-      |> String.trim()
-      |> sanitize_filename()
-
-    if name == "" or String.ends_with?(name, ".") or reserved_device_name?(name),
-      do: {:error, :invalid_filename},
-      else: {:ok, name}
-  end
-
-  defp storage_filename(_uid), do: {:error, :invalid_filename}
-
-  # Windows opens the device, not a file, for these whatever the extension
-  @reserved_device_names ~w(CON PRN AUX NUL) ++
-                           for(n <- 1..9, prefix <- ~w(COM LPT), do: "#{prefix}#{n}")
-
-  defp reserved_device_name?(name) do
-    [base | _] = String.split(name, ".", parts: 2)
-    String.upcase(base) in @reserved_device_names
-  end
-
-  # Letters, digits, "-", ".", "@", "_"
-  defp sanitize_filename(name) do
-    for <<c <- name>>, into: "", do: if(filename_char?(c), do: <<c>>, else: "_")
-  end
-
-  defp filename_char?(c) when c in ?0..?9 or c in ?a..?z or c in ?A..?Z, do: true
-  defp filename_char?(c), do: c in ~c"-.@_"
 
   # ===========================================================================
   # Helpers
