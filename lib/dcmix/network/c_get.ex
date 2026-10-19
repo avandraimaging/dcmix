@@ -37,9 +37,17 @@ defmodule Dcmix.Network.CGet do
   require Logger
 
   alias Dcmix.DataSet
-  alias Dcmix.Network.{Association, DIMSE, InstanceFile, SOPClassUID, StorageSOPClasses}
+
+  alias Dcmix.Network.{
+    Association,
+    DataSetCodec,
+    DIMSE,
+    InstanceFile,
+    SOPClassUID,
+    StorageSOPClasses
+  }
+
   alias Dcmix.Parser.TransferSyntax
-  alias Dcmix.Writer
 
   require Dcmix.Network.DIMSE.CommandField, as: CommandField
   require Dcmix.Network.DIMSE.Status, as: Status
@@ -260,7 +268,7 @@ defmodule Dcmix.Network.CGet do
         assoc,
         pc.id,
         false,
-        encode_dataset(query_dataset, pc.transfer_syntax)
+        DataSetCodec.encode(query_dataset, pc.transfer_syntax)
       )
     end
   end
@@ -516,16 +524,6 @@ defmodule Dcmix.Network.CGet do
   # ===========================================================================
   # Helpers
   # ===========================================================================
-
-  defp encode_dataset(dataset, transfer_syntax_uid) do
-    {:ok, ts} = TransferSyntax.lookup(transfer_syntax_uid)
-
-    if ts.explicit_vr do
-      Writer.ExplicitVR.encode(dataset, big_endian: ts.big_endian)
-    else
-      Writer.ImplicitVR.encode(dataset)
-    end
-  end
 
   defp hex(nil), do: "????"
   defp hex(value), do: value |> Integer.to_string(16) |> String.pad_leading(4, "0")

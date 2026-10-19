@@ -13,11 +13,8 @@ defmodule Dcmix.Network.CFind do
   require Logger
 
   alias Dcmix.DataSet
-  alias Dcmix.Network.Association
-  alias Dcmix.Network.DIMSE
-  alias Dcmix.Network.SOPClassUID
-  alias Dcmix.Parser.{ExplicitVR, ImplicitVR, TransferSyntax}
-  alias Dcmix.Writer
+  alias Dcmix.Network.{Association, DataSetCodec, DIMSE, SOPClassUID}
+  alias Dcmix.Parser.TransferSyntax
 
   require Dcmix.Network.DIMSE.Status, as: Status
 
@@ -124,7 +121,7 @@ defmodule Dcmix.Network.CFind do
   end
 
   defp send_query_dataset(assoc, pc, query_ds) do
-    query_bytes = encode_dataset(query_ds, pc.transfer_syntax)
+    query_bytes = DataSetCodec.encode(query_ds, pc.transfer_syntax)
     Association.send_pdata(assoc, pc.id, false, query_bytes)
   end
 
@@ -196,7 +193,7 @@ defmodule Dcmix.Network.CFind do
     data_bytes = extract_data_bytes(assoc, data_pdv, timeout)
 
     case data_bytes do
-      {:ok, bytes} -> parse_dataset(bytes, pc.transfer_syntax)
+      {:ok, bytes} -> DataSetCodec.decode(bytes, pc.transfer_syntax)
       {:error, _} = error -> error
     end
   end
@@ -221,35 +218,6 @@ defmodule Dcmix.Network.CFind do
 
       {:error, _} = error ->
         error
-    end
-  end
-
-  defp parse_dataset(data_bytes, transfer_syntax_uid) do
-    {:ok, ts} = TransferSyntax.lookup(transfer_syntax_uid)
-
-    parse_result =
-      if ts.explicit_vr do
-        ExplicitVR.parse(data_bytes, big_endian: ts.big_endian)
-      else
-        ImplicitVR.parse(data_bytes)
-      end
-
-    case parse_result do
-      {:ok, dataset, _rest} ->
-        {:ok, dataset}
-
-      {:error, _} = error ->
-        error
-    end
-  end
-
-  defp encode_dataset(dataset, transfer_syntax_uid) do
-    {:ok, ts} = TransferSyntax.lookup(transfer_syntax_uid)
-
-    if ts.explicit_vr do
-      Writer.ExplicitVR.encode(dataset, big_endian: ts.big_endian)
-    else
-      Writer.ImplicitVR.encode(dataset)
     end
   end
 
