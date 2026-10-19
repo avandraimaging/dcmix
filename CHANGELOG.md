@@ -18,6 +18,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `-aem`, `-k`, `-od`, `-to`, `-td`, ...), and read `-k` keys as
   `Keyword=value` or `(gggg,eeee)=value`, so a dcmtk command line runs with
   the tool name swapped.
+- `mix dcmix.storescp` runs a listener as a Storage SCP until stopped, like
+  dcmtk's `storescp`: it answers C-ECHO, writes each instance sent with
+  C-STORE to `--output-directory` and logs it. It needs the optional
+  `thousand_island` dependency, and starts only that, not the calling
+  project's application.
 
 ## [0.4.0] - 2026-10-19
 
