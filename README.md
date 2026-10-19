@@ -196,6 +196,7 @@ mix dcmix.echoscu -aet DCMIX -aec ORTHANC localhost 4242
 mix dcmix.findscu -S -k QueryRetrieveLevel=STUDY -k PatientID=12345 -k StudyInstanceUID= -aec ORTHANC localhost 4242
 mix dcmix.getscu -k QueryRetrieveLevel=STUDY -k StudyInstanceUID=1.2.3 -aec ORTHANC -od retrieved localhost 4242
 mix dcmix.movescu -k QueryRetrieveLevel=STUDY -k StudyInstanceUID=1.2.3 -aec ORTHANC -aem MY_SCP localhost 4242
+mix dcmix.storescp -aet MY_SCP -od incoming 11112   # needs :thousand_island
 ```
 
 ## Documentation

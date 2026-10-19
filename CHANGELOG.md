@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.1] - 2026-10-19
+
 ### Added
 
 - A Storage SCP handler's instance carries the Study and Series Instance
@@ -18,6 +20,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `-aem`, `-k`, `-od`, `-to`, `-td`, ...), and read `-k` keys as
   `Keyword=value` or `(gggg,eeee)=value`, so a dcmtk command line runs with
   the tool name swapped.
+- `mix dcmix.storescp` runs a listener as a Storage SCP until stopped, like
+  dcmtk's `storescp`: it answers C-ECHO, writes each instance sent with
+  C-STORE to `--output-directory` and logs it. It needs the optional
+  `thousand_island` dependency, and starts only that, not the calling
+  project's application.
 
 ## [0.4.0] - 2026-10-19
 
@@ -187,7 +194,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `mix dcmix.from_xml` - Create DICOM from XML
   - `mix dcmix.from_image` - Import pixel data from image
 
-[Unreleased]: https://github.com/avandraimaging/dcmix/compare/v0.4.0...HEAD
+[Unreleased]: https://github.com/avandraimaging/dcmix/compare/v0.4.1...HEAD
+[0.4.1]: https://github.com/avandraimaging/dcmix/compare/v0.4.0...v0.4.1
 [0.4.0]: https://github.com/avandraimaging/dcmix/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/avandraimaging/dcmix/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/avandraimaging/dcmix/compare/v0.1.0...v0.2.0
