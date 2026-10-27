@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.2] - 2026-10-27
+
+### Added
+
+- `Dcmix.Network.DIMSE.Status.describe/1` names a DIMSE status code in words,
+  from PS3.7 Annex C and the C-STORE, C-FIND and C-MOVE statuses in PS3.4. A
+  code within a range the standard defines (`0xA7xx`, `0xA9xx`, `0xCxxx`) is
+  named by its range unless it has a meaning of its own, and any other code is
+  `"Unknown status"`.
+
 ## [0.4.1] - 2026-10-19
 
 ### Added
@@ -194,7 +204,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `mix dcmix.from_xml` - Create DICOM from XML
   - `mix dcmix.from_image` - Import pixel data from image
 
-[Unreleased]: https://github.com/avandraimaging/dcmix/compare/v0.4.1...HEAD
+[Unreleased]: https://github.com/avandraimaging/dcmix/compare/v0.4.2...HEAD
+[0.4.2]: https://github.com/avandraimaging/dcmix/compare/v0.4.1...v0.4.2
 [0.4.1]: https://github.com/avandraimaging/dcmix/compare/v0.4.0...v0.4.1
 [0.4.0]: https://github.com/avandraimaging/dcmix/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/avandraimaging/dcmix/compare/v0.2.0...v0.3.0
