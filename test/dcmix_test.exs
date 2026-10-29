@@ -686,7 +686,7 @@ defmodule DcmixTest do
       assert Dictionary.tag("UnknownKeyword") == nil
     end
 
-    test "names the elements a DICOMDIR writes" do
+    test "names the elements a DICOMDIR and its records' keys are written with" do
       for {keyword, tag, vr} <- [
             {"FileSetID", {0x0004, 0x1130}, :CS},
             {"OffsetOfTheFirstDirectoryRecordOfTheRootDirectoryEntity", {0x0004, 0x1200}, :UL},
@@ -702,7 +702,18 @@ defmodule DcmixTest do
             {"ReferencedSOPInstanceUIDInFile", {0x0004, 0x1511}, :UI},
             {"ReferencedTransferSyntaxUIDInFile", {0x0004, 0x1512}, :UI},
             {"DocumentTitle", {0x0042, 0x0010}, :ST},
-            {"MIMETypeOfEncapsulatedDocument", {0x0042, 0x0012}, :LO}
+            {"MIMETypeOfEncapsulatedDocument", {0x0042, 0x0012}, :LO},
+            {"DataPointRows", {0x0028, 0x9001}, :UL},
+            {"DataPointColumns", {0x0028, 0x9002}, :UL},
+            {"DoseSummationType", {0x3004, 0x000A}, :CS},
+            {"StructureSetLabel", {0x3006, 0x0002}, :SH},
+            {"StructureSetDate", {0x3006, 0x0008}, :DA},
+            {"StructureSetTime", {0x3006, 0x0009}, :TM},
+            {"TreatmentDate", {0x3008, 0x0250}, :DA},
+            {"TreatmentTime", {0x3008, 0x0251}, :TM},
+            {"RTPlanLabel", {0x300A, 0x0002}, :SH},
+            {"RTPlanDate", {0x300A, 0x0006}, :DA},
+            {"RTPlanTime", {0x300A, 0x0007}, :TM}
           ] do
         assert {keyword, Dictionary.tag(keyword), Dictionary.vr(tag)} == {keyword, tag, vr}
       end

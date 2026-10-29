@@ -249,6 +249,8 @@
 0028 3004 LO ModalityLUTType 1 Modality LUT Type
 0028 3006 US LUTData 1-n LUT Data
 0028 3010 SQ VOILUTSequence 1 VOI LUT Sequence
+0028 9001 UL DataPointRows 1 Data Point Rows
+0028 9002 UL DataPointColumns 1 Data Point Columns
 #
 # Group 0032 - Study Information
 0032 000A CS StudyStatusID 1 Study Status ID
@@ -498,6 +500,17 @@
 0088 0130 SH StorageMediaFileSetID 1 Storage Media File-set ID
 0088 0140 UI StorageMediaFileSetUID 1 Storage Media File-set UID
 0088 0200 SQ IconImageSequence 1 Icon Image Sequence
+#
+# Groups 3004-300A - Radiotherapy
+3004 000A CS DoseSummationType 1 Dose Summation Type
+3006 0002 SH StructureSetLabel 1 Structure Set Label
+3006 0008 DA StructureSetDate 1 Structure Set Date
+3006 0009 TM StructureSetTime 1 Structure Set Time
+3008 0250 DA TreatmentDate 1 Treatment Date
+3008 0251 TM TreatmentTime 1 Treatment Time
+300A 0002 SH RTPlanLabel 1 RT Plan Label
+300A 0006 DA RTPlanDate 1 RT Plan Date
+300A 0007 TM RTPlanTime 1 RT Plan Time
 #
 # Group 7FE0 - Pixel Data
 7FE0 0010 OW PixelData 1 Pixel Data
