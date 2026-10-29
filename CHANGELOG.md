@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- The dictionary names the Directory Structuring elements (group 0004) a
+  DICOMDIR is made of, such as `DirectoryRecordSequence` and
+  `ReferencedFileID`, and the Encapsulated Document elements (0042,0010–0012).
+  `Dcmix.put/4` and `Dcmix.get_string/2` take their keywords, and an Implicit
+  VR file's records now parse with their real VRs.
+
 ## [0.4.2] - 2026-10-27
 
 ### Added

@@ -685,6 +685,53 @@ defmodule DcmixTest do
     test "tag returns nil for unknown keyword" do
       assert Dictionary.tag("UnknownKeyword") == nil
     end
+
+    test "names the elements a DICOMDIR writes" do
+      for {keyword, tag, vr} <- [
+            {"FileSetID", {0x0004, 0x1130}, :CS},
+            {"OffsetOfTheFirstDirectoryRecordOfTheRootDirectoryEntity", {0x0004, 0x1200}, :UL},
+            {"OffsetOfTheLastDirectoryRecordOfTheRootDirectoryEntity", {0x0004, 0x1202}, :UL},
+            {"FileSetConsistencyFlag", {0x0004, 0x1212}, :US},
+            {"DirectoryRecordSequence", {0x0004, 0x1220}, :SQ},
+            {"OffsetOfTheNextDirectoryRecord", {0x0004, 0x1400}, :UL},
+            {"RecordInUseFlag", {0x0004, 0x1410}, :US},
+            {"OffsetOfReferencedLowerLevelDirectoryEntity", {0x0004, 0x1420}, :UL},
+            {"DirectoryRecordType", {0x0004, 0x1430}, :CS},
+            {"ReferencedFileID", {0x0004, 0x1500}, :CS},
+            {"ReferencedSOPClassUIDInFile", {0x0004, 0x1510}, :UI},
+            {"ReferencedSOPInstanceUIDInFile", {0x0004, 0x1511}, :UI},
+            {"ReferencedTransferSyntaxUIDInFile", {0x0004, 0x1512}, :UI},
+            {"DocumentTitle", {0x0042, 0x0010}, :ST},
+            {"MIMETypeOfEncapsulatedDocument", {0x0042, 0x0012}, :LO}
+          ] do
+        assert {keyword, Dictionary.tag(keyword), Dictionary.vr(tag)} == {keyword, tag, vr}
+      end
+    end
+
+    test "reads a DICOMDIR's records from Implicit VR, which takes each VR from here" do
+      record =
+        Dcmix.new()
+        |> Dcmix.put("OffsetOfTheNextDirectoryRecord", :UL, 0)
+        |> Dcmix.put("DirectoryRecordType", :CS, "PATIENT")
+
+      encoded =
+        Dcmix.new()
+        |> Dcmix.put("OffsetOfTheFirstDirectoryRecordOfTheRootDirectoryEntity", :UL, 390)
+        |> Dcmix.put("DirectoryRecordSequence", :SQ, [record])
+        |> Dcmix.Writer.ImplicitVR.encode()
+
+      assert {:ok, dicomdir} =
+               Dcmix.Parser.parse(encoded, force_transfer_syntax: "1.2.840.10008.1.2")
+
+      assert Dcmix.get_element(
+               dicomdir,
+               "OffsetOfTheFirstDirectoryRecordOfTheRootDirectoryEntity"
+             ).value ==
+               390
+
+      assert [parsed] = Dcmix.get_element(dicomdir, "DirectoryRecordSequence").value
+      assert Dcmix.get_string(parsed, "DirectoryRecordType") == "PATIENT"
+    end
   end
 
   describe "DataSet extended" do
