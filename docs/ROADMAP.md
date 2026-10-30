@@ -28,7 +28,7 @@ Dcmix aims to bring comprehensive DICOM support to Elixir, inspired by [dcmtk](h
 | **DICOM Networking (C-MOVE SCU)** | Have remote PACS servers send instances to a Storage SCP via C-MOVE, with each response given to a callback that can cancel | Complete |
 | **DICOM Networking (C-ECHO SCP)** | Accept associations on a port and answer C-ECHO (`Dcmix.Network.Listener`) | Complete |
 | **DICOM Networking (Storage SCP)** | Receive instances sent with C-STORE, to files, handed to a caller's handler (`Dcmix.Network.SCP.Handler`) | Complete |
-| **DICOMDIR (write)** | Write the media directory for a file set (`Dcmix.Dicomdir`) | Complete |
+| **DICOMDIR (write)** | Write the media directory for a file set (`Dcmix.Dicomdir`, `mix dcmix.mkdir`) | Complete |
 
 ## Planned Features
 
