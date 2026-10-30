@@ -87,6 +87,7 @@
 0008 2111 ST DerivationDescription 1 Derivation Description
 0008 2112 SQ SourceImageSequence 1 Source Image Sequence
 0008 9007 CS FrameType 4 Frame Type
+0008 9092 SQ ReferencedImageEvidenceSequence 1 Referenced Image Evidence Sequence
 #
 # Group 0010 - Patient Information
 0010 0010 PN PatientName 1 Patient's Name
@@ -495,6 +496,7 @@
 0070 0101 DS PresentationPixelSpacing 2 Presentation Pixel Spacing
 0070 0102 IS PresentationPixelAspectRatio 2 Presentation Pixel Aspect Ratio
 0070 0103 FL PresentationPixelMagnificationRatio 1 Presentation Pixel Magnification Ratio
+0070 0402 SQ BlendingSequence 1 Blending Sequence
 #
 # Group 0088 - Storage
 0088 0130 SH StorageMediaFileSetID 1 Storage Media File-set ID
