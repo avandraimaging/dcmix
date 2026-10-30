@@ -96,6 +96,52 @@ defmodule Dcmix.DicomdirTest do
       assert [{"PATIENT", _, [_study_1, _study_2]}] = walk(bytes)
     end
 
+    test "trims only spaces from a Patient ID, whose other bytes may be part of a character" do
+      gbk = [{"SpecificCharacterSet", :CS, "GBK"}]
+
+      instances = [
+        instance(~w(DICOM ST000000 SE000000 IN000000),
+          study: "1.2.9.1",
+          extra: gbk ++ [{"PatientID", :LO, <<"P1", 0xC2, 0xA0>>}]
+        ),
+        instance(~w(DICOM ST000001 SE000000 IN000000),
+          study: "1.2.9.2",
+          extra: gbk ++ [{"PatientID", :LO, "P1"}]
+        )
+      ]
+
+      assert {:ok, bytes, []} = Dicomdir.encode(instances)
+      assert [{"PATIENT", _, [_study_1]}, {"PATIENT", "P1", [_study_2]}] = walk(bytes)
+    end
+
+    test "takes a name's trailing empty components as insignificant" do
+      instances = [
+        instance(~w(DICOM ST000000 SE000000 IN000000),
+          study: "1.2.9.1",
+          extra: [{"PatientID", :LO, :absent}, {"PatientName", :PN, "DOE^JOHN^^"}]
+        ),
+        instance(~w(DICOM ST000001 SE000000 IN000000),
+          study: "1.2.9.2",
+          extra: [{"PatientID", :LO, :absent}, {"PatientName", :PN, "DOE^JOHN"}]
+        )
+      ]
+
+      assert {:ok, bytes, []} = Dicomdir.encode(instances)
+      assert [{"PATIENT", "", [_study_1, _study_2]}] = walk(bytes)
+    end
+
+    test "takes a name of only empty components as no name" do
+      instances = [
+        instance(~w(DICOM ST000000 SE000000 IN000000), extra: [{"PatientName", :PN, "^^^"}]),
+        instance(~w(DICOM ST000000 SE000000 IN000001),
+          extra: [{"PatientName", :PN, "Named^Patient"}]
+        )
+      ]
+
+      assert {:ok, bytes, []} = Dicomdir.encode(instances)
+      assert ["Named^Patient"] = bytes |> records() |> patient_names()
+    end
+
     test "takes a patient record's keys from the first instance that names the patient" do
       instances = [
         instance(~w(DICOM ST000000 SE000000 IN000000), extra: [{"PatientName", :PN, :absent}]),

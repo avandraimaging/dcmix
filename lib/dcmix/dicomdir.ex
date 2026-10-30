@@ -269,7 +269,7 @@ defmodule Dcmix.Dicomdir do
         %{
           file_id: file_id,
           patient: patient(data_set),
-          named?: text(data_set, "PatientName") != nil,
+          named?: patient_name(data_set) != "",
           study: study,
           series: series,
           sop_class: sop_class,
@@ -353,12 +353,23 @@ defmodule Dcmix.Dicomdir do
   end
 
   # Leading spaces in an LO are insignificant, so " P1" is the same patient
-  # as "P1".
+  # as "P1". Only the space is trimmed: the bytes are in the instance's own
+  # character set, where other bytes can be part of a character.
   defp patient(data_set) do
-    case data_set |> text("PatientID") |> to_string() |> String.trim() do
-      "" -> {:name, data_set |> text("PatientName") |> to_string() |> String.trim()}
+    case data_set |> text("PatientID") |> to_string() |> String.trim(" ") do
+      "" -> {:name, patient_name(data_set)}
       id -> {:id, id}
     end
+  end
+
+  # Trailing empty name components may be left out, so "DOE^JOHN^^" is
+  # "DOE^JOHN", and "^^" names nobody.
+  defp patient_name(data_set) do
+    data_set
+    |> text("PatientName")
+    |> to_string()
+    |> String.trim(" ")
+    |> String.replace(~r/[\^=]+$/, "")
   end
 
   defp studies(entries) do
