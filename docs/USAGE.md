@@ -189,14 +189,16 @@ File.write!("media/DICOMDIR", dicomdir)
   missing the Study Instance, Series Instance, SOP Class or SOP Instance UID,
   and those not read from a Part 10 file, which have no Transfer Syntax UID.
   When that is every instance, it returns `{:error, :no_instances}`.
-- **Records** are grouped by Patient ID, Study Instance UID and Series Instance
-  UID. Each instance's record type comes from its SOP class
+- **Records** are grouped by Patient ID (Patient Name when there is none),
+  Study Instance UID and Series Instance UID, in the order the instances come.
+  Each instance's record type comes from its SOP class
   (`Dcmix.Dicomdir.record_type/1`), and each record carries the keys Annex F
   requires of its type. Text is copied as the instance has it, under its own
   Specific Character Set where the text needs one.
-- **The same instances give the same bytes** when `:file_set_uid` and
-  `:implementation_version_name` are set. Otherwise the file-set UID is
-  generated and the version name is dcmix's, which changes with each release.
+- **The same instances in the same order give the same bytes** when
+  `:file_set_uid` and `:implementation_version_name` are set. Otherwise the
+  file-set UID is generated and the version name is dcmix's, which changes
+  with each release.
 
 `Dcmix.read_file/2` reads a DICOMDIR as a data set, but there is no API for
 walking its records yet.

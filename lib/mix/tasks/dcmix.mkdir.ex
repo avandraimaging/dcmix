@@ -17,7 +17,8 @@ defmodule Mix.Tasks.Dcmix.Mkdir do
 
   ## Options
 
-      --fileset-id  File-set ID (0004,1130) (default: empty)
+      --fileset-id  File-set ID (0004,1130): up to 16 characters from A-Z,
+                    0-9, space and `_` (default: empty)
 
   ## Examples
 
@@ -28,6 +29,8 @@ defmodule Mix.Tasks.Dcmix.Mkdir do
   use Mix.Task
 
   @file_id_component ~r/\A[A-Z0-9_]{1,8}\z/
+  @file_set_id ~r/\A[A-Z0-9_ ]{0,16}\z/
+  @lacks_uid "it lacks a UID its record needs"
 
   @impl Mix.Task
   def run(args) do
@@ -40,7 +43,11 @@ defmodule Mix.Tasks.Dcmix.Mkdir do
   end
 
   defp make(directory, opts) do
+    file_set_id = Keyword.get(opts, :fileset_id, "")
     unless File.dir?(directory), do: fail("Not a directory: #{directory}")
+
+    unless Regex.match?(@file_set_id, file_set_id),
+      do: fail("Not a valid File-set ID: #{file_set_id}")
 
     instances =
       directory
@@ -49,15 +56,20 @@ defmodule Mix.Tasks.Dcmix.Mkdir do
       |> Enum.map(&instance(directory, &1))
       |> Enum.reject(&is_nil/1)
 
-    case Dcmix.Dicomdir.encode(instances, file_set_id: Keyword.get(opts, :fileset_id, "")) do
+    case Dcmix.Dicomdir.encode(instances, file_set_id: file_set_id) do
       {:ok, dicomdir, left_out} ->
-        Enum.each(left_out, &left_out(directory, &1, "it lacks a UID its record needs"))
+        Enum.each(left_out, &left_out(directory, &1, @lacks_uid))
         path = Path.join(directory, "DICOMDIR")
         File.write!(path, dicomdir)
         referred = length(instances) - length(left_out)
         Mix.shell().info("Wrote #{path}, referring to #{referred} instance(s)")
 
+      # Every instance it was given was refused.
       {:error, :no_instances} ->
+        Enum.each(instances, fn {file_id, _data_set} ->
+          left_out(directory, file_id, @lacks_uid)
+        end)
+
         fail("Nothing under #{directory} can go in a DICOMDIR")
     end
   end

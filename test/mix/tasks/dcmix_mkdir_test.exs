@@ -82,6 +82,25 @@ defmodule Mix.Tasks.Dcmix.MkdirTest do
       refute File.exists?(Path.join(dir, "DICOMDIR"))
     end
 
+    test "names the files encode refused when it refuses them all", %{tmp_dir: dir} do
+      write_instance(dir, ~w(IN000000), study: :absent)
+
+      assert catch_exit(Mkdir.run([dir])) == {:shutdown, 1}
+
+      assert errors(dir) == [
+               "IN000000: it lacks a UID its record needs",
+               "Nothing under can go in a DICOMDIR"
+             ]
+    end
+
+    test "fails on a File-set ID that isn't a valid CS value", %{tmp_dir: dir} do
+      write_instance(dir, ~w(IN000000))
+
+      assert catch_exit(Mkdir.run(["--fileset-id", "study-1", dir])) == {:shutdown, 1}
+      assert errors(dir) == ["Not a valid File-set ID: study-1"]
+      refute File.exists?(Path.join(dir, "DICOMDIR"))
+    end
+
     test "fails without a directory", %{tmp_dir: dir} do
       assert catch_exit(Mkdir.run([])) == {:shutdown, 1}
       assert_received {:mix_shell, :error, [usage]}
