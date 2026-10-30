@@ -16,6 +16,25 @@
 0002 0100 UI PrivateInformationCreatorUID 1 Private Information Creator UID
 0002 0102 OB PrivateInformation 1 Private Information
 #
+# Group 0004 - Directory Structuring
+0004 1130 CS FileSetID 1 File-set ID
+0004 1141 CS FileSetDescriptorFileID 1-8 File-set Descriptor File ID
+0004 1142 CS SpecificCharacterSetOfFileSetDescriptorFile 1 Specific Character Set of File-set Descriptor File
+0004 1200 UL OffsetOfTheFirstDirectoryRecordOfTheRootDirectoryEntity 1 Offset of the First Directory Record of the Root Directory Entity
+0004 1202 UL OffsetOfTheLastDirectoryRecordOfTheRootDirectoryEntity 1 Offset of the Last Directory Record of the Root Directory Entity
+0004 1212 US FileSetConsistencyFlag 1 File-set Consistency Flag
+0004 1220 SQ DirectoryRecordSequence 1 Directory Record Sequence
+0004 1400 UL OffsetOfTheNextDirectoryRecord 1 Offset of the Next Directory Record
+0004 1410 US RecordInUseFlag 1 Record In-use Flag
+0004 1420 UL OffsetOfReferencedLowerLevelDirectoryEntity 1 Offset of Referenced Lower-Level Directory Entity
+0004 1430 CS DirectoryRecordType 1 Directory Record Type
+0004 1432 UI PrivateRecordUID 1 Private Record UID
+0004 1500 CS ReferencedFileID 1-8 Referenced File ID
+0004 1510 UI ReferencedSOPClassUIDInFile 1 Referenced SOP Class UID in File
+0004 1511 UI ReferencedSOPInstanceUIDInFile 1 Referenced SOP Instance UID in File
+0004 1512 UI ReferencedTransferSyntaxUIDInFile 1 Referenced Transfer Syntax UID in File
+0004 151A UI ReferencedRelatedGeneralSOPClassUIDInFile 1-n Referenced Related General SOP Class UID in File
+#
 # Group 0008 - Identifying Information
 0008 0005 CS SpecificCharacterSet 1-n Specific Character Set
 0008 0008 CS ImageType 2-n Image Type
@@ -230,6 +249,8 @@
 0028 3004 LO ModalityLUTType 1 Modality LUT Type
 0028 3006 US LUTData 1-n LUT Data
 0028 3010 SQ VOILUTSequence 1 VOI LUT Sequence
+0028 9001 UL DataPointRows 1 Data Point Rows
+0028 9002 UL DataPointColumns 1 Data Point Columns
 #
 # Group 0032 - Study Information
 0032 000A CS StudyStatusID 1 Study Status ID
@@ -432,6 +453,11 @@
 0040 DB7F SQ HL7DocumentTypeCodeSequence 1 HL7 Document Type Code Sequence
 0040 DB80 DT HL7DocumentReferenceDateTime 1 HL7 Document Reference DateTime
 #
+# Group 0042 - Encapsulated Document
+0042 0010 ST DocumentTitle 1 Document Title
+0042 0011 OB EncapsulatedDocument 1 Encapsulated Document
+0042 0012 LO MIMETypeOfEncapsulatedDocument 1 MIME Type of Encapsulated Document
+#
 # Group 0070 - Presentation State
 0070 0001 SQ GraphicAnnotationSequence 1 Graphic Annotation Sequence
 0070 0002 CS GraphicLayer 1 Graphic Layer
@@ -474,6 +500,17 @@
 0088 0130 SH StorageMediaFileSetID 1 Storage Media File-set ID
 0088 0140 UI StorageMediaFileSetUID 1 Storage Media File-set UID
 0088 0200 SQ IconImageSequence 1 Icon Image Sequence
+#
+# Groups 3004-300A - Radiotherapy
+3004 000A CS DoseSummationType 1 Dose Summation Type
+3006 0002 SH StructureSetLabel 1 Structure Set Label
+3006 0008 DA StructureSetDate 1 Structure Set Date
+3006 0009 TM StructureSetTime 1 Structure Set Time
+3008 0250 DA TreatmentDate 1 Treatment Date
+3008 0251 TM TreatmentTime 1 Treatment Time
+300A 0002 SH RTPlanLabel 1 RT Plan Label
+300A 0006 DA RTPlanDate 1 RT Plan Date
+300A 0007 TM RTPlanTime 1 RT Plan Time
 #
 # Group 7FE0 - Pixel Data
 7FE0 0010 OW PixelData 1 Pixel Data
