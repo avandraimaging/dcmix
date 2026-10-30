@@ -22,6 +22,7 @@ Dcmix (pronounced "DCM-icks") is a pure Elixir implementation for working with D
 - Import from JSON, XML, and image files
 - Human-readable dump output (dcmdump style)
 - DICOM networking: C-ECHO SCU (verify a connection), C-FIND SCU (query remote PACS servers), C-GET SCU (retrieve from them) and C-MOVE SCU (have them send to a Storage SCP), and a listener that accepts associations, answers C-ECHO and stores instances sent with C-STORE (SCP)
+- Write a DICOMDIR for a file set (dcmmkdir style)
 - Private tag support
 - Mix tasks for CLI usage
 
@@ -185,6 +186,7 @@ mix dcmix.dump patient.dcm
 mix dcmix.to_json --pretty patient.dcm output.json
 mix dcmix.to_xml patient.dcm output.xml
 mix dcmix.to_image --window auto patient.dcm output.png
+mix dcmix.mkdir --fileset-id STUDY_01 media
 ```
 
 Network tools named after dcmtk's take its long option names, and its
@@ -201,7 +203,7 @@ mix dcmix.storescp -aet MY_SCP -od incoming 11112   # needs :thousand_island
 
 ## Documentation
 
-- [Detailed Usage Guide](docs/USAGE.md) - Pixel data, private tags, import operations
+- [Detailed Usage Guide](docs/USAGE.md) - Pixel data, private tags, import operations, DICOMDIR
 - [Transfer Syntax Support](docs/TRANSFER_SYNTAXES.md) - Supported transfer syntaxes
 - [Roadmap](docs/ROADMAP.md) - Current and planned features
 

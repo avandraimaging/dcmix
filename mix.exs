@@ -56,7 +56,7 @@ defmodule Dcmix.MixProject do
       groups_for_modules: [
         Core: [Dcmix, Dcmix.DataSet, Dcmix.DataElement, Dcmix.Tag, Dcmix.VR],
         Parsing: [Dcmix.Parser, Dcmix.Parser.ExplicitVR, Dcmix.Parser.ImplicitVR],
-        Writing: [Dcmix.Writer, Dcmix.Writer.ExplicitVR, Dcmix.Writer.ImplicitVR],
+        Writing: [Dcmix.Writer, Dcmix.Writer.ExplicitVR, Dcmix.Writer.ImplicitVR, Dcmix.Dicomdir],
         Export: [Dcmix.Export.JSON, Dcmix.Export.XML, Dcmix.Export.Text, Dcmix.Export.Image],
         Import: [Dcmix.Import.JSON, Dcmix.Import.XML, Dcmix.Import.Image],
         Network: [

@@ -7,6 +7,7 @@ This guide covers advanced usage of Dcmix beyond the basics in the README.
 - [Pixel Data Operations](#pixel-data-operations)
 - [Private Tags](#private-tags)
 - [Import Operations](#import-operations)
+- [DICOMDIR](#dicomdir)
 - [Mix Tasks Reference](#mix-tasks-reference)
 
 ## Pixel Data Operations
@@ -161,6 +162,45 @@ dataset = Dcmix.new()
 {:ok, dataset} = Dcmix.from_image(dataset, "image.png")
 ```
 
+## DICOMDIR
+
+`Dcmix.Dicomdir.encode/2` writes the DICOMDIR for a file set: the index a
+viewer reads to list its patients, studies, series and instances without
+opening every file (PS3.10 §8, PS3.3 Annex F). Give it each instance as its
+File ID, the path components it sits at under the DICOMDIR, and its header.
+The header is all it reads, so `stop_before_pixels: true` saves reading the
+pixel data.
+
+```elixir
+instances =
+  for file_id <- [~w(DICOM ST000000 SE000000 IN000000), ~w(DICOM ST000000 SE000000 IN000001)] do
+    {:ok, header} = Dcmix.read_file(Path.join(["media" | file_id]), stop_before_pixels: true)
+    {file_id, header}
+  end
+
+{:ok, dicomdir, left_out} = Dcmix.Dicomdir.encode(instances, file_set_id: "STUDY_01")
+File.write!("media/DICOMDIR", dicomdir)
+```
+
+- **File IDs are the caller's to choose.** PS3.10 allows one to eight
+  components of one to eight characters from A-Z, 0-9 and `_`. `encode/2`
+  writes the File IDs it is given; `mix dcmix.mkdir` checks them.
+- **`left_out`** lists the File IDs of instances no record can refer to: those
+  missing the Study Instance, Series Instance, SOP Class or SOP Instance UID,
+  and those not read from a Part 10 file, which have no Transfer Syntax UID.
+  When that is every instance, it returns `{:error, :no_instances}`.
+- **Records** are grouped by Patient ID, Study Instance UID and Series Instance
+  UID. Each instance's record type comes from its SOP class
+  (`Dcmix.Dicomdir.record_type/1`), and each record carries the keys Annex F
+  requires of its type. Text is copied as the instance has it, under its own
+  Specific Character Set where the text needs one.
+- **The same instances give the same bytes** when `:file_set_uid` and
+  `:implementation_version_name` are set. Otherwise the file-set UID is
+  generated and the version name is dcmix's, which changes with each release.
+
+`Dcmix.read_file/2` reads a DICOMDIR as a data set, but there is no API for
+walking its records yet.
+
 ## Mix Tasks Reference
 
 ### dcmix.dump
@@ -217,6 +257,18 @@ Create DICOM file from XML.
 
 ```bash
 mix dcmix.from_xml input.xml output.dcm
+```
+
+### dcmix.mkdir
+
+Write the DICOMDIR for every file under a directory, like dcmtk's
+`dcmmkdir +r`. A file whose path isn't a valid File ID, that doesn't parse, or
+that lacks a UID its record needs is left out and named.
+
+```bash
+mix dcmix.mkdir media
+mix dcmix.mkdir --fileset-id STUDY_01 media
+dcmdump media/DICOMDIR                           # check it with dcmtk
 ```
 
 ### dcmix.from_image
