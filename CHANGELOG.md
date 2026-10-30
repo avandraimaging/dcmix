@@ -7,17 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-10-30
+
 ### Added
 
 - `Dcmix.Dicomdir.encode/2` writes a DICOMDIR for a file set from each
   instance's File ID and header, as dcmtk's `dcmmkdir` does. Records are
   grouped by UID and linked by byte offset; each takes its record type from
   its SOP class and carries the keys PS3.3 Annex F requires of that type,
-  sequences included, down to an SR or key object's HAS CONCEPT MOD items. Text is copied as the instance has it, under the
-  instance's own Specific Character Set where the record's text needs one.
+  sequences included, down to an SR or key object's HAS CONCEPT MOD items.
+  Text is copied as the instance has it, under the instance's own Specific
+  Character Set where the record's text needs one.
   `Dcmix.Dicomdir.record_type/1` gives the record type for a SOP class. The
   dictionary gains Referenced Image Evidence Sequence and Blending Sequence,
-  which spectroscopy and presentation records carry.
+  which spectroscopy and presentation records carry. The usage guide has a
+  DICOMDIR section.
+- `mix dcmix.mkdir` writes the DICOMDIR for every file under a directory, like
+  `dcmmkdir +r`, naming each file it leaves out and why.
 - The dictionary names the Directory Structuring elements (group 0004) a
   DICOMDIR is made of, such as `DirectoryRecordSequence` and
   `ReferencedFileID`, and the keys its records carry that it lacked: the
@@ -223,7 +229,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `mix dcmix.from_xml` - Create DICOM from XML
   - `mix dcmix.from_image` - Import pixel data from image
 
-[Unreleased]: https://github.com/avandraimaging/dcmix/compare/v0.4.2...HEAD
+[Unreleased]: https://github.com/avandraimaging/dcmix/compare/v0.5.0...HEAD
+[0.5.0]: https://github.com/avandraimaging/dcmix/compare/v0.4.2...v0.5.0
 [0.4.2]: https://github.com/avandraimaging/dcmix/compare/v0.4.1...v0.4.2
 [0.4.1]: https://github.com/avandraimaging/dcmix/compare/v0.4.0...v0.4.1
 [0.4.0]: https://github.com/avandraimaging/dcmix/compare/v0.3.0...v0.4.0
