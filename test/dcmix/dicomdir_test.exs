@@ -227,8 +227,9 @@ defmodule Dcmix.DicomdirTest do
         {"1.2.840.10008.5.1.4.1.1.11.1",
          ~w(InstanceNumber ContentLabel ContentDescription ContentCreatorName PresentationCreationDate PresentationCreationTime)},
         {"1.2.840.10008.5.1.4.1.1.88.22",
-         ~w(InstanceNumber CompletionFlag VerificationFlag ContentDate ContentTime)},
-        {"1.2.840.10008.5.1.4.1.1.88.59", ~w(InstanceNumber ContentDate ContentTime)},
+         ~w(InstanceNumber CompletionFlag VerificationFlag ContentDate ContentTime ConceptNameCodeSequence)},
+        {"1.2.840.10008.5.1.4.1.1.88.59",
+         ~w(InstanceNumber ContentDate ContentTime ConceptNameCodeSequence)},
         {"1.2.840.10008.5.1.4.1.1.481.2", ~w(InstanceNumber DoseSummationType)},
         {"1.2.840.10008.5.1.4.1.1.481.3",
          ~w(InstanceNumber StructureSetLabel StructureSetDate StructureSetTime)},
@@ -326,6 +327,55 @@ defmodule Dcmix.DicomdirTest do
     end
   end
 
+  describe "encode/2: sequences" do
+    test "copies the sequences a record type requires from its instance" do
+      title = code("126000", "DCM", "Imaging Measurement Report")
+      series_ref = series_reference("1.2.9.1.1", "1.2.9.1.1.1")
+
+      cases = [
+        {"1.2.840.10008.5.1.4.1.1.88.22", "ConceptNameCodeSequence", title},
+        {"1.2.840.10008.5.1.4.1.1.88.59", "ConceptNameCodeSequence", title},
+        {"1.2.840.10008.5.1.4.1.1.104.1", "ConceptNameCodeSequence", title},
+        {"1.2.840.10008.5.1.4.1.1.11.1", "ReferencedSeriesSequence", series_ref},
+        {"1.2.840.10008.5.1.4.1.1.11.4", "BlendingSequence", series_ref},
+        {"1.2.840.10008.5.1.4.1.1.4.2", "ReferencedImageEvidenceSequence", series_ref}
+      ]
+
+      for {sop_class, keyword, item} <- cases do
+        instances = [
+          instance(~w(DICOM ST000000 SE000000 IN000000),
+            sop_class: sop_class,
+            extra: [{keyword, :SQ, [item]}]
+          )
+        ]
+
+        assert {:ok, bytes, []} = Dicomdir.encode(instances)
+        [_patient, _study, _series, record] = records(bytes)
+
+        assert {^keyword, [copied]} = {keyword, value(record, keyword)}
+        assert {keyword, tags(copied)} == {keyword, tags(item)}
+      end
+    end
+
+    test "writes a required sequence empty, and leaves out a conditional one, the instance lacks" do
+      sr = [
+        instance(~w(DICOM ST000000 SE000000 IN000000), sop_class: "1.2.840.10008.5.1.4.1.1.88.22")
+      ]
+
+      presentation = [
+        instance(~w(DICOM ST000000 SE000000 IN000000), sop_class: "1.2.840.10008.5.1.4.1.1.11.1")
+      ]
+
+      assert {:ok, sr_bytes, []} = Dicomdir.encode(sr)
+      assert {:ok, presentation_bytes, []} = Dicomdir.encode(presentation)
+      [_patient, _study, _series, sr_record] = records(sr_bytes)
+      [_patient, _study, _series, presentation_record] = records(presentation_bytes)
+
+      assert value(sr_record, "ConceptNameCodeSequence") == []
+      refute Dcmix.get_element(presentation_record, "ReferencedSeriesSequence")
+    end
+  end
+
   describe "encode/2: text" do
     test "copies text as the instance has it, under the instance's character set" do
       latin1_name = <<"PE", 0xD1, "A^JOS", 0xC9>>
@@ -341,6 +391,29 @@ defmodule Dcmix.DicomdirTest do
 
       assert Dcmix.get_string(patient, "SpecificCharacterSet") == "ISO_IR 100"
       assert Dcmix.get_string(patient, "PatientName") == latin1_name
+    end
+
+    test "declares the character set only on records whose text needs it" do
+      latin1_meaning = code("126000", "DCM", <<"Rapport d", 0xE9, "taill", 0xE9>>)
+
+      instances = [
+        instance(~w(DICOM ST000000 SE000000 IN000000),
+          sop_class: "1.2.840.10008.5.1.4.1.1.88.22",
+          extra: [
+            {"SpecificCharacterSet", :CS, "ISO_IR 100"},
+            {"PatientName", :PN, <<"PE", 0xD1, "A^JOS", 0xC9>>},
+            {"ConceptNameCodeSequence", :SQ, [latin1_meaning]}
+          ]
+        )
+      ]
+
+      assert {:ok, bytes, []} = Dicomdir.encode(instances)
+      [patient, study, series, sr] = records(bytes)
+
+      assert Dcmix.get_string(patient, "SpecificCharacterSet") == "ISO_IR 100"
+      assert Dcmix.get_string(sr, "SpecificCharacterSet") == "ISO_IR 100"
+      refute Dcmix.get_element(study, "SpecificCharacterSet")
+      refute Dcmix.get_element(series, "SpecificCharacterSet")
     end
 
     test "declares no character set for an instance that declares none" do
@@ -445,6 +518,26 @@ defmodule Dcmix.DicomdirTest do
     {:ok, encoded} = Dcmix.Writer.encode(data_set)
     {:ok, read} = Dcmix.Parser.parse(encoded, stop_before_pixels: true)
     {file_id, read}
+  end
+
+  defp tags(data_set), do: data_set |> DataSet.to_list() |> Enum.map(& &1.tag)
+
+  defp code(value, scheme, meaning) do
+    Dcmix.new()
+    |> Dcmix.put({0x0008, 0x0100}, :SH, value)
+    |> Dcmix.put({0x0008, 0x0102}, :SH, scheme)
+    |> Dcmix.put({0x0008, 0x0104}, :LO, meaning)
+  end
+
+  defp series_reference(series, sop_instance) do
+    image =
+      Dcmix.new()
+      |> Dcmix.put("ReferencedSOPClassUID", :UI, @ct)
+      |> Dcmix.put("ReferencedSOPInstanceUID", :UI, sop_instance)
+
+    Dcmix.new()
+    |> Dcmix.put("SeriesInstanceUID", :UI, series)
+    |> Dcmix.put("ReferencedImageSequence", :SQ, [image])
   end
 
   # The tree as a reader finds it: from the root's first record, following each

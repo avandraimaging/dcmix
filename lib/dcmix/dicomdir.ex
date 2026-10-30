@@ -22,13 +22,14 @@ defmodule Dcmix.Dicomdir do
   since dcmix doesn't invent one. A patient record takes its keys from the
   first instance in its group that names the patient. Each instance's record
   type comes from its SOP class, and each
-  record carries the keys PS3.3 Annex F requires of its type. A required key
-  the instance has no value for is written empty, except a number, which can't
-  be. Sequences aren't copied: a required one is written empty.
+  record carries the keys PS3.3 Annex F requires of its type, sequences
+  included. A required key the instance has no value for is written empty,
+  except a number, which can't be.
 
-  Values are copied as the instance has them, and each record declares the
-  Specific Character Set of the instance it came from, which Annex F allows
-  record by record. So text needs no conversion.
+  Values are copied as the instance has them, and a record whose text uses
+  more than the default repertoire declares the Specific Character Set of the
+  instance it came from, which Annex F allows record by record. So text needs
+  no conversion.
 
   ## Offsets
 
@@ -138,14 +139,22 @@ defmodule Dcmix.Dicomdir do
       {"VerificationFlag", :CS, :always},
       @content_date,
       @content_time,
-      {"VerificationDateTime", :DT, :when_present}
+      {"VerificationDateTime", :DT, :when_present},
+      {"ConceptNameCodeSequence", :SQ, :always}
     ],
-    "KEY OBJECT DOC" => [@instance_number, @content_date, @content_time],
+    "KEY OBJECT DOC" => [
+      @instance_number,
+      @content_date,
+      @content_time,
+      {"ConceptNameCodeSequence", :SQ, :always}
+    ],
     "PRESENTATION" =>
       [@instance_number | @content_identification] ++
         [
           {"PresentationCreationDate", :DA, :always},
-          {"PresentationCreationTime", :TM, :always}
+          {"PresentationCreationTime", :TM, :always},
+          {"ReferencedSeriesSequence", :SQ, :when_present},
+          {"BlendingSequence", :SQ, :when_present}
         ],
     "ENCAP DOC" => [
       @instance_number,
@@ -196,7 +205,8 @@ defmodule Dcmix.Dicomdir do
       {"Rows", :US, :always},
       {"Columns", :US, :always},
       {"DataPointRows", :UL, :always},
-      {"DataPointColumns", :UL, :always}
+      {"DataPointColumns", :UL, :always},
+      {"ReferencedImageEvidenceSequence", :SQ, :when_present}
     ]
   }
 
@@ -296,8 +306,12 @@ defmodule Dcmix.Dicomdir do
       else: values
   end
 
-  # Sequences aren't copied, so a sequence key is written empty.
-  defp value(_data_set, _keyword, :SQ), do: nil
+  defp value(data_set, keyword, :SQ) do
+    case Dcmix.get_element(data_set, keyword) do
+      %{value: [_ | _] = items} -> items
+      _absent -> nil
+    end
+  end
 
   defp value(data_set, keyword, vr) when vr in [:US, :UL] do
     case Dcmix.get_element(data_set, keyword) do
@@ -406,15 +420,33 @@ defmodule Dcmix.Dicomdir do
       Dcmix.new()
       |> Dcmix.put("RecordInUseFlag", :US, 0xFFFF)
       |> Dcmix.put("DirectoryRecordType", :CS, type)
-      |> put_character_set(entry.character_set)
 
-    Enum.reduce(keys, record, &put_key(&2, &1, Map.fetch!(entry.values, elem(&1, 0))))
+    keys
+    |> Enum.reduce(record, &put_key(&2, &1, Map.fetch!(entry.values, elem(&1, 0))))
+    |> put_character_set(entry.character_set)
   end
 
+  # Annex F requires the Specific Character Set only when a record's keys use
+  # an extended or replacement set, which is when its text leaves the default
+  # repertoire: a byte above 0x7F, or ESC starting an ISO 2022 switch.
   defp put_character_set(record, nil), do: record
 
-  defp put_character_set(record, character_set),
-    do: Dcmix.put(record, "SpecificCharacterSet", :CS, character_set)
+  defp put_character_set(record, character_set) do
+    if default_repertoire?(record),
+      do: record,
+      else: Dcmix.put(record, "SpecificCharacterSet", :CS, character_set)
+  end
+
+  defp default_repertoire?(%DataSet{} = data_set),
+    do: data_set |> DataSet.to_list() |> Enum.all?(&default_repertoire?(&1.value))
+
+  defp default_repertoire?(values) when is_list(values),
+    do: Enum.all?(values, &default_repertoire?/1)
+
+  defp default_repertoire?(text) when is_binary(text),
+    do: text |> :binary.bin_to_list() |> Enum.all?(&(&1 < 0x80 and &1 != 0x1B))
+
+  defp default_repertoire?(_number), do: true
 
   defp put_key(record, {_keyword, _vr, :when_present}, nil), do: record
   defp put_key(record, {keyword, :SQ, _presence}, nil), do: Dcmix.put(record, keyword, :SQ, [])
