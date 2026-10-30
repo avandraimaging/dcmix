@@ -41,13 +41,13 @@ defmodule Dcmix.Dicomdir do
   """
 
   alias Dcmix.{DataSet, UID, Writer}
+  alias Dcmix.Parser.TransferSyntax
   alias Dcmix.Writer.ExplicitVR
 
   @typedoc "A File ID: the path components of a file under the DICOMDIR."
   @type file_id :: [String.t()]
 
   @media_storage_directory "1.2.840.10008.1.3.10"
-  @explicit_vr_little_endian "1.2.840.10008.1.2.1"
 
   # The record sequence's delimiter, which follows the last record.
   @sequence_delimiter_bytes 8
@@ -494,7 +494,7 @@ defmodule Dcmix.Dicomdir do
       Writer.file_meta_header(
         @media_storage_directory,
         Keyword.get_lazy(opts, :file_set_uid, &UID.generate/0),
-        @explicit_vr_little_endian,
+        TransferSyntax.explicit_vr_little_endian(),
         implementation_version_name:
           Keyword.get(opts, :implementation_version_name, UID.implementation_version_name())
       )
