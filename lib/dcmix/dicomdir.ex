@@ -140,13 +140,15 @@ defmodule Dcmix.Dicomdir do
       @content_date,
       @content_time,
       {"VerificationDateTime", :DT, :when_present},
-      {"ConceptNameCodeSequence", :SQ, :always}
+      {"ConceptNameCodeSequence", :SQ, :always},
+      {"ContentSequence", :SQ, :when_present}
     ],
     "KEY OBJECT DOC" => [
       @instance_number,
       @content_date,
       @content_time,
-      {"ConceptNameCodeSequence", :SQ, :always}
+      {"ConceptNameCodeSequence", :SQ, :always},
+      {"ContentSequence", :SQ, :when_present}
     ],
     "PRESENTATION" =>
       [@instance_number | @content_identification] ++
@@ -306,10 +308,22 @@ defmodule Dcmix.Dicomdir do
       else: values
   end
 
+  # An SR or key object record carries all and only the root's HAS CONCEPT
+  # MOD items, each as the Document Content Macro, which has no Content
+  # Sequence of its own.
+  defp value(data_set, "ContentSequence", :SQ) do
+    items =
+      for item <- sequence(data_set, "ContentSequence"),
+          text(item, "RelationshipType") == "HAS CONCEPT MOD",
+          do: DataSet.delete(item, Dcmix.Dictionary.tag("ContentSequence"))
+
+    if items == [], do: nil, else: items
+  end
+
   defp value(data_set, keyword, :SQ) do
-    case Dcmix.get_element(data_set, keyword) do
-      %{value: [_ | _] = items} -> items
-      _absent -> nil
+    case sequence(data_set, keyword) do
+      [] -> nil
+      items -> items
     end
   end
 
@@ -321,6 +335,13 @@ defmodule Dcmix.Dicomdir do
   end
 
   defp value(data_set, keyword, _vr), do: text(data_set, keyword)
+
+  defp sequence(data_set, keyword) do
+    case Dcmix.get_element(data_set, keyword) do
+      %{value: [_ | _] = items} -> items
+      _absent -> []
+    end
+  end
 
   # A value as its bytes, less the padding, or nil when there is none. Not
   # decoded: the record declares the instance's character set instead.

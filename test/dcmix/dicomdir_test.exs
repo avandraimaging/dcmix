@@ -357,6 +357,57 @@ defmodule Dcmix.DicomdirTest do
       end
     end
 
+    test "copies all and only the root's HAS CONCEPT MOD items from an SR or key object" do
+      language =
+        content_item(
+          "HAS CONCEPT MOD",
+          "CODE",
+          code("121049", "DCM", "Language of Content Item and Descendants")
+        )
+        |> Dcmix.put("ContentSequence", :SQ, [
+          content_item("HAS CONCEPT MOD", "CODE", code("121046", "DCM", "Country of Language"))
+        ])
+
+      children = [
+        language,
+        content_item("HAS OBS CONTEXT", "CODE", code("121005", "DCM", "Observer Type")),
+        content_item("CONTAINS", "CONTAINER", code("126010", "DCM", "Imaging Measurements"))
+      ]
+
+      for sop_class <- ["1.2.840.10008.5.1.4.1.1.88.22", "1.2.840.10008.5.1.4.1.1.88.59"] do
+        instances = [
+          instance(~w(DICOM ST000000 SE000000 IN000000),
+            sop_class: sop_class,
+            extra: [{"ContentSequence", :SQ, children}]
+          )
+        ]
+
+        assert {:ok, bytes, []} = Dicomdir.encode(instances)
+        [_patient, _study, _series, record] = records(bytes)
+
+        assert [copied] = value(record, "ContentSequence")
+        assert Dcmix.get_string(copied, "RelationshipType") == "HAS CONCEPT MOD"
+        refute Dcmix.get_element(copied, "ContentSequence")
+      end
+    end
+
+    test "leaves out the Content Sequence when the root has no HAS CONCEPT MOD items" do
+      contains =
+        content_item("CONTAINS", "CONTAINER", code("126010", "DCM", "Imaging Measurements"))
+
+      instances = [
+        instance(~w(DICOM ST000000 SE000000 IN000000),
+          sop_class: "1.2.840.10008.5.1.4.1.1.88.22",
+          extra: [{"ContentSequence", :SQ, [contains]}]
+        )
+      ]
+
+      assert {:ok, bytes, []} = Dicomdir.encode(instances)
+      [_patient, _study, _series, record] = records(bytes)
+
+      refute Dcmix.get_element(record, "ContentSequence")
+    end
+
     test "writes a required sequence empty, and leaves out a conditional one, the instance lacks" do
       sr = [
         instance(~w(DICOM ST000000 SE000000 IN000000), sop_class: "1.2.840.10008.5.1.4.1.1.88.22")
@@ -527,6 +578,13 @@ defmodule Dcmix.DicomdirTest do
     |> Dcmix.put({0x0008, 0x0100}, :SH, value)
     |> Dcmix.put({0x0008, 0x0102}, :SH, scheme)
     |> Dcmix.put({0x0008, 0x0104}, :LO, meaning)
+  end
+
+  defp content_item(relationship, value_type, concept) do
+    Dcmix.new()
+    |> Dcmix.put("RelationshipType", :CS, relationship)
+    |> Dcmix.put("ValueType", :CS, value_type)
+    |> Dcmix.put("ConceptNameCodeSequence", :SQ, [concept])
   end
 
   defp series_reference(series, sop_instance) do
