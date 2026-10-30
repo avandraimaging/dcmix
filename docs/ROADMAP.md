@@ -28,6 +28,7 @@ Dcmix aims to bring comprehensive DICOM support to Elixir, inspired by [dcmtk](h
 | **DICOM Networking (C-MOVE SCU)** | Have remote PACS servers send instances to a Storage SCP via C-MOVE, with each response given to a callback that can cancel | Complete |
 | **DICOM Networking (C-ECHO SCP)** | Accept associations on a port and answer C-ECHO (`Dcmix.Network.Listener`) | Complete |
 | **DICOM Networking (Storage SCP)** | Receive instances sent with C-STORE, to files, handed to a caller's handler (`Dcmix.Network.SCP.Handler`) | Complete |
+| **DICOMDIR (write)** | Write the media directory for a file set (`Dcmix.Dicomdir`) | Complete |
 
 ## Planned Features
 
@@ -38,7 +39,7 @@ Dcmix aims to bring comprehensive DICOM support to Elixir, inspired by [dcmtk](h
 | **DICOM Networking (DIMSE)** | C-STORE SCU (C-ECHO SCU and SCP, C-FIND, C-GET, C-MOVE and the Storage SCP complete) | High |
 | **Storage SCU** | Send DICOM files over the network (the Storage SCP is complete) | High |
 | **Compressed transfer syntaxes over the network** | Accept JPEG / JPEG 2000 / RLE storage contexts in C-GET (pairs with Pixel Data Decompression) | Medium |
-| **DICOMDIR** | Create/read media directory files | Medium |
+| **DICOMDIR (read)** | Read media directory files (writing is complete) | Medium |
 | **Anonymization** | De-identify patient data | Medium |
 | **C-GET options parity** | Configurable GET-context transfer syntaxes; patient/study-only query model (getscu `-O`) | Low |
 | **Network timeouts and TLS** | Separate association and DIMSE timeouts; DICOM TLS | Low |
@@ -61,5 +62,5 @@ Dcmix aims to bring comprehensive DICOM support to Elixir, inspired by [dcmtk](h
 | DICOM Networking | Partial | Yes | Yes |
 | C-GET retrieve | Yes | No | Yes |
 | Image Export | Yes | Yes | Yes |
-| DICOMDIR | No | No | Yes |
+| DICOMDIR | Write only | No | Yes |
 | Anonymization | No | No | Yes |
