@@ -219,14 +219,24 @@ defmodule Dcmix.Dicomdir do
     {"ContentTime", :TM, :when_present}
   ]
 
-  @placing_uids ["StudyInstanceUID", "SeriesInstanceUID", "SOPClassUID", "SOPInstanceUID"]
+  # The four that place an instance, and the transfer syntax its File Meta
+  # Information declares. A data set without that wasn't read from a Part 10
+  # file, which a file set can't refer to.
+  @required_uids [
+    "StudyInstanceUID",
+    "SeriesInstanceUID",
+    "SOPClassUID",
+    "SOPInstanceUID",
+    "TransferSyntaxUID"
+  ]
 
   @doc """
   Encodes the DICOMDIR for `instances`, `{file_id, data_set}` pairs.
 
   Returns `{:ok, dicomdir, left_out}`, where `left_out` lists the File IDs of
   instances it couldn't refer to: those lacking the Study Instance, Series
-  Instance, SOP Class or SOP Instance UID that place them. Returns
+  Instance, SOP Class or SOP Instance UID that place them, or the Transfer
+  Syntax UID of a Part 10 file's File Meta Information. Returns
   `{:error, :no_instances}` when that is all of them.
 
   ## Options
@@ -272,10 +282,10 @@ defmodule Dcmix.Dicomdir do
   end
 
   defp entry(file_id, data_set) do
-    case Enum.map(@placing_uids, &text(data_set, &1)) do
-      [study, series, sop_class, sop_instance]
+    case Enum.map(@required_uids, &text(data_set, &1)) do
+      [study, series, sop_class, sop_instance, transfer_syntax]
       when is_binary(study) and is_binary(series) and is_binary(sop_class) and
-             is_binary(sop_instance) ->
+             is_binary(sop_instance) and is_binary(transfer_syntax) ->
         type = record_type(sop_class)
 
         %{
@@ -286,13 +296,13 @@ defmodule Dcmix.Dicomdir do
           series: series,
           sop_class: sop_class,
           sop_instance: sop_instance,
-          transfer_syntax: text(data_set, "TransferSyntaxUID") || @explicit_vr_little_endian,
+          transfer_syntax: transfer_syntax,
           character_set: text(data_set, "SpecificCharacterSet"),
           type: type,
           values: values(data_set, type)
         }
 
-      _unplaceable ->
+      _unreferable ->
         nil
     end
   end

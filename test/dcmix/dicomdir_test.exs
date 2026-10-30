@@ -1,7 +1,8 @@
 defmodule Dcmix.DicomdirTest do
   use ExUnit.Case, async: true
 
-  alias Dcmix.{DataSet, Dicomdir}
+  alias Dcmix.{DataSet, Dicomdir, Parser}
+  alias Dcmix.Writer.ExplicitVR
 
   doctest Dcmix.Dicomdir
 
@@ -492,6 +493,18 @@ defmodule Dcmix.DicomdirTest do
       assert file_id == "DICOM\\ST000000\\SE000000\\IN000001"
     end
 
+    test "an instance not read from a Part 10 file, which has no transfer syntax to refer to" do
+      {file_id, data_set} = instance(~w(DICOM ST000000 SE000000 IN000000))
+
+      {:ok, raw} =
+        data_set |> DataSet.to_list() |> Enum.reject(&(elem(&1.tag, 0) == 0x0002)) |> raw()
+
+      instances = [{file_id, raw}, instance(~w(DICOM ST000000 SE000000 IN000001))]
+
+      assert {:ok, bytes, [^file_id]} = Dicomdir.encode(instances)
+      assert [{"PATIENT", _, [{"STUDY", _, [{"SERIES", _, [{"IMAGE", _, []}]}]}]}] = walk(bytes)
+    end
+
     test "refuses when nothing is left to refer to" do
       instances = [instance(~w(DICOM ST000000 SE000000 IN000000), study: :absent)]
 
@@ -512,7 +525,7 @@ defmodule Dcmix.DicomdirTest do
       assert {:ok, bytes, []} = Dicomdir.encode(instances, opts)
       assert Dicomdir.encode(instances, opts) == {:ok, bytes, []}
 
-      assert {:ok, dicomdir} = Dcmix.Parser.parse(bytes)
+      assert {:ok, dicomdir} = Parser.parse(bytes)
       assert Dcmix.get_string(dicomdir, "MediaStorageSOPClassUID") =~ "1.2.840.10008.1.3.10"
       assert Dcmix.get_string(dicomdir, "MediaStorageSOPInstanceUID") =~ "2.25.1234"
       assert Dcmix.get_string(dicomdir, "ImplementationVersionName") == "PINNED"
@@ -523,7 +536,7 @@ defmodule Dcmix.DicomdirTest do
       instances = [instance(~w(DICOM ST000000 SE000000 IN000000))]
 
       assert {:ok, bytes, []} = Dicomdir.encode(instances)
-      assert {:ok, dicomdir} = Dcmix.Parser.parse(bytes)
+      assert {:ok, dicomdir} = Parser.parse(bytes)
 
       assert Dcmix.get_string(dicomdir, "MediaStorageSOPInstanceUID") =~ Dcmix.UID.root()
 
@@ -567,8 +580,14 @@ defmodule Dcmix.DicomdirTest do
       end)
 
     {:ok, encoded} = Dcmix.Writer.encode(data_set)
-    {:ok, read} = Dcmix.Parser.parse(encoded, stop_before_pixels: true)
+    {:ok, read} = Parser.parse(encoded, stop_before_pixels: true)
     {file_id, read}
+  end
+
+  # The elements written with no preamble or File Meta Information and read
+  # back, as `Dcmix.read_file/2` reads such a file.
+  defp raw(elements) do
+    elements |> DataSet.new() |> ExplicitVR.encode() |> Parser.parse()
   end
 
   defp tags(data_set), do: data_set |> DataSet.to_list() |> Enum.map(& &1.tag)
@@ -601,7 +620,7 @@ defmodule Dcmix.DicomdirTest do
   # The tree as a reader finds it: from the root's first record, following each
   # record's next and lower-level offsets, as `{type, identity, children}`.
   defp walk(bytes) do
-    {:ok, dicomdir} = Dcmix.Parser.parse(bytes)
+    {:ok, dicomdir} = Parser.parse(bytes)
     siblings(bytes, value(dicomdir, "OffsetOfTheFirstDirectoryRecordOfTheRootDirectoryEntity"))
   end
 
@@ -622,7 +641,7 @@ defmodule Dcmix.DicomdirTest do
     <<_before::binary-size(^offset), 0xFE, 0xFF, 0x00, 0xE0, length::32-little,
       item::binary-size(length), _after::binary>> = bytes
 
-    {:ok, record} = Dcmix.Parser.parse(item)
+    {:ok, record} = Parser.parse(item)
     record
   end
 
@@ -639,7 +658,7 @@ defmodule Dcmix.DicomdirTest do
 
   # Every record, in the order they sit in the file.
   defp records(bytes) do
-    {:ok, dicomdir} = Dcmix.Parser.parse(bytes)
+    {:ok, dicomdir} = Parser.parse(bytes)
     value(dicomdir, "DirectoryRecordSequence")
   end
 
