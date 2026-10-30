@@ -64,6 +64,50 @@ defmodule Dcmix.DicomdirTest do
       assert [{"PATIENT", "FIXTURE-1", _}, {"PATIENT", "FIXTURE-2", _}] = walk(bytes)
     end
 
+    test "keeps patients nobody identified apart, by name" do
+      instances = [
+        instance(~w(DICOM ST000000 SE000000 IN000000),
+          study: "1.2.9.1",
+          extra: [{"PatientID", :LO, :absent}, {"PatientName", :PN, "First^Unidentified"}]
+        ),
+        instance(~w(DICOM ST000001 SE000000 IN000000),
+          study: "1.2.9.2",
+          extra: [{"PatientID", :LO, :absent}, {"PatientName", :PN, "Second^Unidentified"}]
+        )
+      ]
+
+      assert {:ok, bytes, []} = Dicomdir.encode(instances)
+      assert [{"PATIENT", "", [_study_1]}, {"PATIENT", "", [_study_2]}] = walk(bytes)
+
+      assert ["First^Unidentified", "Second^Unidentified"] =
+               bytes |> records() |> patient_names()
+    end
+
+    test "takes a Patient ID's leading spaces as insignificant" do
+      instances = [
+        instance(~w(DICOM ST000000 SE000000 IN000000),
+          study: "1.2.9.1",
+          extra: [{"PatientID", :LO, " FIXTURE-1"}]
+        ),
+        instance(~w(DICOM ST000001 SE000000 IN000000), study: "1.2.9.2")
+      ]
+
+      assert {:ok, bytes, []} = Dicomdir.encode(instances)
+      assert [{"PATIENT", _, [_study_1, _study_2]}] = walk(bytes)
+    end
+
+    test "takes a patient record's keys from the first instance that names the patient" do
+      instances = [
+        instance(~w(DICOM ST000000 SE000000 IN000000), extra: [{"PatientName", :PN, :absent}]),
+        instance(~w(DICOM ST000000 SE000000 IN000001),
+          extra: [{"PatientName", :PN, "Named^Patient"}]
+        )
+      ]
+
+      assert {:ok, bytes, []} = Dicomdir.encode(instances)
+      assert ["Named^Patient"] = bytes |> records() |> patient_names()
+    end
+
     test "reads an instance with pixel data, whose header is all it needs" do
       pixels = {"PixelData", :OW, :binary.copy(<<1, 2>>, 4096)}
       instances = [instance(~w(DICOM ST000000 SE000000 IN000000), extra: [pixels])]
@@ -344,6 +388,9 @@ defmodule Dcmix.DicomdirTest do
         {"Modality", :CS, "OT"}
       ]
       |> Enum.concat(Keyword.get(opts, :extra, []))
+      |> Enum.reverse()
+      |> Enum.uniq_by(fn {keyword, _vr, _value} -> keyword end)
+      |> Enum.reverse()
       |> Enum.reject(fn {_keyword, _vr, value} -> value == :absent end)
       |> Enum.reduce(Dcmix.new(), fn {keyword, vr, value}, data_set ->
         Dcmix.put(data_set, keyword, vr, value)
@@ -397,6 +444,10 @@ defmodule Dcmix.DicomdirTest do
   defp records(bytes) do
     {:ok, dicomdir} = Dcmix.Parser.parse(bytes)
     value(dicomdir, "DirectoryRecordSequence")
+  end
+
+  defp patient_names(records) do
+    for record <- records, type(record) == "PATIENT", do: Dcmix.get_string(record, "PatientName")
   end
 
   # The keywords a record carries besides the DICOMDIR's own (group 0004) and

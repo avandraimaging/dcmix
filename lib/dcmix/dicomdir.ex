@@ -17,7 +17,11 @@ defmodule Dcmix.Dicomdir do
 
   Patients, studies and series are grouped by the Patient ID, Study Instance
   UID and Series Instance UID their instances carry, in the order the instances
-  are given. Each instance's record type comes from its SOP class, and each
+  are given. Instances with no Patient ID are grouped by Patient Name instead,
+  so patients nobody identified stay apart; their record's Patient ID is empty,
+  since dcmix doesn't invent one. A patient record takes its keys from the
+  first instance in its group that names the patient. Each instance's record
+  type comes from its SOP class, and each
   record carries the keys PS3.3 Annex F requires of its type. A required key
   the instance has no value for is written empty, except a number, which can't
   be. Sequences aren't copied: a required one is written empty.
@@ -264,7 +268,8 @@ defmodule Dcmix.Dicomdir do
 
         %{
           file_id: file_id,
-          patient: text(data_set, "PatientID"),
+          patient: patient(data_set),
+          named?: text(data_set, "PatientName") != nil,
           study: study,
           series: series,
           sop_class: sop_class,
@@ -341,8 +346,18 @@ defmodule Dcmix.Dicomdir do
   # that identifies it, so a study split across oddly numbered folders is still
   # one study.
   defp patients(entries) do
-    for {_id, patient} <- grouped(entries, & &1.patient) do
-      node(record("PATIENT", hd(patient), @patient_keys), studies(patient))
+    for {_patient, patient} <- grouped(entries, & &1.patient) do
+      source = Enum.find(patient, hd(patient), & &1.named?)
+      node(record("PATIENT", source, @patient_keys), studies(patient))
+    end
+  end
+
+  # Leading spaces in an LO are insignificant, so " P1" is the same patient
+  # as "P1".
+  defp patient(data_set) do
+    case data_set |> text("PatientID") |> to_string() |> String.trim() do
+      "" -> {:name, data_set |> text("PatientName") |> to_string() |> String.trim()}
+      id -> {:id, id}
     end
   end
 
