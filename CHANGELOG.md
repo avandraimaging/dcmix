@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.6.2] - 2026-11-04
+
+### Fixed
+
+- In Explicit VR data, a defined-length sequence came back with no items; its
+  items, defined or undefined length and nested at any depth, now read as they
+  do in an undefined-length sequence. One whose bytes aren't items reads as UN
+  with its bytes, as in Implicit VR.
+- An FL or FD value holding NaN or infinity raised, in Implicit and Explicit VR
+  alike. Erlang floats can't hold them, so the value reads as UN with its
+  bytes, which write back unchanged.
+
 ## [0.6.1] - 2026-11-04
 
 ### Added
@@ -291,7 +303,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `mix dcmix.from_xml` - Create DICOM from XML
   - `mix dcmix.from_image` - Import pixel data from image
 
-[Unreleased]: https://github.com/avandraimaging/dcmix/compare/v0.6.1...HEAD
+[Unreleased]: https://github.com/avandraimaging/dcmix/compare/v0.6.2...HEAD
+[0.6.2]: https://github.com/avandraimaging/dcmix/compare/v0.6.1...v0.6.2
 [0.6.1]: https://github.com/avandraimaging/dcmix/compare/v0.6.0...v0.6.1
 [0.6.0]: https://github.com/avandraimaging/dcmix/compare/v0.5.0...v0.6.0
 [0.5.0]: https://github.com/avandraimaging/dcmix/compare/v0.4.2...v0.5.0
