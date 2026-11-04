@@ -9,8 +9,9 @@ defmodule Dcmix.Dictionary do
 
   Repeating-group entries such as the overlay group `60xx` match any tag their
   pattern covers in an even group, so `(6002,3000)` is OverlayData. A tag PS3.6
-  gives more than one VR has the one implicit VR data is read with: OW for
-  "OB or OW", otherwise the first VR listed.
+  gives more than one VR has, as its `vr`, the one Implicit VR data is read with
+  when nothing decides it: OW for "OB or OW", otherwise the first VR listed.
+  `vrs/1` lists them all.
   """
 
   import Bitwise
@@ -68,20 +69,21 @@ defmodule Dcmix.Dictionary do
                         |> String.to_integer(16)
                       }
 
-                      vr_atom =
+                      # More than one VR is written default first: "US/SS".
+                      vrs =
                         case vr do
-                          "NONE" -> nil
-                          _ -> String.to_atom(vr)
+                          "NONE" -> []
+                          _ -> vr |> String.split("/") |> Enum.map(&String.to_atom/1)
                         end
 
                       {mask,
                        %{
                          tag: tag,
                          keyword: keyword,
-                         vr: vr_atom,
+                         vr: List.first(vrs),
                          vm: vm,
                          description: description
-                       }}
+                       }, vrs}
 
                     _ ->
                       nil
@@ -94,10 +96,11 @@ defmodule Dcmix.Dictionary do
             end)
 
   # A mask of all ones is an exact tag; anything else, a repeating group.
-  @by_tag for {{0xFFFF, 0xFFFF}, e} <- @entries, into: %{}, do: {e.tag, e}
-  @repeating for {mask, e} <- @entries, mask != {0xFFFF, 0xFFFF}, do: {mask, e}
-  @by_keyword Map.new(@entries, fn {_mask, e} -> {e.keyword, e} end)
-  @all Enum.map(@entries, fn {_mask, e} -> e end)
+  @by_tag for {{0xFFFF, 0xFFFF}, e, _vrs} <- @entries, into: %{}, do: {e.tag, e}
+  @repeating for {mask, e, _vrs} <- @entries, mask != {0xFFFF, 0xFFFF}, do: {mask, e}
+  @by_keyword Map.new(@entries, fn {_mask, e, _vrs} -> {e.keyword, e} end)
+  @all Enum.map(@entries, fn {_mask, e, _vrs} -> e end)
+  @alternative_vrs for {_mask, e, [_, _ | _] = vrs} <- @entries, into: %{}, do: {e.keyword, vrs}
 
   @doc """
   Looks up a dictionary entry by tag.
@@ -192,6 +195,31 @@ defmodule Dcmix.Dictionary do
     case lookup(tag) do
       {:ok, entry} -> entry.vr
       {:error, _} -> nil
+    end
+  end
+
+  @doc """
+  Returns every VR PS3.6 gives a tag, the one `vr/1` returns first, or `[]`
+  for a tag the dictionary doesn't know.
+
+  A tag with more than one VR, such as SmallestImagePixelValue ("US or SS"),
+  takes the one that applies from other elements; `vr/1` is the one Implicit
+  VR data is read with when nothing decides it.
+
+  ## Examples
+
+      iex> Dcmix.Dictionary.vrs({0x0028, 0x0106})
+      [:US, :SS]
+
+      iex> Dcmix.Dictionary.vrs({0x0010, 0x0010})
+      [:PN]
+  """
+  @spec vrs(Tag.t()) :: [atom()]
+  def vrs(tag) do
+    case lookup(tag) do
+      {:ok, %{vr: nil}} -> []
+      {:ok, entry} -> Map.get(@alternative_vrs, entry.keyword, [entry.vr])
+      {:error, _} -> []
     end
   end
 

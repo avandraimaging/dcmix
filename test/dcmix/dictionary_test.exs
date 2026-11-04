@@ -11,8 +11,12 @@ defmodule Dcmix.DictionaryTest do
       assert Enum.all?(Dictionary.all(), &(&1.keyword =~ ~r/\A[A-Za-z][A-Za-z0-9]*\z/))
     end
 
-    test "gives every entry a VR dcmix reads and writes, or none" do
+    test "gives every entry VRs dcmix reads and writes, or none" do
       assert Enum.all?(Dictionary.all(), &(is_nil(&1.vr) or Dcmix.VR.valid?(&1.vr)))
+
+      assert Enum.all?(Dictionary.all(), fn e ->
+               Enum.all?(Dictionary.vrs(e.tag), &Dcmix.VR.valid?/1)
+             end)
     end
 
     test "has no keyword twice" do
@@ -85,6 +89,27 @@ defmodule Dcmix.DictionaryTest do
       assert Dictionary.vr({0x0028, 0x0106}) == :US
       # US or OW
       assert {:ok, %{vr: :US, vm: "1-n"}} = Dictionary.lookup({0x0028, 0x3006})
+    end
+  end
+
+  describe "vrs/1" do
+    test "lists every VR PS3.6 gives a tag, the default first" do
+      assert Dictionary.vrs({0x7FE0, 0x0010}) == [:OW, :OB]
+      assert Dictionary.vrs({0x0028, 0x3006}) == [:US, :OW]
+      assert Dictionary.vrs({0x0028, 0x1200}) == [:US, :SS, :OW]
+    end
+
+    test "lists a repeating group's VRs" do
+      assert Dictionary.vrs({0x6002, 0x3000}) == [:OW, :OB]
+    end
+
+    test "is empty for a tag the dictionary doesn't know, or one with no VR" do
+      assert Dictionary.vrs({0x0009, 0x0010}) == []
+      assert Dictionary.vrs({0xFFFE, 0xE000}) == []
+    end
+
+    test "has 38 tags with more than one VR" do
+      assert Dictionary.all() |> Enum.count(&(length(Dictionary.vrs(&1.tag)) > 1)) == 38
     end
   end
 

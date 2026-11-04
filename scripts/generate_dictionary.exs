@@ -6,10 +6,10 @@
 #
 # It reads every data element registry table in PS3.6's DocBook source, retired
 # and repeating-group entries included, and leaves out entries with no keyword.
-# A tag PS3.6 gives more than one VR gets the VR implicit VR data is read with:
-# OW for "OB or OW", as PS3.5 encodes those in implicit VR, otherwise the first
-# VR listed, with the VM listed first. SV, UV and OV, which dcmix doesn't
-# support yet, are written as UN.
+# A tag PS3.6 gives more than one VR lists them all, joined by "/", the default
+# first: OW for "OB or OW", as PS3.5 encodes those in implicit VR, otherwise the
+# first VR listed; its VM is the one listed first. SV, UV and OV, which dcmix
+# doesn't support yet, are written as UN.
 
 defmodule GenerateDictionary do
   @source_url "https://dicom.nema.org/medical/dicom/current/source/docbook/part06/part06.xml"
@@ -108,7 +108,7 @@ defmodule GenerateDictionary do
       element: tag_part(element),
       name: name,
       keyword: keyword,
-      vr: implicit_vr(vr),
+      vr: vr_column(vr),
       vm: multiplicity(vm)
     }
   end
@@ -121,14 +121,14 @@ defmodule GenerateDictionary do
   # Hex digits upper case, a repeating group's x lower case, as PS3.6 writes it.
   defp tag_part(part), do: part |> String.upcase() |> String.replace("X", "x")
 
-  defp implicit_vr(vr) do
+  defp vr_column(vr) do
     vrs = Regex.scan(~r/\b[A-Z]{2}\b/, vr) |> List.flatten()
 
     cond do
       vrs == [] -> "NONE"
-      "OB" in vrs and "OW" in vrs -> "OW"
       hd(vrs) in @unsupported_vrs -> "UN"
-      true -> hd(vrs)
+      "OB" in vrs and "OW" in vrs -> Enum.join(["OW" | List.delete(vrs, "OW")], "/")
+      true -> Enum.join(vrs, "/")
     end
   end
 

@@ -10,6 +10,12 @@ defmodule Dcmix.Parser.ExplicitVR do
 
   @undefined_length 0xFFFFFFFF
 
+  # LUTDescriptor and the Red, Green and Blue Palette Color Lookup Table
+  # Descriptors.
+  @lut_descriptors [{0x0028, 0x3002}, {0x0028, 0x1101}, {0x0028, 0x1102}, {0x0028, 0x1103}]
+
+  @value_sizes %{US: 2, SS: 2, UL: 4, SL: 4, FL: 4, AT: 4, FD: 8}
+
   @doc """
   Parses data elements from binary data using Explicit VR encoding.
 
@@ -145,12 +151,25 @@ defmodule Dcmix.Parser.ExplicitVR do
 
   defp read_value(tag, vr, length, data, big_endian) when byte_size(data) >= length do
     <<value_bytes::binary-size(^length), rest::binary>> = data
-    value = decode_value(vr, value_bytes, big_endian)
-    {:ok, DataElement.new(tag, vr, value, length), rest}
+
+    if fits?(vr, length) do
+      value = decode_value(tag, vr, value_bytes, big_endian)
+      {:ok, DataElement.new(tag, vr, value, length), rest}
+    else
+      # A length that isn't a whole number of values: keep its bytes as UN
+      {:ok, DataElement.new(tag, :UN, value_bytes, length), rest}
+    end
   end
 
   defp read_value(_tag, _vr, _length, _data, _big_endian) do
     {:error, :unexpected_eof}
+  end
+
+  defp fits?(vr, length) do
+    case Map.fetch(@value_sizes, vr) do
+      {:ok, size} -> rem(length, size) == 0
+      :error -> true
+    end
   end
 
   defp parse_sequence(tag, vr, data, big_endian) do
@@ -276,21 +295,29 @@ defmodule Dcmix.Parser.ExplicitVR do
 
   defp extract_fragment(_length, _rest), do: {:error, :unexpected_eof}
 
-  defp decode_value(:SQ, _bytes, _big_endian) do
+  defp decode_value(_tag, :SQ, _bytes, _big_endian) do
     # SQ is handled separately with defined length
     []
   end
 
-  defp decode_value(vr, bytes, big_endian) when vr in [:US, :SS, :UL, :SL, :FL, :FD, :AT] do
+  # A LUT descriptor's first and third values are US whatever its VR.
+  defp decode_value(tag, :SS, bytes, big_endian)
+       when tag in @lut_descriptors and byte_size(bytes) == 6 do
+    [_first, second, _third] = decode_numeric(:SS, bytes, big_endian)
+    [first, _second, third] = decode_numeric(:US, bytes, big_endian)
+    [first, second, third]
+  end
+
+  defp decode_value(_tag, vr, bytes, big_endian) when vr in [:US, :SS, :UL, :SL, :FL, :FD, :AT] do
     decode_numeric(vr, bytes, big_endian)
   end
 
-  defp decode_value(vr, bytes, _big_endian) when vr in [:OB, :OW, :OD, :OF, :OL, :UN] do
+  defp decode_value(_tag, vr, bytes, _big_endian) when vr in [:OB, :OW, :OD, :OF, :OL, :UN] do
     # Binary data - return as-is
     bytes
   end
 
-  defp decode_value(_vr, bytes, _big_endian) do
+  defp decode_value(_tag, _vr, bytes, _big_endian) do
     # String types - trim padding
     bytes
     |> String.trim_trailing(<<0>>)

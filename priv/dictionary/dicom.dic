@@ -468,9 +468,9 @@
 0014 3026 DS VerticalOffsetOfSensor 1 Vertical Offset of Sensor
 0014 3028 DS SensorTemperature 1 Sensor Temperature
 0014 3040 SQ DarkCurrentSequence 1 Dark Current Sequence
-0014 3050 OW DarkCurrentCounts 1 Dark Current Counts
+0014 3050 OW/OB DarkCurrentCounts 1 Dark Current Counts
 0014 3060 SQ GainCorrectionReferenceSequence 1 Gain Correction Reference Sequence
-0014 3070 OW AirCounts 1 Air Counts
+0014 3070 OW/OB AirCounts 1 Air Counts
 0014 3071 DS KVUsedInGainCalibration 1 KV Used in Gain Calibration
 0014 3072 DS MAUsedInGainCalibration 1 MA Used in Gain Calibration
 0014 3073 DS NumberOfFramesUsedForIntegration 1 Number of Frames Used for Integration
@@ -1627,7 +1627,7 @@
 0018 980D SQ TransducerGeometryCodeSequence 1 Transducer Geometry Code Sequence
 0018 980E SQ TransducerBeamSteeringCodeSequence 1 Transducer Beam Steering Code Sequence
 0018 980F SQ TransducerApplicationCodeSequence 1 Transducer Application Code Sequence
-0018 9810 US ZeroVelocityPixelValue 1 Zero Velocity Pixel Value
+0018 9810 US/SS ZeroVelocityPixelValue 1 Zero Velocity Pixel Value
 0018 9821 SQ PhotoacousticExcitationCharacteristicsSequence 1 Photoacoustic Excitation Characteristics Sequence
 0018 9822 FD ExcitationSpectralWidth 1 Excitation Spectral Width
 0018 9823 FD ExcitationEnergy 1 Excitation Energy
@@ -1967,7 +1967,7 @@
 0022 1443 SQ OphthalmicThicknessMappingNormalsSequence 1 Ophthalmic Thickness Mapping Normals Sequence
 0022 1445 SQ RetinalThicknessDefinitionCodeSequence 1 Retinal Thickness Definition Code Sequence
 0022 1450 SQ PixelValueMappingToCodedConceptSequence 1 Pixel Value Mapping to Coded Concept Sequence
-0022 1452 US MappedPixelValue 1 Mapped Pixel Value
+0022 1452 US/SS MappedPixelValue 1 Mapped Pixel Value
 0022 1454 LO PixelValueMappingExplanation 1 Pixel Value Mapping Explanation
 0022 1458 SQ OphthalmicThicknessMapQualityThresholdSequence 1 Ophthalmic Thickness Map Quality Threshold Sequence
 0022 1460 FL OphthalmicThicknessMapThresholdQualityRating 1 Ophthalmic Thickness Map Threshold Quality Rating
@@ -2145,7 +2145,7 @@
 0028 0068 US RepeatInterval 1 Repeat Interval
 0028 0069 US BitsGrouped 1 Bits Grouped
 0028 0070 US PerimeterTable 1-n Perimeter Table
-0028 0071 US PerimeterValue 1 Perimeter Value
+0028 0071 US/SS PerimeterValue 1 Perimeter Value
 0028 0080 US PredictorRows 1 Predictor Rows
 0028 0081 US PredictorColumns 1 Predictor Columns
 0028 0082 US PredictorConstants 1-n Predictor Constants
@@ -2158,16 +2158,16 @@
 0028 0101 US BitsStored 1 Bits Stored
 0028 0102 US HighBit 1 High Bit
 0028 0103 US PixelRepresentation 1 Pixel Representation
-0028 0104 US SmallestValidPixelValue 1 Smallest Valid Pixel Value
-0028 0105 US LargestValidPixelValue 1 Largest Valid Pixel Value
-0028 0106 US SmallestImagePixelValue 1 Smallest Image Pixel Value
-0028 0107 US LargestImagePixelValue 1 Largest Image Pixel Value
-0028 0108 US SmallestPixelValueInSeries 1 Smallest Pixel Value in Series
-0028 0109 US LargestPixelValueInSeries 1 Largest Pixel Value in Series
-0028 0110 US SmallestImagePixelValueInPlane 1 Smallest Image Pixel Value in Plane
-0028 0111 US LargestImagePixelValueInPlane 1 Largest Image Pixel Value in Plane
-0028 0120 US PixelPaddingValue 1 Pixel Padding Value
-0028 0121 US PixelPaddingRangeLimit 1 Pixel Padding Range Limit
+0028 0104 US/SS SmallestValidPixelValue 1 Smallest Valid Pixel Value
+0028 0105 US/SS LargestValidPixelValue 1 Largest Valid Pixel Value
+0028 0106 US/SS SmallestImagePixelValue 1 Smallest Image Pixel Value
+0028 0107 US/SS LargestImagePixelValue 1 Largest Image Pixel Value
+0028 0108 US/SS SmallestPixelValueInSeries 1 Smallest Pixel Value in Series
+0028 0109 US/SS LargestPixelValueInSeries 1 Largest Pixel Value in Series
+0028 0110 US/SS SmallestImagePixelValueInPlane 1 Smallest Image Pixel Value in Plane
+0028 0111 US/SS LargestImagePixelValueInPlane 1 Largest Image Pixel Value in Plane
+0028 0120 US/SS PixelPaddingValue 1 Pixel Padding Value
+0028 0121 US/SS PixelPaddingRangeLimit 1 Pixel Padding Range Limit
 0028 0122 FL FloatPixelPaddingValue 1 Float Pixel Padding Value
 0028 0123 FD DoubleFloatPixelPaddingValue 1 Double Float Pixel Padding Value
 0028 0124 FL FloatPixelPaddingRangeLimit 1 Float Pixel Padding Range Limit
@@ -2214,16 +2214,16 @@
 0028 1056 CS VOILUTFunction 1 VOI LUT Function
 0028 1080 CS GrayScale 1 Gray Scale
 0028 1090 CS RecommendedViewingMode 1 Recommended Viewing Mode
-0028 1100 US GrayLookupTableDescriptor 3 Gray Lookup Table Descriptor
-0028 1101 US RedPaletteColorLookupTableDescriptor 3 Red Palette Color Lookup Table Descriptor
-0028 1102 US GreenPaletteColorLookupTableDescriptor 3 Green Palette Color Lookup Table Descriptor
-0028 1103 US BluePaletteColorLookupTableDescriptor 3 Blue Palette Color Lookup Table Descriptor
+0028 1100 US/SS GrayLookupTableDescriptor 3 Gray Lookup Table Descriptor
+0028 1101 US/SS RedPaletteColorLookupTableDescriptor 3 Red Palette Color Lookup Table Descriptor
+0028 1102 US/SS GreenPaletteColorLookupTableDescriptor 3 Green Palette Color Lookup Table Descriptor
+0028 1103 US/SS BluePaletteColorLookupTableDescriptor 3 Blue Palette Color Lookup Table Descriptor
 0028 1104 US AlphaPaletteColorLookupTableDescriptor 3 Alpha Palette Color Lookup Table Descriptor
-0028 1111 US LargeRedPaletteColorLookupTableDescriptor 4 Large Red Palette Color Lookup Table Descriptor
-0028 1112 US LargeGreenPaletteColorLookupTableDescriptor 4 Large Green Palette Color Lookup Table Descriptor
-0028 1113 US LargeBluePaletteColorLookupTableDescriptor 4 Large Blue Palette Color Lookup Table Descriptor
+0028 1111 US/SS LargeRedPaletteColorLookupTableDescriptor 4 Large Red Palette Color Lookup Table Descriptor
+0028 1112 US/SS LargeGreenPaletteColorLookupTableDescriptor 4 Large Green Palette Color Lookup Table Descriptor
+0028 1113 US/SS LargeBluePaletteColorLookupTableDescriptor 4 Large Blue Palette Color Lookup Table Descriptor
 0028 1199 UI PaletteColorLookupTableUID 1 Palette Color Lookup Table UID
-0028 1200 US GrayLookupTableData 1-n Gray Lookup Table Data
+0028 1200 US/SS/OW GrayLookupTableData 1-n Gray Lookup Table Data
 0028 1201 OW RedPaletteColorLookupTableData 1 Red Palette Color Lookup Table Data
 0028 1202 OW GreenPaletteColorLookupTableData 1 Green Palette Color Lookup Table Data
 0028 1203 OW BluePaletteColorLookupTableData 1 Blue Palette Color Lookup Table Data
@@ -2265,10 +2265,10 @@
 0028 2114 CS LossyImageCompressionMethod 1-n Lossy Image Compression Method
 0028 3000 SQ ModalityLUTSequence 1 Modality LUT Sequence
 0028 3001 SQ VariableModalityLUTSequence 1 Variable Modality LUT Sequence
-0028 3002 US LUTDescriptor 3 LUT Descriptor
+0028 3002 US/SS LUTDescriptor 3 LUT Descriptor
 0028 3003 LO LUTExplanation 1 LUT Explanation
 0028 3004 LO ModalityLUTType 1 Modality LUT Type
-0028 3006 US LUTData 1-n LUT Data
+0028 3006 US/OW LUTData 1-n LUT Data
 0028 3010 SQ VOILUTSequence 1 VOI LUT Sequence
 0028 3110 SQ SoftcopyVOILUTSequence 1 Softcopy VOI LUT Sequence
 0028 4000 LT ImagePresentationComments 1 Image Presentation Comments
@@ -2679,11 +2679,11 @@
 0040 9096 SQ RealWorldValueMappingSequence 1 Real World Value Mapping Sequence
 0040 9098 SQ PixelValueMappingCodeSequence 1 Pixel Value Mapping Code Sequence
 0040 9210 SH LUTLabel 1 LUT Label
-0040 9211 US RealWorldValueLastValueMapped 1 Real World Value Last Value Mapped
+0040 9211 US/SS RealWorldValueLastValueMapped 1 Real World Value Last Value Mapped
 0040 9212 FD RealWorldValueLUTData 1-n Real World Value LUT Data
 0040 9213 FD DoubleFloatRealWorldValueLastValueMapped 1 Double Float Real World Value Last Value Mapped
 0040 9214 FD DoubleFloatRealWorldValueFirstValueMapped 1 Double Float Real World Value First Value Mapped
-0040 9216 US RealWorldValueFirstValueMapped 1 Real World Value First Value Mapped
+0040 9216 US/SS RealWorldValueFirstValueMapped 1 Real World Value First Value Mapped
 0040 9220 SQ QuantityDefinitionSequence 1 Quantity Definition Sequence
 0040 9224 FD RealWorldValueIntercept 1 Real World Value Intercept
 0040 9225 FD RealWorldValueSlope 1 Real World Value Slope
@@ -3133,8 +3133,8 @@
 0054 1401 CS DeadTimeCorrectionFlag 1 Dead Time Correction Flag
 0060 3000 SQ HistogramSequence 1 Histogram Sequence
 0060 3002 US HistogramNumberOfBins 1 Histogram Number of Bins
-0060 3004 US HistogramFirstBinValue 1 Histogram First Bin Value
-0060 3006 US HistogramLastBinValue 1 Histogram Last Bin Value
+0060 3004 US/SS HistogramFirstBinValue 1 Histogram First Bin Value
+0060 3006 US/SS HistogramLastBinValue 1 Histogram Last Bin Value
 0060 3008 US HistogramBinWidth 1 Histogram Bin Width
 0060 3010 LO HistogramExplanation 1 Histogram Explanation
 0060 3020 UL HistogramData 1-n Histogram Data
@@ -5188,21 +5188,21 @@
 50xx 2006 UL NumberOfSamples 1 Number of Samples
 50xx 2008 UL SampleRate 1 Sample Rate
 50xx 200A UL TotalTime 1 Total Time
-50xx 200C OW AudioSampleData 1 Audio Sample Data
+50xx 200C OW/OB AudioSampleData 1 Audio Sample Data
 50xx 200E LT AudioComments 1 Audio Comments
 50xx 2500 LO CurveLabel 1 Curve Label
 50xx 2600 SQ CurveReferencedOverlaySequence 1 Curve Referenced Overlay Sequence
 50xx 2610 US CurveReferencedOverlayGroup 1 Curve Referenced Overlay Group
-50xx 3000 OW CurveData 1 Curve Data
+50xx 3000 OW/OB CurveData 1 Curve Data
 5200 9229 SQ SharedFunctionalGroupsSequence 1 Shared Functional Groups Sequence
 5200 9230 SQ PerFrameFunctionalGroupsSequence 1 Per-Frame Functional Groups Sequence
 5400 0100 SQ WaveformSequence 1 Waveform Sequence
-5400 0110 OW ChannelMinimumValue 1 Channel Minimum Value
-5400 0112 OW ChannelMaximumValue 1 Channel Maximum Value
+5400 0110 OW/OB ChannelMinimumValue 1 Channel Minimum Value
+5400 0112 OW/OB ChannelMaximumValue 1 Channel Maximum Value
 5400 1004 US WaveformBitsAllocated 1 Waveform Bits Allocated
 5400 1006 CS WaveformSampleInterpretation 1 Waveform Sample Interpretation
-5400 100A OW WaveformPaddingValue 1 Waveform Padding Value
-5400 1010 OW WaveformData 1 Waveform Data
+5400 100A OW/OB WaveformPaddingValue 1 Waveform Padding Value
+5400 1010 OW/OB WaveformData 1 Waveform Data
 5600 0010 OF FirstOrderPhaseCorrectionAngle 1 First Order Phase Correction Angle
 5600 0020 OF SpectroscopyData 1 Spectroscopy Data
 60xx 0010 US OverlayRows 1 Overlay Rows
@@ -5243,18 +5243,18 @@
 60xx 1302 DS ROIMean 1 ROI Mean
 60xx 1303 DS ROIStandardDeviation 1 ROI Standard Deviation
 60xx 1500 LO OverlayLabel 1 Overlay Label
-60xx 3000 OW OverlayData 1 Overlay Data
+60xx 3000 OW/OB OverlayData 1 Overlay Data
 60xx 4000 LT OverlayComments 1 Overlay Comments
 7FE0 0001 UN ExtendedOffsetTable 1 Extended Offset Table
 7FE0 0002 UN ExtendedOffsetTableLengths 1 Extended Offset Table Lengths
 7FE0 0003 UN EncapsulatedPixelDataValueTotalLength 1 Encapsulated Pixel Data Value Total Length
 7FE0 0008 OF FloatPixelData 1 Float Pixel Data
 7FE0 0009 OD DoubleFloatPixelData 1 Double Float Pixel Data
-7FE0 0010 OW PixelData 1 Pixel Data
+7FE0 0010 OW/OB PixelData 1 Pixel Data
 7FE0 0020 OW CoefficientsSDVN 1 Coefficients SDVN
 7FE0 0030 OW CoefficientsSDHN 1 Coefficients SDHN
 7FE0 0040 OW CoefficientsSDDN 1 Coefficients SDDN
-7Fxx 0010 OW VariablePixelData 1 Variable Pixel Data
+7Fxx 0010 OW/OB VariablePixelData 1 Variable Pixel Data
 7Fxx 0011 US VariableNextDataGroup 1 Variable Next Data Group
 7Fxx 0020 OW VariableCoefficientsSDVN 1 Variable Coefficients SDVN
 7Fxx 0030 OW VariableCoefficientsSDHN 1 Variable Coefficients SDHN

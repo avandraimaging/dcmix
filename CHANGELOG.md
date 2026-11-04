@@ -7,6 +7,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.6.1] - 2026-11-04
+
+### Added
+
+- `Dcmix.Dictionary.vrs/1` lists every VR PS3.6 gives a tag, the default
+  first, such as `[:US, :SS]` for Smallest Image Pixel Value. The dictionary
+  file writes them `US/SS`.
+
+### Fixed
+
+- In Implicit VR data, a tag PS3.6 gives more than one VR takes the one the
+  elements read before it decide, from its own data set or the nearest
+  enclosing one, as dcmtk and pydicom decide them. "US or SS" values, such as
+  Smallest Image Pixel Value or Pixel Padding Value, are SS when Pixel
+  Representation is 1, so a signed image's -1024 no longer reads as 64512.
+  LUT Data is OW unless its LUT Descriptor gives one entry. When nothing
+  decides, the tag takes the dictionary's VR, as before.
+- A LUT descriptor's first and third values read unsigned when its VR is SS,
+  in Implicit and Explicit VR alike.
+- A numeric value whose length isn't a whole number of values raised; it now
+  reads as UN with its bytes. A defined-length sequence whose bytes aren't
+  items read as an empty sequence; it now reads as UN with its bytes too.
+
 ## [0.6.0] - 2026-11-04
 
 ### Added
@@ -268,7 +291,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `mix dcmix.from_xml` - Create DICOM from XML
   - `mix dcmix.from_image` - Import pixel data from image
 
-[Unreleased]: https://github.com/avandraimaging/dcmix/compare/v0.6.0...HEAD
+[Unreleased]: https://github.com/avandraimaging/dcmix/compare/v0.6.1...HEAD
+[0.6.1]: https://github.com/avandraimaging/dcmix/compare/v0.6.0...v0.6.1
 [0.6.0]: https://github.com/avandraimaging/dcmix/compare/v0.5.0...v0.6.0
 [0.5.0]: https://github.com/avandraimaging/dcmix/compare/v0.4.2...v0.5.0
 [0.4.2]: https://github.com/avandraimaging/dcmix/compare/v0.4.1...v0.4.2
