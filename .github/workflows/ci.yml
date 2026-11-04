@@ -48,7 +48,7 @@ jobs:
             ${{ runner.os }}-build-${{ env.MIX_ENV }}-
 
       - name: Install dependencies
-        run: mix deps.get
+        run: mix deps.get --check-locked
 
       - name: Compile
         run: mix compile
@@ -89,7 +89,10 @@ jobs:
             ${{ runner.os }}-build-${{ env.MIX_ENV }}-
 
       - name: Install dependencies
-        run: mix deps.get
+        run: mix deps.get --check-locked
+
+      - name: Check for unused dependencies in mix.lock
+        run: mix deps.unlock --check-unused
 
       - name: Compile
         run: mix compile
@@ -125,7 +128,7 @@ jobs:
             ${{ runner.os }}-mix-
 
       - name: Install dependencies
-        run: mix deps.get
+        run: mix deps.get --check-locked
 
       - name: Check dependency licenses
         run: |
