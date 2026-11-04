@@ -4,6 +4,9 @@ defmodule Dcmix.Parser.ExplicitVR do
 
   In Explicit VR encoding, each data element includes the VR as a 2-byte
   ASCII string. The length field is either 2 or 4 bytes depending on the VR.
+
+  A value whose length doesn't fit its VR, or a defined-length sequence whose
+  bytes aren't items, is kept as UN with its bytes.
   """
 
   alias Dcmix.{Tag, VR, DataElement, DataSet}
@@ -152,12 +155,20 @@ defmodule Dcmix.Parser.ExplicitVR do
   defp read_value(tag, vr, length, data, big_endian) when byte_size(data) >= length do
     <<value_bytes::binary-size(^length), rest::binary>> = data
 
-    if fits?(vr, length) do
-      value = decode_value(tag, vr, value_bytes, big_endian)
-      {:ok, DataElement.new(tag, vr, value, length), rest}
-    else
-      # A length that isn't a whole number of values: keep its bytes as UN
-      {:ok, DataElement.new(tag, :UN, value_bytes, length), rest}
+    cond do
+      vr == :SQ ->
+        case parse_sequence_defined(value_bytes, [], big_endian) do
+          {:ok, items} -> {:ok, DataElement.new(tag, vr, items, length), rest}
+          {:error, _} -> {:ok, DataElement.new(tag, :UN, value_bytes, length), rest}
+        end
+
+      fits?(vr, length) ->
+        {:ok, DataElement.new(tag, vr, decode_value(tag, vr, value_bytes, big_endian), length),
+         rest}
+
+      true ->
+        # A length that isn't a whole number of values: keep its bytes as UN
+        {:ok, DataElement.new(tag, :UN, value_bytes, length), rest}
     end
   end
 
@@ -205,6 +216,20 @@ defmodule Dcmix.Parser.ExplicitVR do
 
   defp handle_sequence_tag(tag, _rest, _items, _big_endian) do
     {:error, {:unexpected_tag_in_sequence, tag}}
+  end
+
+  # A defined-length sequence's bytes are all items.
+  defp parse_sequence_defined(<<>>, items, _big_endian), do: {:ok, Enum.reverse(items)}
+
+  defp parse_sequence_defined(data, items, big_endian) do
+    with {:ok, {0xFFFE, 0xE000}, rest} <- parse_tag(data, big_endian),
+         {:ok, length, rest} <- read_uint32(rest, big_endian),
+         {:ok, item_ds, rest} <- parse_item(length, rest, big_endian) do
+      parse_sequence_defined(rest, [item_ds | items], big_endian)
+    else
+      {:ok, tag, _rest} -> {:error, {:unexpected_tag_in_sequence, tag}}
+      {:error, _} = error -> error
+    end
   end
 
   defp parse_item(@undefined_length, data, big_endian) do
@@ -294,11 +319,6 @@ defmodule Dcmix.Parser.ExplicitVR do
   end
 
   defp extract_fragment(_length, _rest), do: {:error, :unexpected_eof}
-
-  defp decode_value(_tag, :SQ, _bytes, _big_endian) do
-    # SQ is handled separately with defined length
-    []
-  end
 
   # A LUT descriptor's first and third values are US whatever its VR.
   defp decode_value(tag, :SS, bytes, big_endian)
