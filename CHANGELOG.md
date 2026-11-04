@@ -7,6 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- `Dcmix.Dictionary.vrs/1` lists every VR PS3.6 gives a tag, the default
+  first, such as `[:US, :SS]` for Smallest Image Pixel Value. The dictionary
+  file writes them `US/SS`.
+
+### Fixed
+
+- In Implicit VR data, a tag PS3.6 gives more than one VR takes the one the
+  elements read before it decide, from its own data set or the nearest
+  enclosing one, as dcmtk and pydicom decide them. "US or SS" values, such as
+  Smallest Image Pixel Value or Pixel Padding Value, are SS when Pixel
+  Representation is 1, so a signed image's -1024 no longer reads as 64512.
+  LUT Data is OW unless its LUT Descriptor gives one entry. When nothing
+  decides, the tag takes the dictionary's VR, as before.
+- A LUT descriptor's first and third values read unsigned when its VR is SS,
+  in Implicit and Explicit VR alike.
+- A numeric value whose length isn't a whole number of values raised; it now
+  reads as UN with its bytes. A defined-length sequence whose bytes aren't
+  items read as an empty sequence; it now reads as UN with its bytes too.
+
 ## [0.6.0] - 2026-11-04
 
 ### Added
