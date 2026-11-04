@@ -102,17 +102,57 @@ defmodule Dcmix.Parser.DefinedLengthTest do
         assert %DataElement{vr: :SQ, value: []} = DataSet.get(ds, @anatomic_region_sequence)
         assert DataSet.get(ds, @study_description).value == "CT CHEST"
       end
+
+      test "skips delimiters and zero padding some encoders write in a defined-length sequence, #{endian} endian" do
+        item = defined_item(short(@code_value, "SH", "LUNG", @endian), @endian)
+        delimiter = fn e -> tag(0xFFFE, e, @endian) <> <<0::32>> end
+
+        for bytes <- [
+              item <> delimiter.(0xE00D),
+              item <> delimiter.(0xE0DD),
+              item <> <<0, 0>>,
+              item <> <<0::64>>,
+              item <> <<0::120>>
+            ] do
+          data =
+            sequence(@anatomic_region_sequence, bytes, @endian) <>
+              short(@study_description, "LO", "CT CHEST", @endian)
+
+          {:ok, ds, <<>>} = parse(data, @endian)
+
+          assert [region] = items(ds, @anatomic_region_sequence)
+          assert DataSet.get(region, @code_value).value == "LUNG"
+          assert DataSet.get(ds, @study_description).value == "CT CHEST"
+        end
+      end
+
+      test "reads each item between delimiters in a defined-length sequence, #{endian} endian" do
+        item = fn code -> defined_item(short(@code_value, "SH", code, @endian), @endian) end
+        delimiter = fn e -> tag(0xFFFE, e, @endian) <> <<0::32>> end
+
+        bytes =
+          item.("A ") <>
+            delimiter.(0xE00D) <> item.("B ") <> delimiter.(0xE00D) <> delimiter.(0xE0DD)
+
+        {:ok, ds, <<>>} = parse(sequence(@anatomic_region_sequence, bytes, @endian), @endian)
+
+        assert [a, b] = items(ds, @anatomic_region_sequence)
+        assert DataSet.get(a, @code_value).value == "A"
+        assert DataSet.get(b, @code_value).value == "B"
+      end
     end
 
     test "keeps a defined-length sequence it can't read as UN, with its bytes" do
       # Not an item; an item longer than the sequence; an item whose element
-      # runs past its end
+      # runs past its end; an item followed by bytes that aren't zero padding
       truncated = tag(0x0008, 0x0100, :big) <> "SH" <> uint(10, 16, :big) <> "AB"
 
       for {bytes, endian} <- [
             {<<1, 2, 3, 4>>, :little},
             {tag(0xFFFE, 0xE000, :little) <> uint(100, 32, :little), :little},
-            {defined_item(truncated, :big), :big}
+            {defined_item(truncated, :big), :big},
+            {defined_item(short(@code_value, "SH", "LUNG", :little), :little) <> <<1, 2>>,
+             :little}
           ] do
         data =
           sequence(@anatomic_region_sequence, bytes, endian) <>
@@ -165,6 +205,27 @@ defmodule Dcmix.Parser.DefinedLengthTest do
       assert DataSet.get(region, @code_value).value == "LUNG"
       assert [modifier_item] = items(region, @modifier_sequence)
       assert DataSet.get(modifier_item, @code_value).value == "LEFT"
+    end
+
+    test "skips delimiters and zero padding some encoders write in a defined-length sequence" do
+      element = fn {g, e}, v ->
+        <<g::16-little, e::16-little, byte_size(v)::32-little, v::binary>>
+      end
+
+      item = defined_item(element.(@code_value, "LUNG"), :little)
+      delimiter = fn e -> tag(0xFFFE, e, :little) <> <<0::32>> end
+
+      for bytes <- [
+            item <> delimiter.(0xE00D),
+            item <> delimiter.(0xE0DD),
+            item <> <<0, 0>>,
+            item <> <<0::64>>
+          ] do
+        {:ok, ds, <<>>} = ImplicitVR.parse(element.(@anatomic_region_sequence, bytes))
+
+        assert [region] = items(ds, @anatomic_region_sequence)
+        assert DataSet.get(region, @code_value).value == "LUNG"
+      end
     end
   end
 end

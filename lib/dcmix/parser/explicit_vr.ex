@@ -231,17 +231,30 @@ defmodule Dcmix.Parser.ExplicitVR do
     {:error, {:unexpected_tag_in_sequence, tag}}
   end
 
-  # A defined-length sequence's bytes are all items.
-  defp parse_sequence_defined(<<>>, items, _big_endian), do: {:ok, Enum.reverse(items)}
-
+  # A defined-length sequence's bytes are its items. Some encoders also write
+  # delimiters in one, or end it with zero padding.
   defp parse_sequence_defined(data, items, big_endian) do
-    with {:ok, {0xFFFE, 0xE000}, rest} <- parse_tag(data, big_endian),
-         {:ok, length, rest} <- read_uint32(rest, big_endian),
-         {:ok, item_ds, rest} <- parse_item(length, rest, big_endian) do
-      parse_sequence_defined(rest, [item_ds | items], big_endian)
-    else
-      {:ok, tag, _rest} -> {:error, {:unexpected_tag_in_sequence, tag}}
-      {:error, _} = error -> error
+    cond do
+      data == <<0::size(bit_size(data))>> -> {:ok, Enum.reverse(items)}
+      byte_size(data) < 8 -> {:error, :not_a_sequence}
+      true -> parse_sequence_entry(data, items, big_endian)
+    end
+  end
+
+  defp parse_sequence_entry(data, items, big_endian) do
+    case parse_tag(data, big_endian) do
+      {:ok, {0xFFFE, 0xE000}, rest} ->
+        with {:ok, length, rest} <- read_uint32(rest, big_endian),
+             {:ok, item_ds, rest} <- parse_item(length, rest, big_endian) do
+          parse_sequence_defined(rest, [item_ds | items], big_endian)
+        end
+
+      {:ok, {0xFFFE, delimiter}, <<_length::32, rest::binary>>}
+      when delimiter in [0xE00D, 0xE0DD] ->
+        parse_sequence_defined(rest, items, big_endian)
+
+      {:ok, tag, _rest} ->
+        {:error, {:unexpected_tag_in_sequence, tag}}
     end
   end
 

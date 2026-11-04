@@ -205,13 +205,18 @@ defmodule Dcmix.Parser.ImplicitVR do
     parse_sequence_items_defined(data, [], context)
   end
 
-  defp parse_sequence_items_defined(<<>>, items, _context) do
-    {:ok, Enum.reverse(items)}
-  end
-
+  # Some encoders end a defined-length sequence with zero padding.
   defp parse_sequence_items_defined(data, items, context) do
-    with {:ok, tag, rest} <- parse_tag(data) do
-      handle_seq_defined_tag(tag, rest, items, context)
+    cond do
+      data == <<0::size(bit_size(data))>> ->
+        {:ok, Enum.reverse(items)}
+
+      byte_size(data) < 8 ->
+        {:error, :not_a_sequence}
+
+      true ->
+        {:ok, tag, rest} = parse_tag(data)
+        handle_seq_defined_tag(tag, rest, items, context)
     end
   end
 
@@ -226,8 +231,10 @@ defmodule Dcmix.Parser.ImplicitVR do
     end
   end
 
-  defp handle_seq_defined_tag({0xFFFE, 0xE000}, _, _items, _context),
-    do: {:error, :unexpected_eof}
+  # Some encoders also write delimiters in a defined-length sequence.
+  defp handle_seq_defined_tag({0xFFFE, delimiter}, <<_length::32, rest::binary>>, items, context)
+       when delimiter in [0xE00D, 0xE0DD],
+       do: parse_sequence_items_defined(rest, items, context)
 
   defp handle_seq_defined_tag(_tag, _rest, _items, _context), do: {:error, :not_a_sequence}
 

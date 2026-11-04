@@ -15,6 +15,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   items, defined or undefined length and nested at any depth, now read as they
   do in an undefined-length sequence. One whose bytes aren't items reads as UN
   with its bytes, as in Implicit VR.
+- A defined-length sequence holding an Item or Sequence Delimitation Item, or
+  ending in zero padding, as some encoders write them, reads its items in
+  Implicit and Explicit VR alike.
 - An FL or FD value holding NaN or infinity raised, in Implicit and Explicit VR
   alike. Erlang floats can't hold them, so the value reads as UN with its
   bytes, which write back unchanged.
