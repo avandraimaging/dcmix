@@ -247,6 +247,43 @@ defmodule DcmixTest do
       assert is_binary(binary)
       assert byte_size(binary) > 0
     end
+
+    test "writes a value too long for its VR's 16-bit length as UN" do
+      # ContourData read from Implicit VR data: 80,000 bytes of DS
+      contour = Enum.map(1..10_000, fn _ -> 12.3456 end)
+      ds = DataSet.new([DataElement.new({0x3006, 0x0050}, :DS, contour)])
+
+      binary = Dcmix.Writer.ExplicitVR.encode(ds)
+
+      assert <<0x06, 0x30, 0x50, 0x00, "UN", 0::16, length::32-little, value::binary>> = binary
+      assert length == byte_size(value)
+      assert length > 0xFFFE
+
+      {:ok, parsed} = Dcmix.Parser.parse(binary)
+      assert %DataElement{vr: :UN, value: ^value} = DataSet.get(parsed, {0x3006, 0x0050})
+    end
+
+    test "writes that UN's length big endian and its value little endian, in Explicit VR Big Endian" do
+      contour = Enum.map(1..10_000, fn _ -> 12.3456 end)
+      ds = DataSet.new([DataElement.new({0x3006, 0x0050}, :DS, contour)])
+
+      <<_tag::binary-size(4), "UN", 0::16, _length::32-little, little::binary>> =
+        Dcmix.Writer.ExplicitVR.encode(ds)
+
+      assert <<0x30, 0x06, 0x00, 0x50, "UN", 0::16, length::32-big, value::binary>> =
+               Dcmix.Writer.ExplicitVR.encode(ds, big_endian: true)
+
+      assert length == byte_size(value)
+      assert value == little
+    end
+
+    test "keeps a VR's 16-bit length for the longest value that fits" do
+      value = String.duplicate("A", 0xFFFE)
+      ds = DataSet.new([DataElement.new({0x0010, 0x4000}, :LT, value)])
+
+      assert <<0x10, 0x00, 0x00, 0x40, "LT", 0xFFFE::16-little, _value::binary>> =
+               Dcmix.Writer.ExplicitVR.encode(ds)
+    end
   end
 
   describe "Writer" do
@@ -1698,6 +1735,40 @@ defmodule DcmixTest do
       {:ok, ds, rest} = ImplicitVR.parse(<<1, 2, 3, 4, 5, 6, 7>>)
       assert DataSet.size(ds) == 0
       assert rest == <<1, 2, 3, 4, 5, 6, 7>>
+    end
+
+    test "parses PS3.6's tags with their VRs, sequences and their items included" do
+      # PerFrameFunctionalGroupsSequence, an item with ImageLaterality and an
+      # AnatomicRegionSequence item with CodeValue and CodeMeaning
+      region =
+        DataSet.new([
+          DataElement.new({0x0008, 0x0100}, :SH, "T-D3000"),
+          DataElement.new({0x0008, 0x0104}, :LO, "CHEST")
+        ])
+
+      frame =
+        DataSet.new([
+          DataElement.new({0x0020, 0x0062}, :CS, "L"),
+          DataElement.new({0x0008, 0x2218}, :SQ, [region])
+        ])
+
+      ds = DataSet.new([DataElement.new({0x5200, 0x9230}, :SQ, [frame])])
+
+      {:ok, parsed, <<>>} = ds |> Dcmix.Writer.ImplicitVR.encode() |> ImplicitVR.parse()
+
+      assert %DataElement{vr: :SQ, value: [parsed_frame]} = DataSet.get(parsed, {0x5200, 0x9230})
+      assert %DataElement{vr: :CS, value: "L"} = DataSet.get(parsed_frame, {0x0020, 0x0062})
+
+      assert %DataElement{vr: :SQ, value: [parsed_region]} =
+               DataSet.get(parsed_frame, {0x0008, 0x2218})
+
+      assert %DataElement{vr: :SH, value: "T-D3000"} =
+               DataSet.get(parsed_region, {0x0008, 0x0100})
+
+      assert %DataElement{vr: :LO, value: "CHEST"} = DataSet.get(parsed_region, {0x0008, 0x0104})
+
+      {:ok, rewritten} = parsed |> Dcmix.Writer.ExplicitVR.encode() |> Dcmix.Parser.parse()
+      assert DataSet.to_list(rewritten) == DataSet.to_list(parsed)
     end
   end
 

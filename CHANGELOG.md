@@ -7,6 +7,45 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-11-04
+
+### Added
+
+- The dictionary is DICOM PS3.6's whole data dictionary (2026d), 5,303
+  entries where it had 488, retired and repeating-group entries included, so
+  tags such as Code Value, Code Meaning, Acquisition DateTime, Image Laterality
+  and the multi-frame and RT groups have their keywords and VRs. Entries PS3.6
+  gives no keyword are left out. `mise run dictionary` regenerates
+  `priv/dictionary/dicom.dic` from the current PS3.6
+  (`scripts/generate_dictionary.exs`).
+- `Dcmix.Dictionary.lookup/1` matches a repeating-group entry in any of its
+  even groups, so `(6002,3000)` is OverlayData.
+
+### Changed
+
+- An Implicit VR file's elements the dictionary lacked parsed as UN; they now
+  parse with their VRs, sequences included.
+- A tag PS3.6 gives more than one VR has the one Implicit VR data is read
+  with: OW for "OB or OW", otherwise the first VR listed, as fo-dicom reads
+  them.
+- The 11 tags whose VR is SV, UV or OV, which dcmix doesn't support yet, read
+  as UN, as they did before the dictionary knew them.
+
+### Fixed
+
+- The Template and HL7 tags at (0040,DB73)–(0040,DB80) have the numbers and
+  VRs PS3.6 gives: Template Version is (0040,DB06), HL7 Instance Identifier
+  (0040,E001), and (0040,DB73) is Referenced Content Item Identifier.
+- Image Rotation (0070,0042) is US, not DS.
+- The Explicit VR writer wrote a value too long for its VR's 16-bit length
+  with that length wrapped, corrupting the file. It now writes it as UN with a
+  32-bit length, as PS3.5 6.2.2 does; a value read from Implicit VR data, such
+  as a large Contour Data, can be that long.
+
+### Removed
+
+- The keyword `HL7DocumentReferenceDateTime`, which isn't in PS3.6.
+
 ## [0.5.0] - 2026-10-30
 
 ### Added
@@ -229,7 +268,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `mix dcmix.from_xml` - Create DICOM from XML
   - `mix dcmix.from_image` - Import pixel data from image
 
-[Unreleased]: https://github.com/avandraimaging/dcmix/compare/v0.5.0...HEAD
+[Unreleased]: https://github.com/avandraimaging/dcmix/compare/v0.6.0...HEAD
+[0.6.0]: https://github.com/avandraimaging/dcmix/compare/v0.5.0...v0.6.0
 [0.5.0]: https://github.com/avandraimaging/dcmix/compare/v0.4.2...v0.5.0
 [0.4.2]: https://github.com/avandraimaging/dcmix/compare/v0.4.1...v0.4.2
 [0.4.1]: https://github.com/avandraimaging/dcmix/compare/v0.4.0...v0.4.1

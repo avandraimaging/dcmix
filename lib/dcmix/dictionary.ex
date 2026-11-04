@@ -2,10 +2,18 @@ defmodule Dcmix.Dictionary do
   @moduledoc """
   DICOM Data Dictionary for looking up tag information.
 
-  The dictionary is loaded at compile time from `priv/dictionary/dicom.dic`.
-  It provides lookup by tag or keyword, returning information about the
-  element's name, VR, and value multiplicity.
+  The dictionary is loaded at compile time from `priv/dictionary/dicom.dic`,
+  which `scripts/generate_dictionary.exs` generates from the DICOM Standard's
+  data dictionary (PS3.6). It provides lookup by tag or keyword, returning
+  information about the element's name, VR, and value multiplicity.
+
+  Repeating-group entries such as the overlay group `60xx` match any tag their
+  pattern covers in an even group, so `(6002,3000)` is OverlayData. A tag PS3.6
+  gives more than one VR has the one implicit VR data is read with: OW for
+  "OB or OW", otherwise the first VR listed.
   """
+
+  import Bitwise
 
   alias Dcmix.Tag
 
@@ -42,9 +50,22 @@ defmodule Dcmix.Dictionary do
                           [] -> {"1", ""}
                         end
 
+                      # x matches any hex digit: the tag is the pattern with
+                      # each x as 0, the mask has 0 where each x is.
                       tag = {
-                        String.to_integer(group, 16),
-                        String.to_integer(element, 16)
+                        group |> String.replace("x", "0") |> String.to_integer(16),
+                        element |> String.replace("x", "0") |> String.to_integer(16)
+                      }
+
+                      mask = {
+                        group
+                        |> String.replace(~r/[^x]/, "F")
+                        |> String.replace("x", "0")
+                        |> String.to_integer(16),
+                        element
+                        |> String.replace(~r/[^x]/, "F")
+                        |> String.replace("x", "0")
+                        |> String.to_integer(16)
                       }
 
                       vr_atom =
@@ -53,13 +74,14 @@ defmodule Dcmix.Dictionary do
                           _ -> String.to_atom(vr)
                         end
 
-                      %{
-                        tag: tag,
-                        keyword: keyword,
-                        vr: vr_atom,
-                        vm: vm,
-                        description: description
-                      }
+                      {mask,
+                       %{
+                         tag: tag,
+                         keyword: keyword,
+                         vr: vr_atom,
+                         vm: vm,
+                         description: description
+                       }}
 
                     _ ->
                       nil
@@ -71,8 +93,11 @@ defmodule Dcmix.Dictionary do
                 []
             end)
 
-  @by_tag Map.new(@entries, fn e -> {e.tag, e} end)
-  @by_keyword Map.new(@entries, fn e -> {e.keyword, e} end)
+  # A mask of all ones is an exact tag; anything else, a repeating group.
+  @by_tag for {{0xFFFF, 0xFFFF}, e} <- @entries, into: %{}, do: {e.tag, e}
+  @repeating for {mask, e} <- @entries, mask != {0xFFFF, 0xFFFF}, do: {mask, e}
+  @by_keyword Map.new(@entries, fn {_mask, e} -> {e.keyword, e} end)
+  @all Enum.map(@entries, fn {_mask, e} -> e end)
 
   @doc """
   Looks up a dictionary entry by tag.
@@ -82,16 +107,32 @@ defmodule Dcmix.Dictionary do
       iex> Dcmix.Dictionary.lookup({0x0010, 0x0010})
       {:ok, %{tag: {0x0010, 0x0010}, keyword: "PatientName", vr: :PN, vm: "1", description: "Patient's Name"}}
 
+      iex> Dcmix.Dictionary.lookup({0x6002, 0x0010})
+      {:ok, %{tag: {0x6002, 0x0010}, keyword: "OverlayRows", vr: :US, vm: "1", description: "Overlay Rows"}}
+
       iex> Dcmix.Dictionary.lookup({0xFFFF, 0xFFFF})
       {:error, :not_found}
   """
   @spec lookup(Tag.t()) :: {:ok, entry()} | {:error, :not_found}
   def lookup(tag) do
     case Map.get(@by_tag, tag) do
-      nil -> {:error, :not_found}
+      nil -> lookup_repeating(tag)
       entry -> {:ok, entry}
     end
   end
+
+  # Repeating groups are even; an odd group is private.
+  defp lookup_repeating({group, element} = tag) when rem(group, 2) == 0 do
+    Enum.find_value(@repeating, {:error, :not_found}, fn {{group_mask, element_mask}, entry} ->
+      {pattern_group, pattern_element} = entry.tag
+
+      if band(group, group_mask) == pattern_group and
+           band(element, element_mask) == pattern_element,
+         do: {:ok, %{entry | tag: tag}}
+    end)
+  end
+
+  defp lookup_repeating(_tag), do: {:error, :not_found}
 
   @doc """
   Looks up a dictionary entry by tag, raising if not found.
@@ -105,7 +146,8 @@ defmodule Dcmix.Dictionary do
   end
 
   @doc """
-  Looks up a dictionary entry by keyword.
+  Looks up a dictionary entry by keyword. A repeating-group entry's tag is its
+  first group's, such as `(6000,0010)` for OverlayRows.
 
   ## Examples
 
@@ -179,11 +221,11 @@ defmodule Dcmix.Dictionary do
   Returns all dictionary entries.
   """
   @spec all() :: [entry()]
-  def all, do: @entries
+  def all, do: @all
 
   @doc """
   Returns the number of entries in the dictionary.
   """
   @spec size() :: non_neg_integer()
-  def size, do: length(@entries)
+  def size, do: length(@all)
 end

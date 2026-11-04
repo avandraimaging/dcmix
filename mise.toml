@@ -1,3 +1,7 @@
 [tools]
 elixir = "1.20.4"
 erlang = "29"
+
+[tasks.dictionary]
+description = "Regenerate priv/dictionary/dicom.dic from the current DICOM PS3.6"
+run = "elixir scripts/generate_dictionary.exs"
