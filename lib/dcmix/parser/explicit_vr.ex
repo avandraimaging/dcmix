@@ -5,7 +5,8 @@ defmodule Dcmix.Parser.ExplicitVR do
   In Explicit VR encoding, each data element includes the VR as a 2-byte
   ASCII string. The length field is either 2 or 4 bytes depending on the VR.
 
-  A value whose length doesn't fit its VR, or a defined-length sequence whose
+  A value whose length doesn't fit its VR, an FL or FD value holding NaN or
+  infinity (which Erlang floats can't hold), or a defined-length sequence whose
   bytes aren't items, is kept as UN with its bytes.
   """
 
@@ -162,12 +163,12 @@ defmodule Dcmix.Parser.ExplicitVR do
           {:error, _} -> {:ok, DataElement.new(tag, :UN, value_bytes, length), rest}
         end
 
-      fits?(vr, length) ->
+      readable?(vr, value_bytes, big_endian) ->
         {:ok, DataElement.new(tag, vr, decode_value(tag, vr, value_bytes, big_endian), length),
          rest}
 
       true ->
-        # A length that isn't a whole number of values: keep its bytes as UN
+        # Not whole values, or a NaN or infinity: keep its bytes as UN
         {:ok, DataElement.new(tag, :UN, value_bytes, length), rest}
     end
   end
@@ -176,12 +177,24 @@ defmodule Dcmix.Parser.ExplicitVR do
     {:error, :unexpected_eof}
   end
 
-  defp fits?(vr, length) do
+  defp readable?(vr, bytes, big_endian) do
     case Map.fetch(@value_sizes, vr) do
-      {:ok, size} -> rem(length, size) == 0
+      {:ok, size} -> rem(byte_size(bytes), size) == 0 and finite?(vr, bytes, size, big_endian)
       :error -> true
     end
   end
+
+  # Erlang floats have no NaN or infinity.
+  defp finite?(vr, bytes, size, big_endian) when vr in [:FL, :FD] do
+    for(<<value::binary-size(^size) <- bytes>>, do: value)
+    |> Enum.all?(fn
+      <<_::float-size(^size)-unit(8)-big>> when big_endian -> true
+      <<_::float-size(^size)-unit(8)-little>> when not big_endian -> true
+      _ -> false
+    end)
+  end
+
+  defp finite?(_vr, _bytes, _size, _big_endian), do: true
 
   defp parse_sequence(tag, vr, data, big_endian) do
     case parse_sequence_items(data, [], big_endian) do

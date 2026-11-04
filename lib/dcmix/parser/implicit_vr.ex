@@ -20,7 +20,8 @@ defmodule Dcmix.Parser.ImplicitVR do
   When nothing decides, the tag takes the dictionary's `vr`; the retired
   GrayLookupTableData ("US or SS or OW") goes by PixelRepresentation too. A LUT descriptor's
   first and third values are always unsigned. A value whose length doesn't fit
-  its VR, or a defined-length sequence whose bytes aren't items, is kept as UN
+  its VR, an FL or FD value holding NaN or infinity (which Erlang floats can't
+  hold), or a defined-length sequence whose bytes aren't items, is kept as UN
   with its bytes.
   """
 
@@ -140,7 +141,7 @@ defmodule Dcmix.Parser.ImplicitVR do
           {:error, _} -> {:ok, DataElement.new(tag, :UN, value_bytes, length), rest}
         end
 
-      not fits?(vr, length) ->
+      not readable?(vr, value_bytes) ->
         {:ok, DataElement.new(tag, :UN, value_bytes, length), rest}
 
       true ->
@@ -152,12 +153,20 @@ defmodule Dcmix.Parser.ImplicitVR do
     {:error, :unexpected_eof}
   end
 
-  defp fits?(vr, length) do
+  defp readable?(vr, bytes) do
     case Map.fetch(@value_sizes, vr) do
-      {:ok, size} -> rem(length, size) == 0
+      {:ok, size} -> rem(byte_size(bytes), size) == 0 and finite?(vr, bytes, size)
       :error -> true
     end
   end
+
+  # Erlang floats have no NaN or infinity.
+  defp finite?(vr, bytes, size) when vr in [:FL, :FD] do
+    for(<<value::binary-size(^size) <- bytes>>, do: value)
+    |> Enum.all?(&match?(<<_::float-size(^size)-unit(8)-little>>, &1))
+  end
+
+  defp finite?(_vr, _bytes, _size), do: true
 
   defp parse_sequence(tag, vr, data, context) do
     case parse_sequence_items(data, [], context) do
