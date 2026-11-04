@@ -6,6 +6,7 @@ defmodule Dcmix.Writer.ExplicitVR do
   alias Dcmix.{Tag, VR, DataElement, DataSet}
 
   @undefined_length 0xFFFFFFFF
+  @max_short_length 0xFFFE
 
   @doc """
   Encodes data elements to binary using Explicit VR encoding.
@@ -42,23 +43,37 @@ defmodule Dcmix.Writer.ExplicitVR do
         value_bytes = encode_value(vr, value, big_endian)
         length = byte_size(value_bytes)
 
-        if VR.long_length?(vr) do
-          [
-            tag_bytes,
-            Atom.to_string(vr),
-            <<0::16>>,
-            encode_uint32(length, big_endian),
-            value_bytes
-          ]
-        else
-          [
-            tag_bytes,
-            Atom.to_string(vr),
-            encode_uint16(length, big_endian),
-            value_bytes
-          ]
+        cond do
+          VR.long_length?(vr) ->
+            long_element(tag_bytes, vr, value_bytes, big_endian)
+
+          # Too long for a 16-bit length, as a value read from Implicit VR data
+          # can be: PS3.5 6.2.2 writes it as UN, holding its Little Endian bytes.
+          length > @max_short_length ->
+            long_element(
+              tag_bytes,
+              :UN,
+              little_endian(vr, value, value_bytes, big_endian),
+              big_endian
+            )
+
+          true ->
+            [tag_bytes, Atom.to_string(vr), encode_uint16(length, big_endian), value_bytes]
         end
     end
+  end
+
+  defp little_endian(_vr, _value, value_bytes, false), do: value_bytes
+  defp little_endian(vr, value, _value_bytes, true), do: encode_value(vr, value, false)
+
+  defp long_element(tag_bytes, vr, value_bytes, big_endian) do
+    [
+      tag_bytes,
+      Atom.to_string(vr),
+      <<0::16>>,
+      encode_uint32(byte_size(value_bytes), big_endian),
+      value_bytes
+    ]
   end
 
   defp encode_sequence(tag, vr, items, big_endian) when is_list(items) do

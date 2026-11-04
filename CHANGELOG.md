@@ -35,6 +35,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   VRs PS3.6 gives: Template Version is (0040,DB06), HL7 Instance Identifier
   (0040,E001), and (0040,DB73) is Referenced Content Item Identifier.
 - Image Rotation (0070,0042) is US, not DS.
+- The Explicit VR writer wrote a value too long for its VR's 16-bit length
+  with that length wrapped, corrupting the file. It now writes it as UN with a
+  32-bit length, as PS3.5 6.2.2 does; a value read from Implicit VR data, such
+  as a large Contour Data, can be that long.
 
 ### Removed
 

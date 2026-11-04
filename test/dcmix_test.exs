@@ -247,6 +247,43 @@ defmodule DcmixTest do
       assert is_binary(binary)
       assert byte_size(binary) > 0
     end
+
+    test "writes a value too long for its VR's 16-bit length as UN" do
+      # ContourData read from Implicit VR data: 80,000 bytes of DS
+      contour = Enum.map(1..10_000, fn _ -> 12.3456 end)
+      ds = DataSet.new([DataElement.new({0x3006, 0x0050}, :DS, contour)])
+
+      binary = Dcmix.Writer.ExplicitVR.encode(ds)
+
+      assert <<0x06, 0x30, 0x50, 0x00, "UN", 0::16, length::32-little, value::binary>> = binary
+      assert length == byte_size(value)
+      assert length > 0xFFFE
+
+      {:ok, parsed} = Dcmix.Parser.parse(binary)
+      assert %DataElement{vr: :UN, value: ^value} = DataSet.get(parsed, {0x3006, 0x0050})
+    end
+
+    test "writes that UN's length big endian and its value little endian, in Explicit VR Big Endian" do
+      contour = Enum.map(1..10_000, fn _ -> 12.3456 end)
+      ds = DataSet.new([DataElement.new({0x3006, 0x0050}, :DS, contour)])
+
+      <<_tag::binary-size(4), "UN", 0::16, _length::32-little, little::binary>> =
+        Dcmix.Writer.ExplicitVR.encode(ds)
+
+      assert <<0x30, 0x06, 0x00, 0x50, "UN", 0::16, length::32-big, value::binary>> =
+               Dcmix.Writer.ExplicitVR.encode(ds, big_endian: true)
+
+      assert length == byte_size(value)
+      assert value == little
+    end
+
+    test "keeps a VR's 16-bit length for the longest value that fits" do
+      value = String.duplicate("A", 0xFFFE)
+      ds = DataSet.new([DataElement.new({0x0010, 0x4000}, :LT, value)])
+
+      assert <<0x10, 0x00, 0x00, 0x40, "LT", 0xFFFE::16-little, _value::binary>> =
+               Dcmix.Writer.ExplicitVR.encode(ds)
+    end
   end
 
   describe "Writer" do
