@@ -1699,6 +1699,40 @@ defmodule DcmixTest do
       assert DataSet.size(ds) == 0
       assert rest == <<1, 2, 3, 4, 5, 6, 7>>
     end
+
+    test "parses PS3.6's tags with their VRs, sequences and their items included" do
+      # PerFrameFunctionalGroupsSequence, an item with ImageLaterality and an
+      # AnatomicRegionSequence item with CodeValue and CodeMeaning
+      region =
+        DataSet.new([
+          DataElement.new({0x0008, 0x0100}, :SH, "T-D3000"),
+          DataElement.new({0x0008, 0x0104}, :LO, "CHEST")
+        ])
+
+      frame =
+        DataSet.new([
+          DataElement.new({0x0020, 0x0062}, :CS, "L"),
+          DataElement.new({0x0008, 0x2218}, :SQ, [region])
+        ])
+
+      ds = DataSet.new([DataElement.new({0x5200, 0x9230}, :SQ, [frame])])
+
+      {:ok, parsed, <<>>} = ds |> Dcmix.Writer.ImplicitVR.encode() |> ImplicitVR.parse()
+
+      assert %DataElement{vr: :SQ, value: [parsed_frame]} = DataSet.get(parsed, {0x5200, 0x9230})
+      assert %DataElement{vr: :CS, value: "L"} = DataSet.get(parsed_frame, {0x0020, 0x0062})
+
+      assert %DataElement{vr: :SQ, value: [parsed_region]} =
+               DataSet.get(parsed_frame, {0x0008, 0x2218})
+
+      assert %DataElement{vr: :SH, value: "T-D3000"} =
+               DataSet.get(parsed_region, {0x0008, 0x0100})
+
+      assert %DataElement{vr: :LO, value: "CHEST"} = DataSet.get(parsed_region, {0x0008, 0x0104})
+
+      {:ok, rewritten} = parsed |> Dcmix.Writer.ExplicitVR.encode() |> Dcmix.Parser.parse()
+      assert DataSet.to_list(rewritten) == DataSet.to_list(parsed)
+    end
   end
 
   describe "VR comprehensive" do

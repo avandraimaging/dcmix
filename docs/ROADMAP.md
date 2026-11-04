@@ -14,7 +14,7 @@ Dcmix aims to bring comprehensive DICOM support to Elixir, inspired by [dcmtk](h
 | **XML Export** | Native DICOM Model (PS3.19) | Complete |
 | **Text Dump** | Human-readable output (dcmdump style) | Complete |
 | **Private Tags** | Read/write vendor private data elements | Complete |
-| **Data Dictionary** | Standard DICOM tags and VRs | Complete |
+| **Data Dictionary** | Every tag in DICOM PS3.6, generated from the standard (`mise run dictionary`) | Complete |
 | **CLI Tools** | `dcmix.dump`, `dcmix.to_json`, `dcmix.to_xml`, `dcmix.to_image` | Complete |
 | **Image Export** | Export pixel data to PNG, PPM, PGM image files | Complete |
 | **Multi-frame Export** | Export all frames to separate image files | Complete |
@@ -41,6 +41,7 @@ Dcmix aims to bring comprehensive DICOM support to Elixir, inspired by [dcmtk](h
 | **Compressed transfer syntaxes over the network** | Accept JPEG / JPEG 2000 / RLE storage contexts in C-GET (pairs with Pixel Data Decompression) | Medium |
 | **DICOMDIR (read)** | Read media directory files (writing is complete) | Medium |
 | **Anonymization** | De-identify patient data | Medium |
+| **64-bit VRs** | SV, UV and OV; until then their 11 tags, such as Extended Offset Table, read as UN | Low |
 | **C-GET options parity** | Configurable GET-context transfer syntaxes; patient/study-only query model (getscu `-O`) | Low |
 | **Network timeouts and TLS** | Separate association and DIMSE timeouts; DICOM TLS | Low |
 | **Listener access control** | Accept only known calling AE titles; optionally accept any called AE title | Low |
