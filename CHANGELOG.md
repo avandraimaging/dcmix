@@ -7,6 +7,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.6.3] - 2026-11-05
+
+### Added
+
+- `Dcmix.Network.StorageSOPClasses.accepted_uids/0`: the Storage SOP Classes
+  a Storage SCP accepts by default, `uids/0` and every SR Storage SOP Class.
+- `Dcmix.Network.SOPClassUID` has a function for each of those classes, named
+  for its PS3.6 keyword in snake case, such as
+  `key_object_selection_document_storage/0`.
+- `Dcmix.Network.StorageSOPClasses.classes/0` pairs each with its PS3.6
+  keyword, and `keyword/1` gives a class's keyword from its UID.
+
+### Fixed
+
+- A listener's Storage SCP rejected Extensible SR, the newer SR Storage SOP
+  Classes (Radiopharmaceutical Radiation Dose, Acquisition Context, Simplified
+  Adult Echo, Patient Radiation Dose, Planned and Performed Imaging Agent
+  Administration, Enhanced X-Ray Radiation Dose, Waveform Annotation) and the
+  four retired trial SR classes, which the 120 classes proposed for C-GET
+  leave out. It accepts them by default
+  now; C-GET proposes the same 120 as before.
+
 ## [0.6.2] - 2026-11-04
 
 ### Fixed
@@ -306,7 +328,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `mix dcmix.from_xml` - Create DICOM from XML
   - `mix dcmix.from_image` - Import pixel data from image
 
-[Unreleased]: https://github.com/avandraimaging/dcmix/compare/v0.6.2...HEAD
+[Unreleased]: https://github.com/avandraimaging/dcmix/compare/v0.6.3...HEAD
+[0.6.3]: https://github.com/avandraimaging/dcmix/compare/v0.6.2...v0.6.3
 [0.6.2]: https://github.com/avandraimaging/dcmix/compare/v0.6.1...v0.6.2
 [0.6.1]: https://github.com/avandraimaging/dcmix/compare/v0.6.0...v0.6.1
 [0.6.0]: https://github.com/avandraimaging/dcmix/compare/v0.5.0...v0.6.0

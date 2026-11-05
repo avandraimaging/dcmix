@@ -41,7 +41,7 @@ if Code.ensure_loaded?(ThousandIsland) do
     - `:storage_directory` - where instances are written, created if missing
       (required with `:handler`)
     - `:storage_sop_classes` - Storage SOP Classes accepted (default:
-      `Dcmix.Network.StorageSOPClasses.uids/0`)
+      `Dcmix.Network.StorageSOPClasses.accepted_uids/0`)
     - `:storage_transfer_syntaxes` - transfer syntaxes accepted for them,
       compressed ones included, taken as sent (default: every transfer
       syntax in `Dcmix.Parser.TransferSyntax.all/0`)
