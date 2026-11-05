@@ -4,6 +4,10 @@ defmodule Dcmix.Parser.ExplicitVR do
 
   In Explicit VR encoding, each data element includes the VR as a 2-byte
   ASCII string. The length field is either 2 or 4 bytes depending on the VR.
+
+  A value whose length doesn't fit its VR, an FL or FD value holding NaN or
+  infinity (which Erlang floats can't hold), or a defined-length sequence whose
+  bytes aren't items, is kept as UN with its bytes.
   """
 
   alias Dcmix.{Tag, VR, DataElement, DataSet}
@@ -152,12 +156,20 @@ defmodule Dcmix.Parser.ExplicitVR do
   defp read_value(tag, vr, length, data, big_endian) when byte_size(data) >= length do
     <<value_bytes::binary-size(^length), rest::binary>> = data
 
-    if fits?(vr, length) do
-      value = decode_value(tag, vr, value_bytes, big_endian)
-      {:ok, DataElement.new(tag, vr, value, length), rest}
-    else
-      # A length that isn't a whole number of values: keep its bytes as UN
-      {:ok, DataElement.new(tag, :UN, value_bytes, length), rest}
+    cond do
+      vr == :SQ ->
+        case parse_sequence_defined(value_bytes, [], big_endian) do
+          {:ok, items} -> {:ok, DataElement.new(tag, vr, items, length), rest}
+          {:error, _} -> {:ok, DataElement.new(tag, :UN, value_bytes, length), rest}
+        end
+
+      readable?(vr, value_bytes, big_endian) ->
+        {:ok, DataElement.new(tag, vr, decode_value(tag, vr, value_bytes, big_endian), length),
+         rest}
+
+      true ->
+        # Not whole values, or a NaN or infinity: keep its bytes as UN
+        {:ok, DataElement.new(tag, :UN, value_bytes, length), rest}
     end
   end
 
@@ -165,12 +177,24 @@ defmodule Dcmix.Parser.ExplicitVR do
     {:error, :unexpected_eof}
   end
 
-  defp fits?(vr, length) do
+  defp readable?(vr, bytes, big_endian) do
     case Map.fetch(@value_sizes, vr) do
-      {:ok, size} -> rem(length, size) == 0
+      {:ok, size} -> rem(byte_size(bytes), size) == 0 and finite?(vr, bytes, size, big_endian)
       :error -> true
     end
   end
+
+  # Erlang floats have no NaN or infinity.
+  defp finite?(vr, bytes, size, big_endian) when vr in [:FL, :FD] do
+    for(<<value::binary-size(^size) <- bytes>>, do: value)
+    |> Enum.all?(fn
+      <<_::float-size(^size)-unit(8)-big>> when big_endian -> true
+      <<_::float-size(^size)-unit(8)-little>> when not big_endian -> true
+      _ -> false
+    end)
+  end
+
+  defp finite?(_vr, _bytes, _size, _big_endian), do: true
 
   defp parse_sequence(tag, vr, data, big_endian) do
     case parse_sequence_items(data, [], big_endian) do
@@ -205,6 +229,33 @@ defmodule Dcmix.Parser.ExplicitVR do
 
   defp handle_sequence_tag(tag, _rest, _items, _big_endian) do
     {:error, {:unexpected_tag_in_sequence, tag}}
+  end
+
+  # A defined-length sequence's bytes are its items. Some encoders also write
+  # delimiters in one, or end it with zero padding.
+  defp parse_sequence_defined(data, items, big_endian) do
+    cond do
+      data == <<0::size(bit_size(data))>> -> {:ok, Enum.reverse(items)}
+      byte_size(data) < 8 -> {:error, :not_a_sequence}
+      true -> parse_sequence_entry(data, items, big_endian)
+    end
+  end
+
+  defp parse_sequence_entry(data, items, big_endian) do
+    case parse_tag(data, big_endian) do
+      {:ok, {0xFFFE, 0xE000}, rest} ->
+        with {:ok, length, rest} <- read_uint32(rest, big_endian),
+             {:ok, item_ds, rest} <- parse_item(length, rest, big_endian) do
+          parse_sequence_defined(rest, [item_ds | items], big_endian)
+        end
+
+      {:ok, {0xFFFE, delimiter}, <<_length::32, rest::binary>>}
+      when delimiter in [0xE00D, 0xE0DD] ->
+        parse_sequence_defined(rest, items, big_endian)
+
+      {:ok, tag, _rest} ->
+        {:error, {:unexpected_tag_in_sequence, tag}}
+    end
   end
 
   defp parse_item(@undefined_length, data, big_endian) do
@@ -294,11 +345,6 @@ defmodule Dcmix.Parser.ExplicitVR do
   end
 
   defp extract_fragment(_length, _rest), do: {:error, :unexpected_eof}
-
-  defp decode_value(_tag, :SQ, _bytes, _big_endian) do
-    # SQ is handled separately with defined length
-    []
-  end
 
   # A LUT descriptor's first and third values are US whatever its VR.
   defp decode_value(tag, :SS, bytes, big_endian)
