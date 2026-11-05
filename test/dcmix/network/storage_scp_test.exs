@@ -15,6 +15,13 @@ defmodule Dcmix.Network.StorageSCPTest do
   @ct_image_storage "1.2.840.10008.5.1.4.1.1.2"
   @mr_image_storage "1.2.840.10008.5.1.4.1.1.4"
 
+  # Every SR Storage SOP Class in PS3.6, the retired trials and Key Object
+  # Selection among them
+  @sr_storage Enum.map(
+                ~w(1 2 3 4 11 22 33 34 35 40 50 59 65 67 68 69 70 71 72 73 74 75 76 77),
+                &"1.2.840.10008.5.1.4.1.1.88.#{&1}"
+              )
+
   defmodule Handler do
     @moduledoc false
     @behaviour Dcmix.Network.SCP.Handler
@@ -360,6 +367,16 @@ defmodule Dcmix.Network.StorageSCPTest do
 
       Association.release(assoc)
       refute File.exists?(dir)
+    end
+
+    test "accepts every SR Storage SOP Class by default", %{dir: dir} do
+      addr = start_listener(dir)
+      {:ok, assoc} = open(addr, Enum.map(@sr_storage, &%{ct_context() | abstract_syntax: &1}))
+
+      assert Enum.all?(assoc.presentation_contexts, &(&1.result == ContextResult.acceptance()))
+      assert length(assoc.presentation_contexts) == length(@sr_storage)
+
+      Association.release(assoc)
     end
 
     test "accepts only the Storage SOP Classes given", %{dir: dir} do

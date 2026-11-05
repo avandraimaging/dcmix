@@ -1,7 +1,7 @@
 defmodule Dcmix.Network.ConstantsTest do
   use ExUnit.Case, async: true
 
-  alias Dcmix.Network.{ApplicationContext, SOPClassUID}
+  alias Dcmix.Network.{ApplicationContext, SOPClassUID, StorageSOPClasses}
 
   require Dcmix.Network.DIMSE.CommandField, as: CommandField
   require Dcmix.Network.DIMSE.Status, as: Status
@@ -20,6 +20,31 @@ defmodule Dcmix.Network.ConstantsTest do
     assert SOPClassUID.study_root_query_retrieve_find() == "1.2.840.10008.5.1.4.1.2.2.1"
     assert SOPClassUID.study_root_query_retrieve_move() == "1.2.840.10008.5.1.4.1.2.2.2"
     assert SOPClassUID.study_root_query_retrieve_get() == "1.2.840.10008.5.1.4.1.2.2.3"
+  end
+
+  test "each Storage SOP Class has a function named for its PS3.6 keyword" do
+    assert SOPClassUID.key_object_selection_document_storage() == "1.2.840.10008.5.1.4.1.1.88.59"
+    assert SOPClassUID.basic_text_sr_storage() == "1.2.840.10008.5.1.4.1.1.88.11"
+    assert SOPClassUID.ct_image_storage() == "1.2.840.10008.5.1.4.1.1.2"
+    assert SOPClassUID.comprehensive_3d_sr_storage() == "1.2.840.10008.5.1.4.1.1.88.34"
+    assert SOPClassUID.x_ray_3d_angiographic_image_storage() == "1.2.840.10008.5.1.4.1.1.13.1.1"
+
+    assert SOPClassUID.ophthalmic_photography_16_bit_image_storage() ==
+             "1.2.840.10008.5.1.4.1.1.77.1.5.2"
+
+    assert SOPClassUID.chest_cad_sr_storage() == "1.2.840.10008.5.1.4.1.1.88.65"
+    assert SOPClassUID.colon_cad_sr_storage() == "1.2.840.10008.5.1.4.1.1.88.69"
+    assert SOPClassUID.mammography_cad_sr_storage() == "1.2.840.10008.5.1.4.1.1.88.50"
+    assert SOPClassUID.standalone_voi_lut_storage() == "1.2.840.10008.5.1.4.1.1.11"
+
+    assert SOPClassUID.xa_xrf_grayscale_softcopy_presentation_state_storage() ==
+             "1.2.840.10008.5.1.4.1.1.11.5"
+
+    for {_keyword, uid} <- StorageSOPClasses.classes() do
+      assert Enum.count(SOPClassUID.__info__(:functions), fn {name, 0} ->
+               apply(SOPClassUID, name, []) == uid
+             end) == 1
+    end
   end
 
   test "command fields match PS3.7 E.1" do

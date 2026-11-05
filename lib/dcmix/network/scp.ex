@@ -56,7 +56,7 @@ defmodule Dcmix.Network.SCP do
   - `:storage_directory` - where instances are written (required with
     `:handler`)
   - `:storage_sop_classes` - Storage SOP Classes accepted (default:
-    `Dcmix.Network.StorageSOPClasses.uids/0`)
+    `Dcmix.Network.StorageSOPClasses.accepted_uids/0`)
   - `:storage_transfer_syntaxes` - transfer syntaxes accepted for them,
     compressed ones included, taken as sent (default: every transfer syntax
     in `Dcmix.Parser.TransferSyntax.all/0`)
@@ -121,7 +121,7 @@ defmodule Dcmix.Network.SCP do
       end)
 
     opts
-    |> Keyword.get(:storage_sop_classes, StorageSOPClasses.uids())
+    |> Keyword.get(:storage_sop_classes, StorageSOPClasses.accepted_uids())
     |> Map.new(&{&1, transfer_syntaxes})
   end
 
